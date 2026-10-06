@@ -526,3 +526,12 @@ th,.rb-h,.at-col,.rb-v::before{font:600 var(--t-2xs)/1.3 var(--body);letter-spac
 .tb-av{background:#D9EADB;color:#1B3324}   /* iniciais: mesma cor nos dois temas (letra escura sobre fundo claro) */
 .fin-t small{display:block;margin-top:4px}
 .rg .ax{font-weight:500}
+
+/* degrau a mais na escala, só para a chamada da tela de entrada (lado da marca): é a única frase institucional do sistema */
+:root{--t-hero:clamp(40px,5.6vw,68px)}
+.ent-h{font-size:var(--t-hero);font-weight:700;line-height:1.05;letter-spacing:-.025em;max-width:13ch}
+.ent-s{font-size:var(--t-2xl);font-weight:500;line-height:1.3}
+.ent-d{font-size:var(--t-xl);line-height:1.5;max-width:44ch}
+.ent-marca b{font-size:var(--t-3xl)} .ent-marca span{font-size:var(--t-lg)}
+.ent-uf span{font-size:var(--t-lg)} .ent-uf i{font-size:var(--t-sm)}
+.ent-m .eyebrow{margin-top:10px}
