@@ -93,6 +93,27 @@
   }
   const soma = (F, k) => F.reduce((s, r) => s + r[k], 0);
 
+  /* ---------- ritmo do gasto: acumulado mês a mês (previsto do plano de desembolso x pago x recebido) ---------- */
+  const mesDe = (i) => { const d = pd(D.DESEMBOLSO.inicio); return new Date(d.getFullYear(), d.getMonth() + i, 1); };   // i = 0 é ago/2026
+  const chaveMes = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  const desembolsoMensal = () => D.DESEMBOLSO.itens[0].m.map((_, i) => Math.round(D.DESEMBOLSO.itens.reduce((s, it) => s + it.m[i], 0) * 100) / 100);
+  function ritmo(db, hoje) {
+    hoje = hoje || new Date(); const mensal = desembolsoMensal(), n = mensal.length, hj = iso(hoje);
+    const noMes = (lista, campo, k) => lista.filter(x => String(x[campo] || '').slice(0, 7) === k).reduce((s, x) => s + (+x.valor || 0), 0);
+    const pagos = db.despesas.filter(d => d.status === 'Pago' && d.data <= hj), recebidas = D.PARCELAS.filter(p => p.recebida && p.data <= hj);
+    // parcela ou despesa com data anterior ao primeiro mês do plano entra no primeiro mês (não some do acumulado)
+    const k0 = chaveMes(mesDe(0)); const antes = (lista) => lista.filter(x => String(x.data).slice(0, 7) < k0).reduce((s, x) => s + (+x.valor || 0), 0);
+    let ap = 0, ae = antes(pagos), ar = antes(recebidas); const pontos = [];
+    for (let i = 0; i < n; i++) {
+      const d = mesDe(i), k = chaveMes(d), passou = k <= hj.slice(0, 7);
+      ap += mensal[i]; if (passou) { ae += noMes(pagos, 'data', k); ar += noMes(recebidas, 'data', k); }
+      pontos.push({ mes: k, rotulo: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2), previsto: Math.round(ap * 100) / 100, executado: passou ? ae : null, recebido: passou ? ar : null, atual: k === hj.slice(0, 7) });
+    }
+    return { pontos, total: Math.round(ap * 100) / 100, tempo: tempoDecorrido(hoje) };
+  }
+  /* quanto da vigência já passou (0 a 1) */
+  function tempoDecorrido(hoje) { const a = pd(D.VIGENCIA.ini), b = pd(D.VIGENCIA.fim); return Math.max(0, Math.min(1, ((hoje || new Date()) - a) / (b - a))); }
+
   /* ---------- o que precisa de atenção (painel) ---------- */
   const brl = v => 'R$ ' + n(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dt = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
@@ -201,5 +222,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    recebido, previstoMeta, fin, finRubrica, soma, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    recebido, previstoMeta, fin, finRubrica, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
