@@ -22,7 +22,7 @@ const medir = () => {
     const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return; const st = getComputedStyle(el); if (st.visibility === 'hidden' || st.display === 'none' || +st.opacity === 0) return;
     if (el.closest('[hidden]') || (raiz === document.body && el.closest('dialog'))) return;
     let px = parseFloat(st.fontSize); const sv = el.closest('svg'); if (sv && sv.viewBox && sv.viewBox.baseVal.width) px = px * sv.getBoundingClientRect().width / sv.viewBox.baseVal.width;
-    const naEscala = ESCALA.some(v => Math.abs(v - px) < 0.35) || (el.closest('h1') && px >= 25.7 && px <= 34.3);
+    const naEscala = ESCALA.some(v => Math.abs(v - px) < 0.35) || (el.closest('h1') && px >= 25.7 && px <= 34.3) || (el.closest('.ent-h') && px >= 39.7 && px <= 68.3)   /* --t-hero: só a chamada da entrada */;
     if (px < 11.7) prob.push('MENOR QUE 12: ' + px.toFixed(1) + 'px ' + quem(el)); else if (!naEscala) prob.push('FORA DA ESCALA: ' + px.toFixed(1) + 'px ' + quem(el));
     const fam = st.fontFamily.split(',')[0].replace(/["']/g, '').trim(), marca = el.matches('.marca-nome, .ent-marca b, .pe-m b');
     if (marca ? fam !== 'Lora' : fam !== 'Manrope') prob.push('FONTE ' + fam + ': ' + quem(el));
