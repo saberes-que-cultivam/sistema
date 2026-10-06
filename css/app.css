@@ -615,3 +615,5 @@ ul.ent-uf i{width:24px;height:24px;font:700 var(--t-2xs)/1 var(--body);font-styl
   .ent-s{font-size:var(--t-xl)} .ac-cab .ent-t{font-size:var(--t-2xl)}
 }
 @media (prefers-reduced-motion:reduce){.sg button,.bt,.bt .seta,.cp-olho,#auth .cp input{transition:none}.bt:hover .seta{transform:none}.bt:active{transform:none}}
+/* opção do seletor com o foco do teclado mas ainda não escolhida: fundo verde-claro (Enter ou Espaço escolhe) */
+.sg button[aria-selected="false"]:focus-visible{background:var(--accent-soft);color:var(--txt-1)}
