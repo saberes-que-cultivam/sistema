@@ -133,6 +133,26 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     }
   }
 
+  /* ---------- execução física do projeto (número grande do painel) ----------
+     Cada etapa pesa o valor que o plano de trabalho destina a ela (quantidade x valor unitário); não é média simples.
+     "Previsto" = quanto da etapa já deveria estar feito até o fim do mês passado, distribuído por igual na janela da etapa. */
+  const mesesEntre = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
+  function previstoEtapa(e, hoje) {
+    const ini = pd(e.ini), total = mesesEntre(ini, pd(e.fim)) + 1;
+    return Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth(), 1)) / total));
+  }
+  function execucaoGeral(db, hoje) {
+    hoje = hoje || new Date();
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e) / e.q), prev: previstoEtapa(e, hoje) }));
+    const tot = linhas.reduce((s, x) => s + x.valor, 0);
+    const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
+    const st = real >= 99.5 ? 'concluida' : real >= prev ? 'andamento' : real >= prev * 0.7 ? 'atencao' : 'atrasada';
+    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100 }; });
+    const meses = mesesEntre(pd(D.G0), pd(D.G1)), mes = Math.max(1, Math.min(meses, mesesEntre(pd(D.G0), hoje) + 1));
+    const ant = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    return { real, prev, st, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
+  }
+
   /* ---------- financeiro ---------- */
   const recebido = () => D.PARCELAS.filter(p => p.recebida).reduce((s, p) => s + p.valor, 0);
   const previstoMeta = m => D.ETAPAS.filter(e => e.m === m).reduce((s, e) => s + e.q * e.v, 0);
@@ -263,7 +283,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return m || 'Não foi possível concluir. Tente de novo.';
   }
 
-  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito,
+  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     recebido, previstoMeta, fin, finRubrica, soma, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
@@ -789,7 +809,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   function painel() {
     const st = ['2.1', '4.1', '3.3', '3.2'].map(id => D.ETAPAS.find(e => e.id === id));
-    const lab = { '2.1': 'Biofábricas em funcionamento', '4.1': 'Unidades produtivas acompanhadas', '3.3': 'Kits de apoio entregues', '3.2': 'Capacitações realizadas' };
+    const lab = { '2.1': 'biofábricas em funcionamento', '4.1': 'unidades produtivas acompanhadas', '3.3': 'kits de apoio entregues', '3.2': 'capacitações realizadas' };
+    const X = R.execucaoGeral(db, hoje()), pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
+    const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
+    const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo').length;
+    const sub = { '2.1': uConta.length ? `${uConta.length} em implantação · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
+      '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base`, '3.3': `${db.agricultores.filter(a => !a.kit).length} cadastrada(s) ainda sem kit`,
+      '3.2': `${num(caps.reduce((s, e) => s + (+e.part || 0), 0))} participante(s) · ${dc} dia(s) de campo` };
+    const kpi = (k, n, de, rot, s2) => { const pc = Math.max(0, Math.min(100, n / de * 100)), pr = Math.round(pc), C = 2 * Math.PI * 18;
+      return `<div class="dx-kpi k${k}"><div class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
+        <span class="dx-kpi-n"><b>${n}</b><small> / ${de}</small></span></div><span class="dx-kpi-r">${rot}</span>
+        <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> concluído</span><span class="dx-kpi-s">${esc(s2)}</span></div>`; };
     const A = R.alertas(db, hoje()); const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
     const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
@@ -801,7 +831,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
     return `${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
- <div class="stats">${st.map(e => `<div class="panel stat"><h3>${lab[e.id]}</h3><b>${feito(e)}<span> de ${e.q}</span></b>${bar(feito(e), e.q)}</div>`).join('')}</div>
+ <section class="dx-topo panel" aria-label="Indicadores principais">
+  <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
+   <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
+   <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%, previsto até o mês passado ${pct(X.prev)}%"><i class="${ST[X.st][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prev > 0 ? `<b style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
+   <p class="dx-exec-sub"><span>Previsto até ${X.ate}: <b>${pct(X.prev)}%</b></span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
+   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista. O traço na barra é o previsto pelo cronograma até o fim do mês passado. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
+  <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e), e.q, lab[e.id], sub[e.id])).join('')}</div>
+ </section>
  <div class="two">
   <div class="panel box"><h3>Precisa de atenção</h3>${A.length ? `<ul class="al">${A.map(a => `<li><span class="chip ${a[0]}">${a[1]}</span><span>${esc(a[2])}</span></li>`).join('')}</ul>` : '<div class="small">Nada pendente.</div>'}</div>
   <div class="panel box"><h3>Recursos do TED</h3><dl class="kv"><dt>Valor total</dt><dd>${brl(D.TOTAL)}</dd>${parcelasTxt()}<dt>Pago</dt><dd>${brl(R.soma(F, 'pago'))}</dd><dt>Comprometido (solicitado ou em compras)</dt><dd>${brl(R.soma(F, 'comp'))}</dd><dt>Disponível do que já foi recebido</dt><dd>${brl(rec - usado)}</dd></dl>

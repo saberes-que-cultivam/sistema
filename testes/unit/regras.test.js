@@ -104,3 +104,14 @@ test('mensagens do servidor viram português claro', () => {
   assert.match(R.mensagemErro({ code: '42501', message: 'new row violates row-level security policy' }), /não tem permissão/);
   assert.strictEqual(R.mensagemErro({ code: 'P0001', message: 'O lote X só tem 3 kg de saldo.' }), 'O lote X só tem 3 kg de saldo.');
 });
+test('execução física: pesa pelo valor de cada etapa e compara com o previsto do cronograma', () => {
+  const db = base(); let X = R.execucaoGeral(db, HOJE);
+  assert.strictEqual(X.real, 0); assert.strictEqual(X.mes, 4); assert.strictEqual(X.meses, 13); assert.strictEqual(X.ate, '09/2026'); assert.strictEqual(X.st, 'atrasada');
+  db.entregas.push({ etapa: '6.3' });                       // contrato com a FUNCERN: R$ 40 mil de R$ 400 mil
+  X = R.execucaoGeral(db, HOJE); assert.strictEqual(X.real, 10); assert.strictEqual(Math.round(X.porMeta[5].feito), 67);
+  db.entregas.push({ etapa: '6.3' }); assert.strictEqual(R.execucaoGeral(db, HOJE).real, 10);   // não passa de 100% da etapa
+  const e = id => SQC.dados.ETAPAS.find(x => x.id === id);
+  assert.strictEqual(R.previstoEtapa(e('2.1'), HOJE), 2 / 6);   // ago e set completos, de 6 meses
+  assert.strictEqual(R.previstoEtapa(e('3.2'), HOJE), 0); assert.strictEqual(R.previstoEtapa(e('2.1'), new Date(2027, 5, 1)), 1);
+  assert.strictEqual(Math.round(R.execucaoGeral(db, new Date(2027, 7, 15)).prev), 100);
+});

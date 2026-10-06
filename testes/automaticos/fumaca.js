@@ -12,7 +12,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   // config vazio = modo demonstração (o teste nunca toca no banco de verdade)
   await p.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.SQC=window.SQC||{};SQC.CONFIG={supabaseUrl:'',supabaseAnonKey:'',semServiceWorker:true};" }));
   await p.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ contentType: 'text/css', body: '' }));
-  await p.goto(URL_); await p.click('[data-demo="Equipe"]'); await p.waitForSelector('.stats');
+  await p.goto(URL_); await p.click('[data-demo="Equipe"]'); await p.waitForSelector('.dx-topo');
   ok((await p.textContent('#quem')).includes('Equipe'), 'entra como Equipe');
   await p.click('[data-tab="financeiro"]'); ok(!(await p.$('[data-new="despesas"]')), 'Equipe não vê o botão de lançar despesa');
   await p.click('[data-tab="dados"]'); ok(!(await p.$('[data-new="pessoas"]')), 'Equipe não vê o cadastro de acessos');
