@@ -6,9 +6,10 @@
   --accent:#27663A; --accent-ink:#FFFFFF; --accent-soft:#D9EADB;
   --ferment:#A8640A; --ferment-soft:#F6E6C8;
   --bad:#A93226; --bad-soft:#F6DAD6;
-  --display:"Bricolage Grotesque","Figtree",system-ui,sans-serif;
-  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --display:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --marca:"Lora",Georgia,serif;
+  --body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#121814; --surface:#1A221D; --sunken:#222C26; --line:#34413A;
@@ -28,7 +29,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
 .wrap{max-width:1180px;margin:0 auto;padding-inline:16px}
 header.top{padding-block:18px 10px}
 header.top .wrap{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;justify-content:space-between}
-h1{font:700 26px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+h1{font:700 27px/1.1 var(--marca);margin:0}
 .sub{color:var(--muted);font-size:13px}
 nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 nav .wrap{display:flex;gap:2px;overflow-x:auto}
