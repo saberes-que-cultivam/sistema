@@ -67,3 +67,13 @@ test('mapa: contorno dos dois estados e todos os municípios do CE e do RN, com 
   const ms = Object.keys(G.mun); assert.strictEqual(ms.filter(k => k.endsWith('/CE')).length, 184); assert.strictEqual(ms.filter(k => k.endsWith('/RN')).length, 167);
   ['apodi/RN', 'sao paulo do potengi/RN', 'mulungu/CE'].forEach(k => { const p = G.mun[k], b = G.uf[k.slice(-2)].b; assert.ok(p && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3], k); });
 });
+test('tipografia: nenhum tamanho de letra solto no CSS (tudo sai da escala --t-*), e só Manrope e Lora', () => {
+  const css = fs.readFileSync(path.join(raiz, 'css', 'app.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const soltos = (css.match(/font(-size)?:[^;}]*/g) || []).filter(d => /\d(px|pt|rem|em)\b/.test(d.replace(/var\([^)]*\)/g, '')));
+  assert.deepStrictEqual(soltos, [], 'use var(--t-...) em vez de tamanho solto');
+  const escala = css.match(/--t-(2xs|xs|sm|md|base|lg|xl|2xl|3xl):\s*(\d+)px/g).map(x => +x.match(/(\d+)px/)[1]);
+  assert.deepStrictEqual(escala, [12, 12, 13, 14, 15, 16, 18, 22, 28]); assert.ok(Math.min(...escala) >= 12);
+  const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8'); assert.match(html, /family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap/); assert.match(html, /rel="preconnect" href="https:\/\/fonts\.googleapis\.com"/);
+  assert.doesNotMatch(css + html, /DM Serif|Plus Jakarta|Bricolage|Figtree|IBM Plex/);
+  assert.doesNotMatch(fs.readFileSync(path.join(raiz, 'js', 'app.js'), 'utf8'), /font-size|style="[^"]*font/, 'tamanho de letra não se define nas telas');
+});

@@ -933,7 +933,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const kpi = (k, pc, n, de, rot, s2) => { pc = Math.max(0, Math.min(100, +pc || 0)); const pr = Math.round(pc), C = 2 * Math.PI * 18;
     return `<div class="dx-kpi k${k}"><div class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
       <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : de}</small></span></div><span class="dx-kpi-r">${rot}</span>
-      <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-s">${esc(s2)}</span></div>`; };
+      <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> concluído</span><span class="dx-kpi-s">${esc(s2)}</span></div>`; };
   const pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
   function painel() {
     const st = ['2.1', '4.1', '3.3', '3.2'].map(id => D.ETAPAS.find(e => e.id === id));
@@ -1072,7 +1072,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const semAcento = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
   const pontoDe = (mun, uf) => SQC.GEO.mun[semAcento(mun) + '/' + String(uf || '').toUpperCase().trim()] || null;
   function mapa() {
-    const G = SQC.GEO, ufs = mapaUF === 'todos' ? ['CE', 'RN'] : [mapaUF], W = 560, H = 430, M = 22;
+    const estreito = window.innerWidth < 720, G = SQC.GEO, ufs = mapaUF === 'todos' ? ['CE', 'RN'] : [mapaUF], W = estreito ? 340 : 620, H = estreito ? 300 : 440, M = 22;
     const b = ufs.map(u => G.uf[u].b).reduce((a, x) => [Math.min(a[0], x[0]), Math.min(a[1], x[1]), Math.max(a[2], x[2]), Math.max(a[3], x[3])]);
     const kx = Math.cos((b[1] + b[3]) / 2 * Math.PI / 180), esc_ = Math.min((W - 2 * M) / ((b[2] - b[0]) * kx), (H - 2 * M) / (b[3] - b[1]));
     const ox = (W - (b[2] - b[0]) * kx * esc_) / 2, oy = (H - (b[3] - b[1]) * esc_) / 2;
@@ -1097,7 +1097,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     nos.forEach(o => { o.x = Math.max(o.r + 2, Math.min(W - o.r - 2, o.x)); o.y = Math.max(o.r + 2, Math.min(H - o.r - 2, o.y)); });
     return `<section class="mp panel" aria-label="Mapa do projeto"><div class="head"><div><h2>Onde o projeto está</h2><p>${visiveis.length} unidade(s) produtiva(s) e ${bio.length} biofábrica(s) no mapa${fora ? ` · ${fora} cadastro(s) fora do mapa (município não reconhecido no CE ou no RN)` : ''}</p></div>
    <div class="seg peq" role="tablist">${[['todos', 'Todos'], ['CE', 'CE'], ['RN', 'RN']].map(o => `<button type="button" role="tab" aria-selected="${mapaUF === o[0]}" data-mapa="${o[0]}">${o[1]}</button>`).join('')}</div></div>
-  <div class="mp-g"><div class="mp-m"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Os mesmos números estão na lista ao lado.">
+  <div class="mp-g"><div class="mp-m"><svg data-vb="${W}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Os mesmos números estão na lista ao lado.">
     ${ufs.map(u => G.uf[u].r.map(r => `<path class="mp-uf" d="${anel(r)}"/>`).join('') + `<text class="mp-sg" x="${X((G.uf[u].b[0] + G.uf[u].b[2]) / 2)}" y="${Y((G.uf[u].b[1] + G.uf[u].b[3]) / 2 - (u === 'CE' ? 0.9 : 0.35))}" text-anchor="middle">${u}</text>`).join('')}
     ${nos.filter(o => o.g).map(o => { const g = o.g; return `<g class="mp-p"><title>${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s)</title><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${o.r.toFixed(1)}"/><text x="${o.x.toFixed(1)}" y="${(o.y + 4.5).toFixed(1)}" text-anchor="middle">${g.n}</text></g>`; }).join('')}
     ${nos.filter(o => o.b).map(o => { const x = o.b, cx = o.x, cy = o.y; return `<g class="mp-b"><title>${esc(x.u.nome)} (${esc(x.u.municipio)}/${esc(x.u.uf)}): ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação</title><rect x="${(cx - 7).toFixed(1)}" y="${(cy - 7).toFixed(1)}" width="14" height="14" rx="2" transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})"/><text x="${(cx + 14).toFixed(1)}" y="${(cy + 4).toFixed(1)}">${esc(x.u.sigla)}</text></g>`; }).join('')}
@@ -1109,8 +1109,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
   let ritmoAtual = null;   // o que o gráfico mostrou por último (a dica ao passar o mouse lê daqui)
-  const GR = { w: 640, h: 300, l: 78, r: 14, t: 14, b: 30 };
+  /* medidas do desenho: no celular ele já nasce estreito, para a letra (que não encolhe) caber na margem */
+  const GR_LARGO = { w: 640, h: 300, l: 78, r: 14, t: 14, b: 30 }, GR_ESTREITO = { w: 340, h: 250, l: 74, r: 10, t: 16, b: 30 }; let GR = GR_LARGO;
   function graficoRitmo() {
+    GR = window.innerWidth < 720 ? GR_ESTREITO : GR_LARGO;
     const X = R.ritmo(db, hoje()), P = X.pontos, n = P.length, max = X.total; ritmoAtual = X;
     const x = i => GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n, y = v => GR.h - GR.b - (GR.h - GR.t - GR.b) * v / max, x0 = GR.l;
     const linha = k => { const pts = P.map((p, i) => p[k] == null ? null : [x(i), y(p[k])]).filter(Boolean); return pts.length ? 'M' + [[x0, y(0)]].concat(pts).map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') : ''; };
@@ -1121,9 +1123,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const atual = P.findIndex(p => p.atual);
     return `<div class="panel box fin-g"><div><h2 class="fin-t">Ritmo do gasto <small>acumulado mês a mês</small></h2>
    <div class="leg"><span><i class="lg prev"></i>Previsto (plano de desembolso)</span><span><i class="lg exec"></i>Pago</span><span><i class="lg rec"></i>Recebido do MDA</span></div></div>
-   <div class="rg" data-rg><svg viewBox="0 0 ${GR.w} ${GR.h}" role="img" aria-label="Gasto acumulado mês a mês: previsto, pago e recebido. Os valores estão na tabela logo abaixo.">
+   <div class="rg" data-rg><svg data-vb="${GR.w}" viewBox="0 0 ${GR.w} ${GR.h}" role="img" aria-label="Gasto acumulado mês a mês: previsto, pago e recebido. Os valores estão na tabela logo abaixo.">
     ${grade.map(v => `<line class="gr" x1="${GR.l}" x2="${GR.w - GR.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${GR.l - 8}" y="${y(v) + 4}" text-anchor="end">${mk(v)}</text>`).join('')}
-    ${P.map((p, i) => i % 2 ? '' : `<text class="ax" x="${x(i)}" y="${GR.h - 8}" text-anchor="middle">${p.rotulo}</text>`).join('')}
+    ${P.map((p, i) => i % (window.innerWidth < 720 ? 3 : 2) ? '' : `<text class="ax" x="${x(i)}" y="${GR.h - 8}" text-anchor="middle">${p.rotulo}</text>`).join('')}
     ${atual >= 0 ? `<line class="hj" x1="${x(atual)}" x2="${x(atual)}" y1="${GR.t}" y2="${GR.h - GR.b}"/><text class="ax" x="${x(atual) + 5}" y="${GR.t + 10}">mês atual</text>` : ''}
     <path class="l prev" d="${linha('previsto')}"/><path class="l rec" d="${degrau()}"/><path class="l exec" d="${linha('executado')}"/>
     ${ult >= 0 ? `<circle class="pt exec" cx="${x(ult)}" cy="${y(P[ult].executado)}" r="4.5"/><circle class="pt rec" cx="${x(ult)}" cy="${y(P[ult].recebido)}" r="4.5"/>` : ''}
@@ -1231,10 +1233,24 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  ${coord() ? tabela('pessoas') + (demo() ? `<div class="panel box"><h3>Recomeçar a demonstração</h3><div class="acts"><button class="b d" data-zerar>Apagar tudo e voltar aos exemplos</button></div></div>`
       : `<div><div class="head"><div><h2>Histórico de alterações</h2><p>Tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.</p></div></div><div class="panel box" style="margin-top:10px">${historico()}</div></div>`) : ''}`;
   }
+  /* cada tela tem um h1 com sobretítulo. Nas abas que já começam com um cabeçalho, o primeiro título vira o h1;
+     no painel (que começa pelos indicadores) o cabeçalho é criado aqui. */
+  const SOBRE = { painel: 'Visão geral', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
+  function tituloDaTela(v) {
+    const cab = [...v.children].find(c => c.classList && c.classList.contains('head')), eye = `<span class="eyebrow">${SOBRE[tab] || ''}</span>`;
+    if (cab && tab !== 'painel') { const h2 = cab.querySelector('h2'), d = h2 && h2.parentElement; if (!h2) return; const h1 = document.createElement('h1'); h1.textContent = h2.textContent; h2.replaceWith(h1); d.classList.add('pg'); h1.insertAdjacentHTML('beforebegin', eye); return; }
+    const novo = document.createElement('div'); novo.className = 'head'; novo.innerHTML = `<div class="pg">${eye}<h1>Execução do projeto</h1><p>${fora() ? 'Andamento do projeto em tempo real, como a equipe registrou.' : 'O que já foi feito, o que pede atenção e como está o uso dos recursos.'}</p></div>`;
+    const ref = [...v.children].find(c => c.classList && (c.classList.contains('dx-topo') || c.classList.contains('banner'))); v.insertBefore(novo, ref || v.firstChild);
+  }
+  /* texto dentro de gráfico e mapa: o desenho encolhe ou cresce com a tela; --k devolve a letra ao tamanho da escala */
+  function escalaDesenhos() {
+    document.querySelectorAll('svg[data-vb]').forEach(sv => { const w = sv.getBoundingClientRect().width; if (w > 0) sv.style.setProperty('--k', (+sv.dataset.vb / w).toFixed(4)); });
+  }
   function render() {
     if (!eu || !db) return;
     nav(); const v = $('#view');
     v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    tituloDaTela(v); escalaDesenhos();
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
@@ -1461,6 +1477,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
+    let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
     try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
     if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) tab = location.hash.slice(1);
