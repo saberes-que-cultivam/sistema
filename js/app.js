@@ -173,6 +173,7 @@
    <div class="at-prazo">${a[5] ? `${dt(a[5])}<small>${prazoTxt(a[5])}</small>` : '—'}</div>
    <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>
+ ${mapa()}
  <div class="two">
   <div class="panel box"><h3>Recursos do TED</h3><dl class="kv"><dt>Valor total</dt><dd>${brl(D.TOTAL)}</dd>${parcelasTxt()}<dt>Pago</dt><dd>${brl(R.soma(F, 'pago'))}</dd><dt>Comprometido (solicitado ou em compras)</dt><dd>${brl(R.soma(F, 'comp'))}</dd><dt>Disponível do que já foi recebido</dt><dd>${brl(rec - usado)}</dd></dl>
   ${bar(usado, D.TOTAL)}<div class="small">${num(usado / D.TOTAL * 100, 1)}% do valor total pago ou comprometido. Detalhe por meta e por rubrica na aba Financeiro.</div></div>
@@ -217,6 +218,22 @@
  <div><div class="head"><div><h2>Quem está cadastrado</h2><p>Em ordem alfabética. A etiqueta mostra o que falta para a unidade contar como acompanhada.</p></div></div>
  ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
+  /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
+  const AJUDA = { painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
+    lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
+    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados.',
+    eventos: 'Capacitações, dias de campo, reuniões e articulações.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
+    financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso e o histórico de alterações.' };
+  function abrirAjuda() {
+    ed = null; $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como usar o sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><div class="fm-oque"><span>O seu perfil</span><p>${esc(eu.perfil)}${eu.orgao ? ' · ' + esc(eu.orgao) : ''}: ${coord() ? 'faz tudo, inclusive lançar despesas, cadastrar acessos e ver o histórico.' : fora() ? 'consulta o andamento em tempo real, sem alterar nada e sem ver dados pessoais.' : 'registra o trabalho de campo e de produção. Despesas e acessos são da coordenação.'}</p></div>
+      <h3 class="fm-sec">O que tem em cada aba</h3><dl class="aj">${abas().map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
+      ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
+      <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
+     <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
   function abrirFicha(id) {
     const a = by('agricultores', id); if (!a) return; ed = null; const st = situacaoAgr(a), u = by('unidades', a.unidade), ent = recebeu(id).sort((x, y) => x.data < y.data ? 1 : -1), vis = visitasDe(id);
     const linha = (r, v) => `<dt>${r}</dt><dd>${v}</dd>`; $('#frm').className = '';
@@ -229,6 +246,46 @@
  <div class="frow">${R.podeExcluir(eu, 'agricultores', a) && !a._pendente ? `<button type="button" class="b d" data-del="agricultores:${esc(id)}" data-fechaapos>Excluir</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button>
   ${R.podeGravar(eu, 'visitas') ? `<button type="button" class="b" data-new="visitas" data-pre="${esc(id)}">Registrar visita</button><button type="button" class="b" data-new="distribuicoes" data-pre="${esc(id)}">Registrar entrega</button><button type="button" class="b p" data-edit="agricultores:${esc(id)}">Editar cadastro</button>` : ''}</div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  /* ---------- mapa: onde estão as biofábricas e as unidades produtivas (Ceará e Rio Grande do Norte) ---------- */
+  let mapaUF = 'todos';
+  const semAcento = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
+  const pontoDe = (mun, uf) => SQC.GEO.mun[semAcento(mun) + '/' + String(uf || '').toUpperCase().trim()] || null;
+  function mapa() {
+    const G = SQC.GEO, ufs = mapaUF === 'todos' ? ['CE', 'RN'] : [mapaUF], W = 560, H = 430, M = 22;
+    const b = ufs.map(u => G.uf[u].b).reduce((a, x) => [Math.min(a[0], x[0]), Math.min(a[1], x[1]), Math.max(a[2], x[2]), Math.max(a[3], x[3])]);
+    const kx = Math.cos((b[1] + b[3]) / 2 * Math.PI / 180), esc_ = Math.min((W - 2 * M) / ((b[2] - b[0]) * kx), (H - 2 * M) / (b[3] - b[1]));
+    const ox = (W - (b[2] - b[0]) * kx * esc_) / 2, oy = (H - (b[3] - b[1]) * esc_) / 2;
+    const X = lon => ox + (lon - b[0]) * kx * esc_, Y = lat => oy + (b[3] - lat) * esc_;
+    const noRecorte = a => ufs.includes(String(a.uf || '').toUpperCase().trim());
+    // unidades produtivas agrupadas por município
+    const grupos = {}; let fora = 0; const L = db.agricultores;
+    L.forEach(a => { const p = pontoDe(a.municipio, a.uf); if (!p) { fora++; return; } if (!noRecorte(a)) return; const k = semAcento(a.municipio) + '/' + String(a.uf).toUpperCase().trim(); (grupos[k] = grupos[k] || { p, nome: a.municipio + '/' + String(a.uf).toUpperCase().trim(), n: 0, ac: 0 }).n++; if (acompanhada(a)) grupos[k].ac++; });
+    const pts = Object.values(grupos).sort((a, c) => c.n - a.n), bio = db.unidades.map(u => ({ u, p: pontoDe(u.municipio, u.uf) })).filter(x => x.p && noRecorte(x.u));
+    const visiveis = L.filter(a => pontoDe(a.municipio, a.uf) && noRecorte(a)), cont = {}; visiveis.forEach(a => { const s = situacaoAgr(a)[1]; cont[s] = (cont[s] || 0) + 1; });
+    const ORDEM = [['Acompanhada', 'ok'], ['Recebeu, falta visita', 'f'], ['Aguardando bioinsumo', ''], ['Sem linha de base', 'bad']];
+    const anel = r => 'M' + r.map(q => X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1)).join(' L') + ' Z';
+    const raio = n => Math.min(26, 10 + 3.2 * Math.sqrt(n));
+    /* municípios vizinhos (e a biofábrica do próprio município) cairiam um em cima do outro: cada marca é empurrada
+       só o bastante para não encostar nas outras. A posição fica aproximada; o nome certo está na dica e na lista ao lado. */
+    const nos = pts.map(g => ({ g, x: X(g.p[0]), y: Y(g.p[1]), r: raio(g.n) })).concat(bio.map(x => ({ b: x, x: X(x.p[0]) + 6, y: Y(x.p[1]) - 6, r: 12 })));
+    for (let v = 0; v < 80; v++) for (let i = 0; i < nos.length; i++) for (let j = i + 1; j < nos.length; j++) {
+      const a = nos[i], c = nos[j]; let dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy); const min = a.r + c.r + 3;
+      if (d >= min) continue; if (d < 0.01) { dx = 1; dy = -1; d = Math.SQRT2; }
+      const e = (min - d) / 2 / d; a.x -= dx * e; a.y -= dy * e; c.x += dx * e; c.y += dy * e;
+    }
+    nos.forEach(o => { o.x = Math.max(o.r + 2, Math.min(W - o.r - 2, o.x)); o.y = Math.max(o.r + 2, Math.min(H - o.r - 2, o.y)); });
+    return `<section class="mp panel" aria-label="Mapa do projeto"><div class="head"><div><h2>Onde o projeto está</h2><p>${visiveis.length} unidade(s) produtiva(s) e ${bio.length} biofábrica(s) no mapa${fora ? ` · ${fora} cadastro(s) fora do mapa (município não reconhecido no CE ou no RN)` : ''}</p></div>
+   <div class="seg peq" role="tablist">${[['todos', 'Todos'], ['CE', 'CE'], ['RN', 'RN']].map(o => `<button type="button" role="tab" aria-selected="${mapaUF === o[0]}" data-mapa="${o[0]}">${o[1]}</button>`).join('')}</div></div>
+  <div class="mp-g"><div class="mp-m"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Os mesmos números estão na lista ao lado.">
+    ${ufs.map(u => G.uf[u].r.map(r => `<path class="mp-uf" d="${anel(r)}"/>`).join('') + `<text class="mp-sg" x="${X((G.uf[u].b[0] + G.uf[u].b[2]) / 2)}" y="${Y((G.uf[u].b[1] + G.uf[u].b[3]) / 2 - (u === 'CE' ? 0.9 : 0.35))}" text-anchor="middle">${u}</text>`).join('')}
+    ${nos.filter(o => o.g).map(o => { const g = o.g; return `<g class="mp-p"><title>${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s)</title><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${o.r.toFixed(1)}"/><text x="${o.x.toFixed(1)}" y="${(o.y + 4.5).toFixed(1)}" text-anchor="middle">${g.n}</text></g>`; }).join('')}
+    ${nos.filter(o => o.b).map(o => { const x = o.b, cx = o.x, cy = o.y; return `<g class="mp-b"><title>${esc(x.u.nome)} (${esc(x.u.municipio)}/${esc(x.u.uf)}): ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação</title><rect x="${(cx - 7).toFixed(1)}" y="${(cy - 7).toFixed(1)}" width="14" height="14" rx="2" transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})"/><text x="${(cx + 14).toFixed(1)}" y="${(cy + 4).toFixed(1)}">${esc(x.u.sigla)}</text></g>`; }).join('')}
+   </svg><div class="leg"><span><i class="mk c"></i>Unidades produtivas no município (o número é quantas)</span><span><i class="mk q"></i>Biofábrica</span></div></div>
+   <div class="mp-l"><div class="mp-n"><b>${visiveis.length}</b><span><strong>unidades produtivas</strong>${pts.length} município(s) · meta de 30</span></div>
+    <div><h3>Situação</h3><ul class="mp-s">${ORDEM.map(o => `<li><span class="chip ${o[1]}">${o[0]}</span><b>${cont[o[0]] || 0}</b></li>`).join('')}</ul></div>
+    <div><h3>Biofábricas</h3>${bio.length ? `<ul class="mp-s">${bio.map(x => `<li><span>${esc(x.u.nome)}<small>${esc(x.u.municipio)}/${esc(x.u.uf)}${x.u.conta === 'Sim' ? '' : ' · apoio'}</small></span><b>${nCheck(x.u)}/${D.CHECK.length}</b></li>`).join('')}</ul>` : '<p class="small">Nenhuma neste recorte.</p>'}</div>
+    <div><h3>Municípios com mais unidades produtivas</h3>${pts.length ? `<ul class="mp-s pt">${pts.slice(0, 8).map(g => `<li><span>${esc(g.nome)}</span><b>${g.n}</b></li>`).join('')}</ul>` : '<p class="small">Nenhuma unidade produtiva cadastrada neste recorte.</p>'}</div></div></div></section>`;
   }
   /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
   let ritmoAtual = null;   // o que o gráfico mostrou por último (a dica ao passar o mouse lê daqui)
@@ -359,7 +416,9 @@
     nav(); const v = $('#view');
     v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
-    $('#quem').textContent = demo() ? eu.perfil + ' · demonstração' : eu.nome + ' · ' + eu.perfil + (eu.orgao ? ' · ' + eu.orgao : '');
+    $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
+    $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
+    $('#quem-papel').textContent = eu.perfil + (eu.orgao ? ' · ' + eu.orgao : '');
     $('#net').hidden = navigator.onLine !== false && !(api.offline);
   }
 
@@ -460,19 +519,22 @@
     const f = (id, l, t, ac) => `<div class="fld"><label for="${id}">${l}</label><input id="${id}" type="${t}" autocomplete="${ac}" required></div>`;
     const aviso = `<div class="err" id="aerr" role="alert">${esc(msg || '')}</div><div class="ok-msg" id="aok" role="status">${esc(ok || '')}</div>`;
     if (demo()) {
-      $('#authcorpo').innerHTML = `<p class="small">Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios. Escolha com qual perfil quer ver o sistema.</p><div class="acts"><button class="b p" data-demo="Coordenação">Entrar como Coordenação</button><button class="b" data-demo="Equipe">Entrar como Equipe</button><button class="b" data-demo="Acompanhamento">Entrar como SEAB/MDA</button></div>${aviso}`;
+      $('#authsub').textContent = 'Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios.';
+      $('#authcorpo').innerHTML = `<p class="ent-p">Escolha com qual perfil quer ver o sistema.</p><div class="ent-demo"><button class="b p ent-b" data-demo="Coordenação">Entrar como Coordenação</button><button class="b ent-b" data-demo="Equipe">Entrar como Equipe</button><button class="b ent-b" data-demo="Acompanhamento">Entrar como SEAB/MDA</button></div>${aviso}`;
       return;
     }
     if (authModo === 'nova') {
-      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="small">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p">Guardar a senha e entrar</button></form>`;
+      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="ent-p">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p ent-b">Guardar a senha e entrar</button></form>`;
       return;
     }
-    const abas = [['entrar', 'Entrar'], ['primeiro', 'Primeiro acesso'], ['esqueci', 'Esqueci a senha']];
-    const corpo = authModo === 'primeiro' ? `<p class="small">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}`
-      : authModo === 'esqueci' ? `<p class="small">Você recebe um e-mail com um link para criar outra senha.</p>${f('a_email', 'Seu e-mail', 'email', 'username')}`
+    const esq = authModo === 'esqueci';
+    const corpo = authModo === 'primeiro' ? `<p class="ent-p">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}`
+      : esq ? `<p class="ent-p">Você recebe um e-mail com um link para criar outra senha.</p>${f('a_email', 'Seu e-mail', 'email', 'username')}`
         : `${f('a_email', 'E-mail', 'email', 'username')}${f('a_senha', 'Senha', 'password', 'current-password')}`;
-    $('#authcorpo').innerHTML = `<div class="authtabs" role="tablist">${abas.map(a => `<button type="button" role="tab" aria-selected="${a[0] === authModo}" data-auth="${a[0]}">${a[1]}</button>`).join('')}</div>
- <form id="fauth" novalidate style="margin-top:14px">${corpo}${aviso}<button class="b p" id="abotao">${authModo === 'primeiro' ? 'Enviar o link' : authModo === 'esqueci' ? 'Enviar o e-mail' : 'Entrar'}</button></form>`;
+    $('#authcorpo').innerHTML = `${esq ? '' : `<div class="seg" role="tablist"><button type="button" role="tab" aria-selected="${authModo === 'entrar'}" data-auth="entrar">Já tenho senha</button><button type="button" role="tab" aria-selected="${authModo === 'primeiro'}" data-auth="primeiro">Primeiro acesso</button></div>`}
+ <form id="fauth" novalidate>${corpo}${aviso}<button class="b p ent-b" id="abotao">${authModo === 'primeiro' ? 'Enviar o link' : esq ? 'Enviar o e-mail' : 'Entrar'}</button></form>
+ <div class="ent-links">${esq ? '<button type="button" class="lk" data-auth="entrar">Voltar para a entrada</button>' : '<button type="button" class="lk" data-auth="esqueci">Esqueci a senha</button>'}
+  <details class="ent-aj"><summary>Precisa de ajuda para entrar?</summary><p>Só entra quem a coordenação do projeto cadastrou. Na primeira vez, use “Primeiro acesso” com o mesmo e-mail que você passou para a coordenação, abra a mensagem que chegar (confira o spam) e toque no link. Se o e-mail não chegar em alguns minutos ou a tela disser que você não tem acesso, fale com a coordenação.</p></details></div>`;
   }
   async function aoEntrar(ev) {
     ev.preventDefault(); const g = id => ($('#' + id) || { value: '' }).value, er = t => { $('#aerr').textContent = t; $('#aok').textContent = ''; };
@@ -533,7 +595,9 @@
     if (d.auth) { authModo = d.auth; telaAcesso(''); }
     else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
     else if (d.tab) { tab = d.tab; try { localStorage.setItem('sqc-aba', tab); } catch (e) {} render(); window.scrollTo(0, 0); }
-    else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.textContent = `Sair mesmo com ${pend.length} lançamento(s) por enviar?`; toast('Há lançamento guardado neste aparelho que ainda não foi enviado. Ele fica guardado e sobe na sua próxima entrada com internet.'); return; } delete d.ok; t.textContent = 'Sair'; sair(''); }
+    else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.classList.add('conf'); toast(`Há ${pend.length} lançamento(s) guardado(s) neste aparelho ainda não enviado(s). Eles ficam guardados e sobem na sua próxima entrada com internet. Toque em sair de novo para confirmar.`); return; } delete d.ok; t.classList.remove('conf'); sair(''); }
+    else if (d.ajuda !== undefined) abrirAjuda();
+    else if (d.mapa) { const y = window.scrollY; mapaUF = d.mapa; render(); window.scrollTo(0, y); }
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);

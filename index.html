@@ -17,15 +17,26 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap">
 </head>
 <body>
-<section id="auth" hidden><div class="authbox panel">
-  <div><h1>Saberes que Cultivam</h1><div class="sub">Sistema de acompanhamento das unidades de produção de bioinsumos</div></div>
-  <div id="authcorpo"></div>
+<section id="auth" hidden><div class="ent">
+ <div class="ent-m">
+  <div class="ent-marca"><img src="assets/icon-192.png" alt="" width="76" height="76"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
+  <h1 class="ent-h">O insumo nasce<br><em>na comunidade</em>.</h1>
+  <p class="ent-s">E volta para a terra de quem planta.</p>
+  <p class="ent-d">Unidades de produção de bioinsumos e adubos orgânicos em dois territórios do Nordeste, com agricultoras e agricultores familiares acompanhados de perto.</p>
+  <div class="ent-uf"><span><i>RN</i>Potengi</span><span><i>CE</i>Maciço de Baturité</span></div>
+ </div>
+ <div class="authbox panel"><div><span class="fm-eye">Sistema do projeto</span><h2 class="ent-t">Que bom ver você</h2><p class="ent-p" id="authsub">Entre com o e-mail cadastrado pela coordenação.</p></div>
+  <div id="authcorpo"></div></div>
 </div></section>
 <div id="app" hidden>
 <header class="top"><div class="wrap">
   <div><h1>Saberes que Cultivam</h1>
   <div class="sub">Bioinsumos, agroecologia e agricultura familiar · TED MDA/IFRN · Plano de Ação 30879420260055-006262</div></div>
-  <div class="who"><span id="net" class="chip f" hidden>sem internet · guardando neste aparelho</span><span id="quem"></span><button class="b s" data-sair>Sair</button></div>
+  <div class="who"><span id="net" class="chip f" hidden>sem internet · guardando neste aparelho</span>
+   <button type="button" class="tb" data-ajuda aria-label="Ajuda" title="Ajuda">?</button>
+   <span class="tb-av" id="quem-av" aria-hidden="true"></span>
+   <span id="quem" class="tb-quem"><b id="quem-nome"></b><span id="quem-papel"></span></span>
+   <button type="button" class="tb" data-sair aria-label="Sair do sistema" title="Sair do sistema"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M4 12h11"/><path d="M11 8l4 4-4 4"/></svg></button></div>
 </div></header>
 <nav><div class="wrap" id="tabs" role="tablist"></div></nav>
 <main><div class="wrap" id="view"></div></main>
