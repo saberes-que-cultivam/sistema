@@ -1,0 +1,429 @@
+/* Saberes que Cultivam — telas e navegação.
+   Uma aba por assunto. Os cadastros são descritos em MOD (campos do formulário e colunas da lista);
+   as contas ficam em js/regras.js e os números do plano em js/dados.js. */
+(function () {
+  const SQC = (window.SQC = window.SQC || {});
+  const D = SQC.dados, R = SQC.regras;
+  let api = null, eu = null, db = null, pend = [], hist = null;
+  let tab = 'painel', ed = null, rel = null, authModo = 'entrar';
+
+  /* ---------- utilidades ---------- */
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = (v, d = 0) => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const brl = R.brl, dt = R.dt, pd = R.pd, iso = R.iso;
+  const hoje = () => new Date();
+  const by = (t, id) => db[t].find(r => r.id === id);
+  const coord = () => !!eu && eu.perfil === 'Coordenação';
+  const demo = () => api.modo === 'demo';
+  const mesAno = s => String(s).split('-').reverse().join('/');
+  const exChip = r => (r.ex ? ' <span class="chip ex">exemplo</span>' : '') + (r._erro ? ' <span class="chip bad">não enviado</span>' : r._pendente ? ' <span class="chip pend">aguardando envio</span>' : '');
+  const bar = (v, t, c = '') => `<div class="bar ${c}"><i style="width:${Math.max(0, Math.min(100, t ? v / t * 100 : 0))}%"></i></div>`;
+  const link = (u, txt) => /^https?:\/\//i.test(String(u || '')) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${txt || 'abrir'}</a>` : (u ? esc(u) : '<span class="chip f">sem link</span>');
+  const saldo = l => R.saldo(db, l), nCheck = R.nCheck;
+  const visitasDe = id => R.visitasDe(db, id), recebeu = id => R.recebeu(db, id), acompanhada = a => R.acompanhada(db, a), feito = e => R.feito(db, e);
+  let toastT = null;
+  function toast(msg) { let t = $('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+    t.textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 5000); }
+
+  /* ---------- cadastros: campos = [chave, rótulo, tipo, obrigatório, opções]; cols = [título, função, classe] ---------- */
+  const opt = a => a.map(x => [x, x]);
+  const optRubrica = () => D.RUBRICAS.map(r => [r.id, r.nome]);
+  const nomeRubrica = id => (D.RUBRICAS.find(r => r.id === id) || {}).nome || '';
+  const MOD = {
+    unidades: { nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Etapas de implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
+      campos: [['nome', 'Nome', 'text', 1], ['sigla', 'Sigla (2 a 4 letras, usada no código dos lotes)', 'text', 1], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
+        ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)],
+        ['modelo', 'Modelo', 'select', 0, opt(['A definir', 'Área aberta com cobertura (compostagem e biofertilizantes)', 'Microrganismos isolados'])],
+        ['conta', 'Conta para a Meta 2 do TED?', 'select', 0, opt(['Sim', 'Não'])], ['parceiro', 'Parceiro institucional que recebe os bens', 'text'], ['responsavel', 'Responsável local', 'text'],
+        ['_chk', 'Implantação', 'checks'], ['obs', 'Observações', 'textarea']],
+      cols: [['Unidade', u => `<b>${esc(u.nome)}</b>${exChip(u)}<div class="small">${esc(u.municipio)}/${esc(u.uf)} · ${esc(u.modelo)}</div>`],
+        ['Meta 2', u => u.conta === 'Sim' ? '<span class="chip ok">conta</span>' : '<span class="chip">apoio</span>'],
+        ['Implantação', u => `${bar(nCheck(u), D.CHECK.length)}<div class="small">${nCheck(u)} de ${D.CHECK.length} · próximo: ${esc(R.proximoPasso(u))}</div>`],
+        ['Parceiro', u => esc(u.parceiro) || '<span class="chip f">a definir</span>'],
+        ['Itens estimados', u => { const s = db.itens.filter(i => i.unidade === u.id).reduce((t, i) => t + (+i.valor || 0), 0); return `${brl(s)}${u.conta === 'Sim' ? `<div class="small">de ${brl(D.TETO_UNIDADE)}</div>` : ''}`; }, 'n']] },
+    itens: { nome: 'Itens', titulo: 'Itens e aquisições das unidades', desc: `Cada item passa por orçamento, compra pela FUNCERN e entrega. O teto do plano é ${brl(D.TETO_UNIDADE)} por unidade.`, novo: 'Novo item',
+      campos: [['unidade', 'Unidade', 'ref', 1, 'unidades'], ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor estimado (R$)', 'number'],
+        ['rubrica', 'Rubrica do plano', 'select', 0, () => [['', '']].concat(optRubrica())],
+        ['status', 'Situação', 'select', 0, opt(['A definir', 'Orçamento enviado', 'Em compras na FUNCERN', 'Entregue'])], ['data', 'Data do envio do orçamento', 'date']],
+      cols: [['Item', i => esc(i.descricao) + exChip(i) + (i.rubrica ? `<div class="small">${esc(nomeRubrica(i.rubrica))}</div>` : '')], ['Unidade', i => esc((by('unidades', i.unidade) || {}).nome)],
+        ['Situação', i => `<span class="chip ${i.status === 'Entregue' ? 'ok' : i.status === 'A definir' ? '' : 'f'}">${esc(i.status)}</span>`], ['Enviado em', i => dt(i.data)], ['Valor', i => brl(i.valor), 'n']] },
+    lotes: { nome: 'Lotes', titulo: 'Lotes de produção', desc: 'Um lote por batelada. O código é gerado pela sigla da unidade e pelo tipo. O saldo desconta o que já foi distribuído.', novo: 'Novo lote',
+      campos: [['unidade', 'Unidade', 'ref', 1, 'unidades'], ['tipo', 'Tipo de bioinsumo', 'select', 1, opt(Object.keys(D.TIPOS))], ['inicio', 'Início do preparo', 'date', 1],
+        ['dias', 'Dias até ficar pronto', 'number'], ['qtd', 'Quantidade produzida', 'number', 1], ['med', 'Medida', 'select', 0, opt(['kg', 'L'])],
+        ['status', 'Situação', 'select', 0, opt(['Em preparo', 'Maturando', 'Pronto', 'Descartado'])], ['responsavel', 'Responsável', 'text'],
+        ['insumos', 'Ingredientes e proporções', 'textarea'], ['obs', 'Qualidade (cheiro, temperatura, pH, aspecto)', 'textarea']],
+      cols: [['Lote', l => `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span>${exChip(l)}<div class="small">${esc(l.tipo)} · ${esc((by('unidades', l.unidade) || {}).nome)}</div>`],
+        ['Situação', l => `<span class="chip ${l.status === 'Pronto' ? 'ok' : l.status === 'Descartado' ? 'bad' : 'f'}">${esc(l.status)}</span>`],
+        ['Maturação', l => { const p = R.dias(pd(l.inicio), hoje()); return l.status === 'Pronto' || l.status === 'Descartado' ? `<span class="small">início ${dt(l.inicio)}</span>` : `${bar(p, l.dias, 'f')}<div class="small">dia ${Math.max(0, p)} de ${l.dias} · previsto ${dt(iso(R.pronto(l)))}</div>`; }],
+        ['Produzido', l => `${num(l.qtd)} ${esc(l.med)}`, 'n'], ['Saldo', l => `<b>${num(saldo(l))} ${esc(l.med)}</b>`, 'n']] },
+    agricultores: { nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
+      campos: [['nome', 'Nome do agricultor ou agricultora', 'text', 1], ['comunidade', 'Comunidade ou assentamento', 'text'], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
+        ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)], ['unidade', 'Biofábrica que atende', 'ref', 0, 'unidades'],
+        ['culturas', 'Culturas principais', 'text'], ['area', 'Área cultivada (ha)', 'number'],
+        ['diag', 'Data do diagnóstico inicial', 'date'], ['quimico', 'Usa adubo ou defensivo químico?', 'select', 0, opt(['', 'Sim', 'Parcial', 'Não'])], ['gasto0', 'Gasto com insumos comprados (R$/mês)', 'number'],
+        ['kit', 'Kit de apoio entregue', 'check'], ['kitdata', 'Data da entrega do kit', 'date']],
+      cols: [['Agricultor(a)', a => `<b>${esc(a.nome)}</b>${exChip(a)}<div class="small">${esc(a.comunidade)} · ${esc(a.municipio)}/${esc(a.uf)}</div>`],
+        ['Culturas', a => `${esc(a.culturas)}<div class="small">${num(a.area, 1)} ha</div>`],
+        ['Linha de base', a => a.diag ? `<span class="chip ok">${dt(a.diag)}</span><div class="small">${brl(a.gasto0)}/mês · químico: ${esc(a.quimico || '—')}</div>` : '<span class="chip bad">falta</span>'],
+        ['Kit', a => a.kit ? `<span class="chip ok">${dt(a.kitdata)}</span>` : '<span class="chip">não</span>'],
+        ['Acompanhamento', a => { const r = recebeu(a.id).length, v = visitasDe(a.id); return `<span class="chip ${acompanhada(a) ? 'ok' : ''}">${r} entrega(s) · ${v.length} visita(s)</span>${v[0] ? `<div class="small">última ${dt(v[0].data)}</div>` : ''}`; }]] },
+    distribuicoes: { nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega',
+      campos: [['data', 'Data', 'date', 1], ['lote', 'Lote (só os prontos)', 'ref', 1, 'lotes', l => l.status === 'Pronto'], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['qtd', 'Quantidade', 'number', 1],
+        ['cultura', 'Cultura que vai receber', 'text'], ['area', 'Área de aplicação (ha)', 'number'], ['forma', 'Forma de aplicação', 'select', 0, opt(['No solo', 'Foliar', 'Na cova ou sulco', 'Tratamento de sementes', 'Outro'])]],
+      cols: [['Data', d => dt(d.data) + exChip(d)], ['Lote', d => { const l = by('lotes', d.lote) || {}; return `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span><div class="small">${esc(l.tipo)}</div>`; }],
+        ['Para', d => esc((by('agricultores', d.agricultor) || {}).nome)], ['Uso', d => `${esc(d.cultura)}<div class="small">${esc(d.forma)} · ${num(d.area, 1)} ha</div>`],
+        ['Quantidade', d => `${num(d.qtd)} ${esc((by('lotes', d.lote) || {}).med || '')}`, 'n']] },
+    visitas: { nome: 'Monitoramento', titulo: 'Visitas de monitoramento', desc: 'Registro do uso em campo. O gasto mensal com insumos comprados é comparado com a linha de base no painel.', novo: 'Registrar visita',
+      campos: [['data', 'Data', 'date', 1], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['tecnico', 'Quem visitou', 'text'],
+        ['usou', 'Aplicou o bioinsumo recebido?', 'select', 1, opt(['Sim', 'Parcial', 'Não'])], ['vigor', 'Vigor da cultura (1 ruim a 5 ótimo)', 'select', 0, opt(['', '1', '2', '3', '4', '5'])],
+        ['gasto', 'Gasto atual com insumos comprados (R$/mês)', 'number'], ['obs', 'O que foi observado', 'textarea'], ['problemas', 'Dificuldades relatadas', 'textarea']],
+      cols: [['Data', v => dt(v.data) + exChip(v)], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome)],
+        ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
+        ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
+    eventos: { nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
+      campos: [['tipo', 'Tipo', 'select', 1, opt(['Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
+        ['part', 'Participantes', 'number'], ['mulheres', 'Dos quais, mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
+      cols: [['Data', e => dt(e.data) + exChip(e)], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
+        ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
+        ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
+        ['Evidência', e => link(e.link)]] },
+    entregas: { nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
+      campos: [['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`])],
+        ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
+      cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
+        ['Evidência', g => link(g.link)]] },
+    despesas: { nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
+      campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
+        ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor (R$)', 'number', 1],
+        ['status', 'Situação', 'select', 1, opt(['Solicitado', 'Em compras na FUNCERN', 'Pago'])], ['favorecido', 'Favorecido', 'text'], ['doc', 'Documento (nota fiscal, solicitação)', 'text']],
+      cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
+        ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
+        ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
+    pessoas: { nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
+      campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, opt(['Equipe', 'Coordenação'])], ['ativo', 'Acesso ativo', 'check']],
+      cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : ''}">${esc(u.perfil)}</span>`],
+        ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
+  };
+  const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
+
+  /* ---------- telas ---------- */
+  const TABS = [['painel', 'Painel'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['entregas', 'Entregas'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
+  function nav() { $('#tabs').innerHTML = TABS.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join(''); }
+  function tabela(m) {
+    const M = MOD[m], pode = R.podeGravar(eu, m), rows = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const acoes = r => `${pode ? `<button class="b s" data-edit="${m}:${esc(r.id)}">Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? ` <button class="b s d" data-del="${m}:${esc(r.id)}">Excluir</button>` : ''}`;
+    return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
+ <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>`;
+  }
+  const finTabela = (F, titulo) => `<table><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td>${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td><td class="n">${brl(r.prev)}</td><td class="n">${brl(r.comp)}</td><td class="n">${brl(r.pago)}</td><td class="n">${brl(r.saldo)}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="n">${brl(R.soma(F, 'prev'))}</td><td class="n">${brl(R.soma(F, 'comp'))}</td><td class="n">${brl(R.soma(F, 'pago'))}</td><td class="n">${brl(R.soma(F, 'saldo'))}</td></tr></tbody></table>`;
+  const parcelasTxt = () => D.PARCELAS.map((p, i) => p.recebida ? `<dt>${i + 1}ª parcela, liquidada à FUNCERN em ${dt(p.data)}</dt><dd>${brl(p.valor)}</dd>` : `<dt>${i + 1}ª parcela, prevista para ${mesAno(p.previsao)}</dt><dd>${brl(p.valor)}</dd>`).join('');
+  function avisoFila() {
+    const ruins = pend.filter(p => p.erro), esperando = pend.length - ruins.length;
+    return (esperando ? `<div class="banner"><span><b>${esperando}</b> lançamento(s) guardado(s) neste aparelho, aguardando internet para enviar.</span><button class="b s" data-sinc>Tentar enviar agora</button></div>` : '')
+      + ruins.map(p => `<div class="banner"><span><b>Não enviado</b> (${esc(MOD[p.tabela].nome)}): ${esc(p.erro)}</span><span class="acts"><button class="b s" data-edit="${p.tabela}:${esc(p.dados.id)}">Corrigir</button><button class="b s d" data-descartar="${esc(p.id)}">Descartar</button></span></div>`).join('');
+  }
+  function painel() {
+    const st = ['2.1', '4.1', '3.3', '3.2'].map(id => D.ETAPAS.find(e => e.id === id));
+    const lab = { '2.1': 'Biofábricas em funcionamento', '4.1': 'Unidades produtivas acompanhadas', '3.3': 'Kits de apoio entregues', '3.2': 'Capacitações realizadas' };
+    const A = R.alertas(db, hoje()); const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
+    const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
+    let g = '', mm = 0; D.ETAPAS.forEach(e => {
+      if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span>Meta ${mm} · ${D.METAS[mm]}</span><span></span><span></span></div>`; }
+      const a = pos(pd(e.ini)), b = pos(new Date(R.fimMes(e.fim).getTime() + 864e5)), f = feito(e), late = R.fimMes(e.fim) < hoje() && f < e.q;
+      g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${late ? 'late' : ''}" style="left:${a}%;width:${b - a}%"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div><div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n">${f}/${e.q}</div></div>`;
+    });
+    const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
+    const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
+    const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
+    return `${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+ <div class="stats">${st.map(e => `<div class="panel stat"><h3>${lab[e.id]}</h3><b>${feito(e)}<span> de ${e.q}</span></b>${bar(feito(e), e.q)}</div>`).join('')}</div>
+ <div class="two">
+  <div class="panel box"><h3>Precisa de atenção</h3>${A.length ? `<ul class="al">${A.map(a => `<li><span class="chip ${a[0]}">${a[1]}</span><span>${esc(a[2])}</span></li>`).join('')}</ul>` : '<div class="small">Nada pendente.</div>'}</div>
+  <div class="panel box"><h3>Recursos do TED</h3><dl class="kv"><dt>Valor total</dt><dd>${brl(D.TOTAL)}</dd>${parcelasTxt()}<dt>Pago</dt><dd>${brl(R.soma(F, 'pago'))}</dd><dt>Comprometido (solicitado ou em compras)</dt><dd>${brl(R.soma(F, 'comp'))}</dd><dt>Disponível do que já foi recebido</dt><dd>${brl(rec - usado)}</dd></dl>
+  ${bar(usado, D.TOTAL)}<div class="small">${num(usado / D.TOTAL * 100, 1)}% do valor total pago ou comprometido. Detalhe por meta e por rubrica na aba Financeiro.</div></div>
+ </div>
+ <div><div class="head"><div><h2>Cronograma físico do plano de trabalho</h2><p>Barra cinza: janela da etapa. Preenchimento: quanto da quantidade prevista já foi registrado. Linha âmbar: hoje.</p></div></div>
+ <div class="panel scroll" style="margin-top:10px"><div class="gantt"><div class="g-row"><span></span><div class="g-months">${meses.map(m => `<span>${m}</span>`).join('')}</div><span></span></div>${g}</div></div></div>
+ <div class="two">
+  <div class="panel box"><h3>Produção e distribuição</h3>${Object.keys(prod).length ? `<div class="scroll"><table><thead><tr><th>Tipo</th><th class="n">Produzido</th><th class="n">Distribuído</th></tr></thead><tbody>${Object.entries(prod).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${num(v[0])} ${esc(v[2])}</td><td class="n">${num(v[1])} ${esc(v[2])}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small">Nenhum lote registrado.</div>'}</div>
+  <div class="panel box"><h3>Indicadores para a avaliação (Meta 5)</h3><dl class="kv">
+   <dt>Gasto médio com insumos comprados, linha de base</dt><dd>${I.pares ? brl(I.base) + '/mês' : '—'}</dd>
+   <dt>Gasto médio na última visita</dt><dd>${I.pares ? brl(I.atual) + '/mês' : '—'}</dd>
+   <dt>Variação (${I.pares} unidade(s) com os dois dados)</dt><dd>${I.variacao == null ? '—' : num(I.variacao) + '%'}</dd>
+   <dt>Visitas em que o bioinsumo foi aplicado</dt><dd>${I.visitas ? `${I.usou} de ${I.visitas}` : '—'}</dd>
+   <dt>Participantes em capacitações e dias de campo</dt><dd>${I.participantes ? `${num(I.participantes)} (${num(I.mulheres / I.participantes * 100)}% mulheres)` : '—'}</dd></dl></div>
+ </div>`;
+  }
+  function financeiro() {
+    const F = R.fin(db), FR = R.finRubrica(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
+    return `<div class="head"><div><h2>Acompanhamento financeiro</h2><p>Valores previstos no plano de trabalho, comparados com as despesas lançadas aqui. O registro oficial continua sendo o da FUNCERN; confira os dois antes de cada prestação de contas.</p></div></div>
+ <div class="stats"><div class="panel stat"><h3>Recebido</h3><b>${num(rec / 1000)}<span> mil</span></b><div class="small">repassado à FUNCERN até agora</div></div>
+ <div class="panel stat"><h3>Pago</h3><b>${num(R.soma(F, 'pago') / 1000, 1)}<span> mil</span></b>${bar(R.soma(F, 'pago'), rec)}</div>
+ <div class="panel stat"><h3>Comprometido</h3><b>${num(R.soma(F, 'comp') / 1000, 1)}<span> mil</span></b>${bar(R.soma(F, 'comp'), rec, 'f')}</div>
+ <div class="panel stat"><h3>Disponível do recebido</h3><b>${num((rec - usado) / 1000, 1)}<span> mil</span></b><div class="small">${prox ? `próxima parcela de ${brl(prox.valor)} prevista para ${mesAno(prox.previsao)}` : 'todas as parcelas recebidas'}</div></div></div>
+ <div><h3>Por meta do TED</h3><div class="panel scroll" style="margin-top:8px">${finTabela(F, 'Meta')}</div></div>
+ <div><h3>Por rubrica do plano executado pela FUNCERN</h3><div class="panel scroll" style="margin-top:8px">${finTabela(FR, 'Rubrica')}</div>
+ <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>
+ ${tabela('despesas')}`;
+  }
+  function relatorio() {
+    if (!rel) rel = { de: D.G0, ate: iso(hoje()) };
+    const no = s => !!s && s >= rel.de && s <= rel.ate, F = R.fin(db, rel.ate), FR = R.finRubrica(db, rel.ate);
+    const ev = db.eventos.filter(e => no(e.data)).sort((a, b) => a.data > b.data ? 1 : -1), lo = db.lotes.filter(l => no(l.inicio)), di = db.distribuicoes.filter(d => no(d.data)), vi = db.visitas.filter(v => no(v.data)), en = db.entregas.filter(g => no(g.data)), de = db.despesas.filter(d => no(d.data));
+    const tl = (h, rows) => rows.length ? `<div class="scroll"><table><thead><tr>${h.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="small">Sem registros no período.</p>';
+    const ben = new Set(di.map(d => d.agricultor)).size, tp = ev.reduce((s, e) => s + (+e.part || 0), 0), tm = ev.reduce((s, e) => s + (+e.mulheres || 0), 0);
+    return `<div class="head noprint"><div><h2>Relatório de execução</h2><p>Escolha o período. As metas físicas e o financeiro saem acumulados até a data final; as atividades, só as do período.</p></div></div>
+ <div class="ctrl noprint"><div class="fld"><label for="rde">De</label><input type="date" id="rde" value="${rel.de}"></div><div class="fld"><label for="rate">Até</label><input type="date" id="rate" value="${rel.ate}"></div><button class="b p" data-rel>Gerar</button><button class="b" data-print>Imprimir ou salvar em PDF</button></div>
+ <div class="panel rel">
+ <div><h3>Relatório de execução · ${dt(rel.de)} a ${dt(rel.ate)}</h3><h2>${esc(D.NOME_COMPLETO)}</h2>
+ <p class="small">${esc(D.IDENT)}<br>Gerado em ${hoje().toLocaleDateString('pt-BR')} por ${esc(eu ? eu.nome : '')}</p></div>
+ <section><h4>1. Execução física acumulada</h4>${tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], D.ETAPAS.map(e => [`<span class="mono">${e.id}</span>`, e.nome, `${e.q} ${e.un}`, feito(e), num(Math.min(100, feito(e) / e.q * 100)) + '%']))}</section>
+ <section><h4>2. Unidades de produção de bioinsumos</h4>${tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} etapas${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']))}</section>
+ <section><h4>3. Capacitações, dias de campo e reuniões no período</h4>${tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), R.vazio(e.part) ? '—' : `${num(e.part)} (${num(e.mulheres)} mulheres)`]))}${tp ? `<p>Total de ${num(tp)} participações, ${num(tm / tp * 100)}% de mulheres.</p>` : ''}</section>
+ <section><h4>4. Produção de bioinsumos no período</h4>${tl(['Lote', 'Tipo', 'Unidade', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))}</section>
+ <section><h4>5. Distribuição no período</h4>${tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, esc((by('agricultores', d.agricultor) || {}).nome), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; }))}${di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : ''}</section>
+ <section><h4>6. Monitoramento do uso no período</h4>${tl(['Data', 'Unidade produtiva', 'Aplicou?', 'Vigor', 'Observações'], vi.map(v => [dt(v.data), esc((by('agricultores', v.agricultor) || {}).nome), esc(v.usou), v.vigor ? esc(v.vigor) + '/5' : '—', esc(v.obs) + (v.problemas ? ' Dificuldade: ' + esc(v.problemas) : '')]))}${vi.length ? `<p>${vi.length} visita(s); em ${vi.filter(v => v.usou === 'Sim').length} o bioinsumo havia sido aplicado.</p>` : ''}</section>
+ <section><h4>7. Entregas e evidências no período</h4>${tl(['Etapa', 'Entrega', 'Data'], en.map(g => [`<span class="mono">${esc(g.etapa)}</span>`, esc(g.titulo), dt(g.data)]))}</section>
+ <section><h4>8. Execução financeira acumulada até ${dt(rel.ate)}, por meta</h4><div class="scroll">${finTabela(F, 'Meta')}</div></section>
+ <section><h4>9. Execução financeira acumulada até ${dt(rel.ate)}, por rubrica</h4><div class="scroll">${finTabela(FR, 'Rubrica')}</div><p class="small">Valores lançados no sistema. O registro oficial é o da FUNCERN.</p></section>
+ <section><h4>10. Despesas do período</h4>${tl(['Data', 'Etapa', 'Rubrica', 'Descrição', 'Situação', 'Valor'], de.map(d => [dt(d.data), `<span class="mono">${esc(d.etapa)}</span>`, esc(nomeRubrica(d.rubrica)), esc(d.descricao), esc(d.status), brl(d.valor)]))}</section>
+ </div>`;
+  }
+  const NOME_ACAO = { INSERT: 'incluiu', UPDATE: 'alterou', DELETE: 'excluiu' };
+  function historico() {
+    if (!hist) return '<div class="acts"><button class="b" data-hist>Carregar o histórico</button></div>';
+    if (!hist.length) return '<div class="small">Nenhuma alteração registrada ainda.</div>';
+    const nomeDe = id => (db.pessoas.find(p => p.id === id) || {}).nome || (id ? 'pessoa removida' : 'direto no banco');
+    const mudou = h => { if (h.acao !== 'UPDATE' || !h.antes || !h.depois) return ''; return Object.keys(h.depois).filter(k => !/^(atualizado_em|criado_em|criado_por|auth_id)$/.test(k) && JSON.stringify(h.antes[k]) !== JSON.stringify(h.depois[k])).map(k => `${k}: ${JSON.stringify(h.antes[k])} → ${JSON.stringify(h.depois[k])}`).join('\n'); };
+    const resumo = h => { const o = h.depois || h.antes || {}; return o.nome || o.codigo || o.titulo || o.tema || o.descricao || o.data || ''; };
+    return `<div class="scroll"><table class="hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.map(h => `<tr><td>${new Date(h.em).toLocaleString('pt-BR')}</td><td>${esc(nomeDe(h.por))}</td><td>${NOME_ACAO[h.acao] || esc(h.acao)} em ${esc((MOD[h.tabela] || {}).nome || h.tabela)}<div class="small">${esc(resumo(h))}</div></td><td>${mudou(h) ? `<details><summary>ver o que mudou</summary><pre>${esc(mudou(h))}</pre></details>` : ''}</td></tr>`).join('')}</tbody></table></div><div class="small">Últimas ${hist.length} alterações.</div>`;
+  }
+  function dados() {
+    return `<div class="head"><div><h2>Dados</h2><p>${demo() ? 'Modo demonstração: os registros ficam guardados somente neste navegador.' : 'Os registros ficam no banco do projeto (Supabase) e aparecem em qualquer aparelho de quem tem acesso.'}</p></div></div>
+ <div class="panel box"><h3>Planilhas para a prestação de contas (.csv)</h3><div class="acts">${Object.keys(MOD).filter(m => m !== 'pessoas').map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div>
+ <div class="small">Abre no Excel e no LibreOffice. A planilha de unidades produtivas tem dados pessoais: guarde em pasta do projeto, não envie por aplicativo de mensagem.</div></div>
+ <div class="panel box"><h3>Cópia de segurança</h3><div class="acts"><button class="b" data-exp="json">Baixar cópia completa (.json)</button></div><div id="msg" class="small"></div></div>
+ <div class="panel box"><h3>Minha senha</h3>${demo() ? '<div class="small">A demonstração não usa senha.</div>' : '<div class="acts"><button class="b" data-senha>Trocar a minha senha</button></div>'}</div>
+ ${coord() ? tabela('pessoas') + (demo() ? `<div class="panel box"><h3>Recomeçar a demonstração</h3><div class="acts"><button class="b d" data-zerar>Apagar tudo e voltar aos exemplos</button></div></div>`
+      : `<div><div class="head"><div><h2>Histórico de alterações</h2><p>Tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.</p></div></div><div class="panel box" style="margin-top:10px">${historico()}</div></div>`) : ''}`;
+  }
+  function render() {
+    if (!eu || !db) return;
+    nav(); const v = $('#view');
+    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tabela(tab));
+    $('#quem').textContent = demo() ? eu.perfil + ' · demonstração' : eu.nome + ' · ' + eu.perfil;
+    $('#net').hidden = navigator.onLine !== false && !(api.offline);
+  }
+
+  /* ---------- formulário ---------- */
+  function abrir(m, id) {
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? { ativo: true } : {}); ed = { m, id };
+    const campo = ([k, l, t, req, o, filtro]) => {
+      const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
+      if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
+      if (t === 'check') return `<div class="fld"><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
+      if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
+      if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
+      if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
+      return `<div class="fld"><label for="${idc}">${l}</label><input id="${idc}" type="${t}" ${t === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : v)}"${Rq}></div>`;
+    };
+    $('#frm').innerHTML = `<h2>${id ? 'Editar' : M.novo}</h2><div class="fields">${M.campos.map(campo).join('')}</div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div>`;
+    $('#dlg').showModal();
+  }
+  /* guarda no aparelho quando não há internet (só o que a equipe lança em campo; despesas e acessos exigem conexão) */
+  async function enfileirar(m, r) {
+    const it = { id: SQC.fila.chave(m, r.id), tabela: m, dados: r, dono: eu.id, erro: '', reenviar: true };
+    await SQC.fila.salvar(it); pend = await SQC.fila.listar(eu.id); aplicarFila();
+  }
+  function aplicarFila() {
+    pend.forEach(p => { const r = Object.assign({}, p.dados, { _pendente: true, _erro: p.erro || '' }); const i = db[p.tabela].findIndex(x => x.id === r.id); if (i >= 0) db[p.tabela][i] = Object.assign({}, db[p.tabela][i], r); else db[p.tabela].push(r); });
+  }
+  async function gravarRegistro(m, r, ant) {
+    const limpo = Object.assign({}, r); delete limpo._pendente; delete limpo._erro;
+    try {
+      const salvo = await api.salvar(m, limpo);
+      const i = db[m].findIndex(x => x.id === salvo.id); if (i >= 0) db[m][i] = salvo; else db[m].push(salvo);
+      await SQC.fila.remover(SQC.fila.chave(m, salvo.id)); pend = pend.filter(p => p.id !== SQC.fila.chave(m, salvo.id));
+      if (eu && salvo.id === eu.id) eu = salvo;
+      if (api.guardarCopia) api.guardarCopia(db);
+      return { ok: true };
+    } catch (e) {
+      if (e.semRede && !demo() && !R.RESTRITAS.includes(m)) { await enfileirar(m, limpo); return { ok: true, fila: true }; }
+      return { ok: false, msg: e.message };
+    }
+  }
+  async function aoSalvar(ev) {
+    ev.preventDefault(); if (!ed) return; const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
+    const er = t => { $('#ferr').textContent = t; };
+    for (const [k, l, t, req] of M.campos) {
+      if (t === 'checks') { D.CHECK.forEach(c => { r[c[0]] = $('#f_' + c[0]).checked; }); continue; }
+      const el = $('#f_' + k); r[k] = t === 'check' ? el.checked : t === 'number' ? (el.value === '' ? '' : +el.value) : el.value.trim();
+      if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo.`); el.focus(); return; }
+      if (req && (r[k] === '' || r[k] == null)) { er(`Preencha “${l}”.`); el.focus(); return; }
+    }
+    if (m === 'lotes' && !r.dias && r.dias !== 0) r.dias = (D.TIPOS[r.tipo] || [0, 30])[1];
+    if (m === 'pessoas') r.email = r.email.toLowerCase();
+    const msg = R.validar(db, m, r, ant); if (msg) return er(msg);
+    const b = $('#fsalvar'); b.disabled = true; b.textContent = 'Salvando…';
+    const res = await gravarRegistro(m, r, ant);
+    b.disabled = false; b.textContent = 'Salvar';
+    if (!res.ok) return er(res.msg);
+    $('#dlg').close(); ed = null; render();
+    if (res.fila) toast('Sem internet: guardado neste aparelho. Envia sozinho quando o sinal voltar.');
+    else if (m === 'pessoas' && !id && !demo()) toast('Acesso criado. Avise a pessoa para abrir o sistema e usar “Primeiro acesso”.');
+  }
+
+  /* ---------- planilhas e cópia ---------- */
+  function csv(m) {
+    const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    // texto que começa com = + - @ vira fórmula no Excel: um apóstrofo na frente desarma
+    const seguro = v => typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
+    const val = (c, r) => c[2] === 'ref' ? (by(c[4], r[c[0]]) ? rotulo[c[4]](by(c[4], r[c[0]])) : '') : c[2] === 'check' ? (r[c[0]] ? 'Sim' : 'Não') : c[0] === 'rubrica' ? nomeRubrica(r[c[0]]) : typeof r[c[0]] === 'number' ? String(r[c[0]]).replace('.', ',') : r[c[0]];
+    const head = [...(m === 'lotes' ? ['Código'] : []), ...cs.map(c => c[1]), ...(m === 'unidades' ? D.CHECK.map(c => c[1]) : []), ...(m === 'lotes' ? ['Saldo'] : [])];
+    const lin = db[m].filter(r => !r._pendente).map(r => [...(m === 'lotes' ? [r.codigo] : []), ...cs.map(c => val(c, r)), ...(m === 'unidades' ? D.CHECK.map(c => r[c[0]] ? 'Sim' : 'Não') : []), ...(m === 'lotes' ? [String(saldo(r)).replace('.', ',')] : [])].map(seguro).map(q).join(';'));
+    return '﻿' + [head.map(q).join(';'), ...lin].join('\r\n');
+  }
+  function baixar(nome, txt, tipo) {
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: tipo })); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Arquivo gerado: ' + nome); }
+    catch (e) { toast('Este navegador não deixou baixar o arquivo.'); }
+  }
+
+  /* ---------- entrada no sistema ---------- */
+  const EXP = 'Sessão encerrada após 15 minutos sem uso. Entre de novo para continuar.';
+  function telaAcesso(msg, ok) {
+    $('#carregando').hidden = true; $('#app').hidden = true; $('#auth').hidden = false;
+    const f = (id, l, t, ac) => `<div class="fld"><label for="${id}">${l}</label><input id="${id}" type="${t}" autocomplete="${ac}" required></div>`;
+    const aviso = `<div class="err" id="aerr" role="alert">${esc(msg || '')}</div><div class="ok-msg" id="aok" role="status">${esc(ok || '')}</div>`;
+    if (demo()) {
+      $('#authcorpo').innerHTML = `<p class="small">Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios. Escolha com qual perfil quer ver o sistema.</p><div class="acts"><button class="b p" data-demo="Coordenação">Entrar como Coordenação</button><button class="b" data-demo="Equipe">Entrar como Equipe</button></div>${aviso}`;
+      return;
+    }
+    if (authModo === 'nova') {
+      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="small">Crie a sua senha nova.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p">Guardar a senha e entrar</button></form>`;
+      return;
+    }
+    const abas = [['entrar', 'Entrar'], ['primeiro', 'Primeiro acesso'], ['esqueci', 'Esqueci a senha']];
+    const corpo = authModo === 'primeiro' ? `<p class="small">Para quem a coordenação já cadastrou e ainda não tem senha. Você recebe um e-mail para confirmar; depois é só entrar.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}${f('a_senha', 'Crie uma senha (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}`
+      : authModo === 'esqueci' ? `<p class="small">Você recebe um e-mail com um link para criar outra senha.</p>${f('a_email', 'Seu e-mail', 'email', 'username')}`
+        : `${f('a_email', 'E-mail', 'email', 'username')}${f('a_senha', 'Senha', 'password', 'current-password')}`;
+    $('#authcorpo').innerHTML = `<div class="authtabs" role="tablist">${abas.map(a => `<button type="button" role="tab" aria-selected="${a[0] === authModo}" data-auth="${a[0]}">${a[1]}</button>`).join('')}</div>
+ <form id="fauth" novalidate style="margin-top:14px">${corpo}${aviso}<button class="b p" id="abotao">${authModo === 'primeiro' ? 'Criar a senha' : authModo === 'esqueci' ? 'Enviar o e-mail' : 'Entrar'}</button></form>`;
+  }
+  async function aoEntrar(ev) {
+    ev.preventDefault(); const g = id => ($('#' + id) || { value: '' }).value, er = t => { $('#aerr').textContent = t; $('#aok').textContent = ''; };
+    const email = g('a_email').trim().toLowerCase(), pw = g('a_senha'), b = ev.target.querySelector('button.b.p'), rot = b.textContent;
+    if (authModo !== 'nova' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return er('Informe o seu e-mail.');
+    if (authModo === 'primeiro' || authModo === 'nova') { if (pw.length < 8) return er('A senha precisa de pelo menos 8 caracteres.'); if (pw !== g('a_senha2')) return er('As duas senhas não são iguais.'); }
+    if (authModo === 'entrar' && !pw) return er('Informe a senha.');
+    b.disabled = true; b.textContent = 'Aguarde…';
+    try {
+      if (authModo === 'entrar') { eu = await api.entrar(email, pw); return await aposEntrar(); }
+      if (authModo === 'primeiro') {
+        const r = await api.criarSenha(email, pw);
+        if (r.entrou && r.eu) { eu = r.eu; return await aposEntrar(); }
+        authModo = 'entrar'; return telaAcesso('', 'Senha criada. Abra o e-mail que acabamos de enviar, toque no link de confirmação e depois entre aqui.');
+      }
+      if (authModo === 'esqueci') { await api.esqueci(email); authModo = 'entrar'; return telaAcesso('', 'Se esse e-mail tem acesso, a mensagem com o link já foi enviada. Confira também a caixa de spam.'); }
+      if (authModo === 'nova') { await api.trocarSenha(pw); authModo = 'entrar'; eu = await api.eu(true); if (eu) return await aposEntrar(); return telaAcesso('', 'Senha guardada. Entre com ela.'); }
+    } catch (e) { er(e.message); b.disabled = false; b.textContent = rot; }
+  }
+  async function aposEntrar() {
+    $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando').textContent = 'Carregando os dados…';
+    try { db = await api.carregar(); }
+    catch (e) { $('#carregando').hidden = true; eu = null; return telaAcesso(e.message); }
+    D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = []; });
+    pend = demo() ? [] : await SQC.fila.listar(eu.id); aplicarFila(); hist = null;
+    $('#carregando').hidden = true; $('#app').hidden = false;
+    if (!TABS.some(t => t[0] === tab)) tab = 'painel';
+    render();
+    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => sair(EXP), temConexao: async () => navigator.onLine !== false }); sincronizar(); }
+  }
+  async function sair(msg) {
+    if ($('#dlg').open) $('#dlg').close();
+    try { await api.sair(); } catch (e) { /* segue */ }
+    if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
+    eu = null; db = null; hist = null; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
+  }
+  /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
+  let sincronizando = false;
+  async function sincronizar(avisar) {
+    if (!eu || demo() || sincronizando || navigator.onLine === false) { if (avisar) toast('Ainda sem internet.'); return; }
+    sincronizando = true;
+    try {
+      const r = await SQC.fila.sincronizar(api, eu.id);
+      const novo = await api.carregar(); if ($('#dlg').open) return;   // não troca os dados por baixo de um formulário aberto
+      db = novo; pend = await SQC.fila.listar(eu.id); aplicarFila(); render();
+      if (r.enviados) toast(r.enviados + ' lançamento(s) enviado(s).');
+      else if (avisar) toast(r.erros ? 'Há lançamento que o servidor não aceitou. Corrija ou descarte.' : 'Nada para enviar.');
+    } catch (e) { if (avisar) toast(e.message); }
+    finally { sincronizando = false; }
+  }
+  function pedirSenhaNova() { authModo = 'nova'; eu = null; $('#app').hidden = true; telaAcesso(''); }
+
+  /* ---------- cliques ---------- */
+  async function aoClicar(ev) {
+    const t = ev.target.closest('button,label'); if (!t) return; const d = t.dataset;
+    if (d.auth) { authModo = d.auth; telaAcesso(''); }
+    else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
+    else if (d.tab) { tab = d.tab; try { localStorage.setItem('sqc-aba', tab); } catch (e) {} render(); window.scrollTo(0, 0); }
+    else if (d.sair !== undefined) sair('');
+    else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
+    else if (d.print !== undefined) window.print();
+    else if (d.new) abrir(d.new);
+    else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
+    else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
+    else if (d.sinc !== undefined) sincronizar(true);
+    else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); db = await api.carregar(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
+    else if (d.del) {
+      const [m, id] = d.del.split(':');
+      const uso = R.emUso(db, m, id).map(c => MOD[c].nome.toLowerCase());
+      if (uso.length) { t.textContent = 'Em uso em ' + uso.join(', '); t.disabled = true; return; }
+      if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; return; }
+      t.disabled = true;
+      try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); render(); }
+      catch (e) { t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
+    }
+    else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); db = await api.carregar(); render(); }
+    else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); db = await api.carregar(); render(); }
+    else if (d.exp) { if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+    else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
+    else if (d.senha !== undefined) {
+      ed = null; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
+    }
+    else if (d.senhaok !== undefined) {
+      const a = $('#s1').value, b = $('#s2').value; if (a.length < 8) { $('#ferr').textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; } if (a !== b) { $('#ferr').textContent = 'As duas senhas não são iguais.'; return; }
+      t.disabled = true; try { await api.trocarSenha(a); $('#dlg').close(); toast('Senha trocada.'); } catch (e) { $('#ferr').textContent = e.message; t.disabled = false; }
+    }
+  }
+
+  /* ---------- partida ---------- */
+  async function iniciar() {
+    api = SQC.CONFIG && SQC.CONFIG.supabaseUrl ? SQC.apiSupabase : SQC.apiDemo; SQC.api = api;
+    document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
+    document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
+    document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+    $('#dlg').addEventListener('close', () => { ed = null; });
+    ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
+    try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
+    if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) tab = location.hash.slice(1);
+    try {
+      eu = await api.iniciar();
+      if (api.recuperando) return pedirSenhaNova();
+      // ficou mais de 15 minutos sem usar e fechou a página: pede a senha de novo
+      if (eu && !demo() && navigator.onLine !== false && SQC.sessao.venceu(SQC.sessao.ultimo())) return sair(EXP);
+      if (eu) await aposEntrar(); else telaAcesso('');
+    } catch (e) { telaAcesso(e.message); }
+    // funcionamento sem internet (só em endereço https ou no computador de quem desenvolve)
+    try {
+      if ('serviceWorker' in navigator && !(SQC.CONFIG && SQC.CONFIG.semServiceWorker) && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+        const tinha = !!navigator.serviceWorker.controller; let recarregou = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => { if (tinha && !recarregou && !$('#dlg').open) { recarregou = true; location.reload(); } });
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      }
+    } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
+  }
+
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, _estado: () => ({ eu, db, pend, tab }) };
+  if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
+})();

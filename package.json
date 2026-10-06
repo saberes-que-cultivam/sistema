@@ -1,0 +1,11 @@
+{
+  "name": "saberes-que-cultivam",
+  "private": true,
+  "description": "Sistema do projeto Saberes que Cultivam (site estático; este arquivo só guarda os comandos de teste).",
+  "scripts": {
+    "montar": "node ferramentas/montar.js",
+    "test": "TZ=America/Fortaleza node --test \"testes/unit/*.test.js\"",
+    "test:banco": "bash supabase/tests/testar.sh",
+    "servir": "node ferramentas/servidor_teste.js"
+  }
+}
