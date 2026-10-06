@@ -8,6 +8,7 @@
     "test:banco": "bash supabase/tests/testar.sh",
     "test:estresse": "ESTRESSE=1 bash supabase/tests/testar.sh",
     "test:desempenho": "node testes/desempenho/regras_volume.js",
+    "test:tipografia": "node testes/automaticos/tipografia.js",
     "servir": "node ferramentas/servidor_teste.js"
   }
 }
