@@ -920,7 +920,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const x = i => GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n, y = v => GR.h - GR.b - (GR.h - GR.t - GR.b) * v / max, x0 = GR.l;
     const linha = k => { const pts = P.map((p, i) => p[k] == null ? null : [x(i), y(p[k])]).filter(Boolean); return pts.length ? 'M' + [[x0, y(0)]].concat(pts).map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') : ''; };
     // recebido entra de uma vez (parcela): linha em degrau
-    const degrau = () => { let d = `M${x0} ${y(0)}`, ant = 0; P.forEach((p, i) => { if (p.recebido == null) return; if (p.recebido !== ant) { d += ` L${(i ? x(i - 1) : x0).toFixed(1)} ${y(p.recebido).toFixed(1)}`; ant = p.recebido; } d += ` L${x(i).toFixed(1)} ${y(p.recebido).toFixed(1)}`; }); return d; };
+    const degrau = () => { let d = `M${x0} ${y(0)}`, ant = 0; P.forEach((p, i) => { if (p.recebido == null) return; d += ` L${x(i).toFixed(1)} ${y(ant).toFixed(1)}`; if (p.recebido !== ant) { d += ` L${x(i).toFixed(1)} ${y(p.recebido).toFixed(1)}`; ant = p.recebido; } }); return d; };
     const ult = P.filter(p => p.executado != null).length - 1, grade = [0, .25, .5, .75, 1].map(f => max * f);
     const mk = v => v === 0 ? '0' : 'R$ ' + num(v / 1000) + ' mil';
     const atual = P.findIndex(p => p.atual);
