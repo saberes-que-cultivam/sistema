@@ -123,20 +123,23 @@
     return (esperando ? `<div class="banner"><span><b>${esperando}</b> lançamento(s) guardado(s) neste aparelho, aguardando internet para enviar.</span><button class="b s" data-sinc>Tentar enviar agora</button></div>` : '')
       + ruins.map(p => `<div class="banner"><span><b>Não enviado</b> (${esc(MOD[p.tabela].nome)}): ${esc(p.erro)}</span><span class="acts"><button class="b s" data-edit="${p.tabela}:${esc(p.dados.id)}">Corrigir</button><button class="b s d" data-descartar="${esc(p.id)}">Descartar</button></span></div>`).join('');
   }
+  /* indicador com anel: pc = percentual (0 a 100), n e de = textos do número grande e do total */
+  const kpi = (k, pc, n, de, rot, s2) => { pc = Math.max(0, Math.min(100, +pc || 0)); const pr = Math.round(pc), C = 2 * Math.PI * 18;
+    return `<div class="dx-kpi k${k}"><div class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
+      <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : de}</small></span></div><span class="dx-kpi-r">${rot}</span>
+      <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-s">${esc(s2)}</span></div>`; };
+  const pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
   function painel() {
     const st = ['2.1', '4.1', '3.3', '3.2'].map(id => D.ETAPAS.find(e => e.id === id));
     const lab = { '2.1': 'biofábricas em funcionamento', '4.1': 'unidades produtivas acompanhadas', '3.3': 'kits de apoio entregues', '3.2': 'capacitações realizadas' };
-    const X = R.execucaoGeral(db, hoje()), pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
+    const X = R.execucaoGeral(db, hoje());
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
     const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo').length;
     const sub = { '2.1': uConta.length ? `${uConta.length} em implantação · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
       '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base`, '3.3': `${db.agricultores.filter(a => !a.kit).length} cadastrada(s) ainda sem kit`,
       '3.2': `${num(caps.reduce((s, e) => s + (+e.part || 0), 0))} participante(s) · ${dc} dia(s) de campo` };
-    const kpi = (k, n, de, rot, s2) => { const pc = Math.max(0, Math.min(100, n / de * 100)), pr = Math.round(pc), C = 2 * Math.PI * 18;
-      return `<div class="dx-kpi k${k}"><div class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
-        <span class="dx-kpi-n"><b>${n}</b><small> / ${de}</small></span></div><span class="dx-kpi-r">${rot}</span>
-        <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> concluído</span><span class="dx-kpi-s">${esc(s2)}</span></div>`; };
-    const A = R.alertas(db, hoje()); const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
+    const A = R.alertas(db, hoje());
+    const prazoTxt = p => { const d = R.dias(new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), pd(p)); return d < 0 ? `venceu há ${-d} dia${d === -1 ? '' : 's'}` : d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`; }; const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
     const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
       if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span>Meta ${mm} · ${D.METAS[mm]}</span><span></span><span></span></div>`; }
@@ -153,10 +156,16 @@
    <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%, previsto até o mês passado ${pct(X.prev)}%"><i class="${ST[X.st][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prev > 0 ? `<b style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
    <p class="dx-exec-sub"><span>Previsto até ${X.ate}: <b>${pct(X.prev)}%</b></span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
    <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista. O traço na barra é o previsto pelo cronograma até o fim do mês passado. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
-  <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e), e.q, lab[e.id], sub[e.id])).join('')}</div>
+  <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e) / e.q * 100, feito(e), e.q, lab[e.id], sub[e.id])).join('')}</div>
+ </section>
+ <section class="at panel ${A.some(a => a[0] === 'bad') ? 'crit' : A.length ? 'pend' : ''}" aria-label="O que pede atenção">
+  <div class="at-cab"><h2>O que pede atenção</h2><span class="chip">${A.length ? A.length + (A.length === 1 ? ' aviso' : ' avisos') : 'nada pendente'}</span></div>
+  ${A.length ? `<div class="at-col" aria-hidden="true"><span>Problema</span><span>Prazo</span><span></span></div>
+  <ul class="at-lista">${A.map(a => `<li class="at-item ${a[0]}"><div class="at-txt"><span class="at-tag">${a[0] === 'bad' ? 'Urgente' : 'Atenção'} · ${esc(a[1])}</span><b>${esc(a[3])}</b><span class="small">${esc(a[4])}</span></div>
+   <div class="at-prazo">${a[5] ? `${dt(a[5])}<small>${prazoTxt(a[5])}</small>` : '—'}</div>
+   <div class="at-acao">${a[6] ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>
  <div class="two">
-  <div class="panel box"><h3>Precisa de atenção</h3>${A.length ? `<ul class="al">${A.map(a => `<li><span class="chip ${a[0]}">${a[1]}</span><span>${esc(a[2])}</span></li>`).join('')}</ul>` : '<div class="small">Nada pendente.</div>'}</div>
   <div class="panel box"><h3>Recursos do TED</h3><dl class="kv"><dt>Valor total</dt><dd>${brl(D.TOTAL)}</dd>${parcelasTxt()}<dt>Pago</dt><dd>${brl(R.soma(F, 'pago'))}</dd><dt>Comprometido (solicitado ou em compras)</dt><dd>${brl(R.soma(F, 'comp'))}</dd><dt>Disponível do que já foi recebido</dt><dd>${brl(rec - usado)}</dd></dl>
   ${bar(usado, D.TOTAL)}<div class="small">${num(usado / D.TOTAL * 100, 1)}% do valor total pago ou comprometido. Detalhe por meta e por rubrica na aba Financeiro.</div></div>
  </div>
@@ -173,12 +182,20 @@
  </div>`;
   }
   function financeiro() {
-    const F = R.fin(db), FR = R.finRubrica(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
+    const F = R.fin(db), FR = R.finRubrica(db), pago = R.soma(F, 'pago'), comp = R.soma(F, 'comp'), usado = pago + comp, rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
+    const mil = v => num(v / 1000, Math.abs(v) % 1000 ? 1 : 0);
     return `<div class="head"><div><h2>Acompanhamento financeiro</h2><p>Valores previstos no plano de trabalho, comparados com as despesas lançadas aqui. O registro oficial continua sendo o da FUNCERN; confira os dois antes de cada prestação de contas.</p></div></div>
- <div class="stats"><div class="panel stat"><h3>Recebido</h3><b>${num(rec / 1000)}<span> mil</span></b><div class="small">repassado à FUNCERN até agora</div></div>
- <div class="panel stat"><h3>Pago</h3><b>${num(R.soma(F, 'pago') / 1000, 1)}<span> mil</span></b>${bar(R.soma(F, 'pago'), rec)}</div>
- <div class="panel stat"><h3>Comprometido</h3><b>${num(R.soma(F, 'comp') / 1000, 1)}<span> mil</span></b>${bar(R.soma(F, 'comp'), rec, 'f')}</div>
- <div class="panel stat"><h3>Disponível do recebido</h3><b>${num((rec - usado) / 1000, 1)}<span> mil</span></b><div class="small">${prox ? `próxima parcela de ${brl(prox.valor)} prevista para ${mesAno(prox.previsao)}` : 'todas as parcelas recebidas'}</div></div></div>
+ <section class="dx-topo panel" aria-label="Resumo financeiro">
+  <div class="dx-exec"><span class="dx-rot">Execução financeira do projeto</span>
+   <div class="dx-exec-num"><b>${pct(usado / D.TOTAL * 100)}%</b></div><div><span class="chip ${usado > rec ? 'bad' : 'ok'}">${usado > rec ? 'Acima do que já foi recebido' : 'Dentro do que já foi recebido'}</span></div>
+   <div class="medidor" role="img" aria-label="Pago ou comprometido ${pct(usado / D.TOTAL * 100)}% do total; recebido ${pct(rec / D.TOTAL * 100)}%"><i class="${usado > rec ? 'bad' : ''}" style="width:${Math.min(100, usado / D.TOTAL * 100)}%"></i><b style="left:${Math.min(100, rec / D.TOTAL * 100)}%"></b></div>
+   <p class="dx-exec-sub"><span>Pago ou comprometido: <b>${brl(usado)}</b></span><span>Total do TED: <b>${brl(D.TOTAL)}</b></span></p>
+   <details class="dx-como"><summary>Como é calculado</summary><p>Soma das despesas pagas e das comprometidas (solicitadas ou em compras na FUNCERN), dividida pelo valor total do TED. O traço na barra marca quanto já foi repassado à fundação (${pct(rec / D.TOTAL * 100)}%). São os valores lançados neste sistema; o registro oficial é o da FUNCERN.</p></details></div>
+  <div class="dx-kpis fin">${kpi(1, rec / D.TOTAL * 100, mil(rec), 'de ' + mil(D.TOTAL) + ' mil', 'recebido', prox ? `próxima parcela de ${brl(prox.valor)} prevista para ${mesAno(prox.previsao)}` : 'todas as parcelas recebidas')}
+   ${kpi(2, pago / rec * 100, mil(pago), 'de ' + mil(rec) + ' mil', 'pago', `${db.despesas.filter(d => d.status === 'Pago').length} despesa(s) paga(s)`)}
+   ${kpi(3, comp / rec * 100, mil(comp), 'de ' + mil(rec) + ' mil', 'comprometido', `${db.despesas.filter(d => d.status !== 'Pago').length} despesa(s) solicitada(s) ou em compras`)}
+   ${kpi(4, (rec - usado) / rec * 100, mil(rec - usado), 'de ' + mil(rec) + ' mil', 'disponível do recebido', rec - usado < 0 ? 'o lançado passa do que já foi recebido' : 'recebido menos pago e comprometido')}</div>
+ </section>
  <div><h3>Por meta do TED</h3><div class="panel scroll" style="margin-top:8px">${finTabela(F, 'Meta')}</div></div>
  <div><h3>Por rubrica do plano executado pela FUNCERN</h3><div class="panel scroll" style="margin-top:8px">${finTabela(FR, 'Rubrica')}</div>
  <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>
