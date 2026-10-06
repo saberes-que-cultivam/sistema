@@ -265,3 +265,42 @@ td .small{margin-top:2px}
   .rb-tot{grid-template-columns:1fr 1fr;padding:12px 14px} .rb-tot span:not(:first-child){text-align:left} .rb-tot span:first-child{grid-column:1/-1}
 }
 @media print{.dica,.rg .cr{display:none}}
+
+/* ---------- unidades produtivas: faixa de indicadores sem o bloco grande, cartões de pessoa e ficha ---------- */
+.dx-topo.so{grid-template-columns:1fr}
+.dx-topo.so .dx-kpi-n small{font-size:18px}
+.pcs{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.pc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.pc-av{flex:none;width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accent-ink);font:600 20px var(--body);letter-spacing:.02em}
+.pc-av.g{width:64px;height:64px;font-size:22px}
+.pc-t{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pc-n{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px} .pc-n b{font-size:19px;font-weight:600}
+.pc-d{display:flex;flex-wrap:wrap;gap:2px 18px;font-size:14px;color:var(--muted)}
+.pc .b{padding:10px 16px;border-radius:10px;font-size:15px}
+.pc-cab{display:flex;align-items:center;gap:14px} .pc-cab h2{font-size:22px;margin-bottom:6px}
+dialog .kv dt{max-width:26ch}
+@media (max-width:640px){.pc{grid-template-columns:auto minmax(0,1fr);padding:14px}.pc .b{grid-column:1/-1}.pc-av{width:46px;height:46px;font-size:17px}.pc-n b{font-size:17px}}
+
+/* ---------- formulário de cadastro: cabeçalho, caixa "o que é", seções e rodapé fixo (mesmo desenho do Mulheres & Quintais) ---------- */
+dialog{width:min(760px,calc(100% - 24px));border-radius:16px}
+dialog form.fm{padding:0;gap:0;max-height:90vh;max-height:90dvh}
+.fm-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 26px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.fm-eye{display:flex;align-items:center;gap:10px;font:700 12.5px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.fm-eye::before{content:"";width:22px;height:2px;background:var(--c-exec)}
+.fm-cab h2{font-size:26px;font-weight:600;margin-top:4px}
+.fm-x{flex:none;width:40px;height:40px;border:0;border-radius:10px;background:none;color:var(--ink);font:400 28px/1 var(--body);cursor:pointer}
+.fm-x:hover{background:var(--sunken)}
+.fm-corpo{padding:20px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;background:color-mix(in srgb,var(--sunken) 35%,var(--surface))}
+.fm-oque{padding:14px 16px;border-radius:12px;background:var(--sunken)}
+.fm-oque span{font-size:13px;color:var(--muted)} .fm-oque p{margin:2px 0 0;font-size:15px}
+.fm-sec{margin:10px 0 0;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:13px;letter-spacing:.1em}
+.fm .fields{gap:16px}
+.fm .fld label,.fm .fld legend{font:500 15px var(--body);color:var(--ink)}
+.fm input,.fm select,.fm textarea{font-size:16px;padding:13px 14px;border-radius:10px;background:var(--surface);border-color:color-mix(in srgb,var(--ink) 28%,var(--line))}
+.fm input:focus,.fm select:focus,.fm textarea:focus{outline:2px solid var(--ink);outline-offset:1px}
+.fm fieldset{border-radius:10px;background:var(--surface);padding:12px 14px} .fm fieldset input{padding:0;width:18px;height:18px}
+.fm fieldset label{font-size:15px}
+.fm-dica{font-size:13px;color:var(--muted)}
+.fm-pe{padding:14px 26px 18px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.fm-pe .b{padding:11px 20px;border-radius:10px;font-size:15px}
+@media (max-width:640px){.fm-cab,.fm-corpo,.fm-pe{padding-inline:16px}.fm-cab h2{font-size:21px}dialog{width:100%;max-width:100%;max-height:100%;height:100%;border-radius:0;border:0}dialog form.fm{max-height:100dvh;height:100%}.fm-corpo{flex:1}}

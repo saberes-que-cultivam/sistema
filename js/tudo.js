@@ -762,76 +762,77 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const optRubrica = () => D.RUBRICAS.map(r => [r.id, r.nome]);
   const nomeRubrica = id => (D.RUBRICAS.find(r => r.id === id) || {}).nome || '';
   const MOD = {
-    unidades: { nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Etapas de implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
-      campos: [['nome', 'Nome', 'text', 1], ['sigla', 'Sigla (2 a 4 letras, usada no código dos lotes)', 'text', 1], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
+    unidades: { um: 'Unidade de produção de bioinsumos', oque: 'Biofábrica do projeto. As duas que contam para a Meta 2 do TED são as dos territórios; as outras são de apoio. Marque cada passo da implantação conforme for acontecendo.', dicas: { sigla: 'Aparece no código de todos os lotes desta unidade. Não mude depois de criar lotes.', parceiro: 'Associação, cooperativa, prefeitura ou escola. Bem público não pode ser doado a pessoa física.' }, nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Etapas de implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
+      campos: [['_s1', 'Identificação', 'sec'], ['nome', 'Nome', 'text', 1], ['sigla', 'Sigla (2 a 4 letras, usada no código dos lotes)', 'text', 1], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
         ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)],
         ['modelo', 'Modelo', 'select', 0, opt(['A definir', 'Área aberta com cobertura (compostagem e biofertilizantes)', 'Microrganismos isolados'])],
-        ['conta', 'Conta para a Meta 2 do TED?', 'select', 0, opt(['Sim', 'Não'])], ['parceiro', 'Parceiro institucional que recebe os bens', 'text'], ['responsavel', 'Responsável local', 'text'],
-        ['_chk', 'Implantação', 'checks'], ['obs', 'Observações', 'textarea']],
+        ['conta', 'Conta para a Meta 2 do TED?', 'select', 0, opt(['Sim', 'Não'])], ['_s2', 'Parceria', 'sec'], ['parceiro', 'Parceiro institucional que recebe os bens', 'text'], ['responsavel', 'Responsável local', 'text'],
+        ['_s3', 'Implantação', 'sec'], ['_chk', 'Passos concluídos', 'checks'], ['obs', 'Observações', 'textarea']],
       cols: [['Unidade', u => `<b>${esc(u.nome)}</b>${exChip(u)}<div class="small">${esc(u.municipio)}/${esc(u.uf)} · ${esc(u.modelo)}</div>`],
         ['Meta 2', u => u.conta === 'Sim' ? '<span class="chip ok">conta</span>' : '<span class="chip">apoio</span>'],
         ['Implantação', u => `${bar(nCheck(u), D.CHECK.length)}<div class="small">${nCheck(u)} de ${D.CHECK.length} · próximo: ${esc(R.proximoPasso(u))}</div>`],
         ['Parceiro', u => esc(u.parceiro) || '<span class="chip f">a definir</span>'],
         ['Itens estimados', u => { const s = db.itens.filter(i => i.unidade === u.id).reduce((t, i) => t + (+i.valor || 0), 0); return `${brl(s)}${u.conta === 'Sim' ? `<div class="small">de ${brl(D.TETO_UNIDADE)}</div>` : ''}`; }, 'n']] },
-    itens: { nome: 'Itens', titulo: 'Itens e aquisições das unidades', desc: `Cada item passa por orçamento, compra pela FUNCERN e entrega. O teto do plano é ${brl(D.TETO_UNIDADE)} por unidade.`, novo: 'Novo item',
+    itens: { um: 'Item de aquisição', oque: 'Bem ou material a comprar pela FUNCERN para uma unidade de produção.', dicas: { rubrica: 'A rubrica do plano em que a compra vai entrar.' }, nome: 'Itens', titulo: 'Itens e aquisições das unidades', desc: `Cada item passa por orçamento, compra pela FUNCERN e entrega. O teto do plano é ${brl(D.TETO_UNIDADE)} por unidade.`, novo: 'Novo item',
       campos: [['unidade', 'Unidade', 'ref', 1, 'unidades'], ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor estimado (R$)', 'number'],
         ['rubrica', 'Rubrica do plano', 'select', 0, () => [['', '']].concat(optRubrica())],
         ['status', 'Situação', 'select', 0, opt(['A definir', 'Orçamento enviado', 'Em compras na FUNCERN', 'Entregue'])], ['data', 'Data do envio do orçamento', 'date']],
       cols: [['Item', i => esc(i.descricao) + exChip(i) + (i.rubrica ? `<div class="small">${esc(nomeRubrica(i.rubrica))}</div>` : '')], ['Unidade', i => esc((by('unidades', i.unidade) || {}).nome)],
         ['Situação', i => `<span class="chip ${i.status === 'Entregue' ? 'ok' : i.status === 'A definir' ? '' : 'f'}">${esc(i.status)}</span>`], ['Enviado em', i => dt(i.data)], ['Valor', i => brl(i.valor), 'n']] },
-    lotes: { nome: 'Lotes', titulo: 'Lotes de produção', desc: 'Um lote por batelada. O código é gerado pela sigla da unidade e pelo tipo. O saldo desconta o que já foi distribuído.', novo: 'Novo lote',
-      campos: [['unidade', 'Unidade', 'ref', 1, 'unidades'], ['tipo', 'Tipo de bioinsumo', 'select', 1, opt(Object.keys(D.TIPOS))], ['inicio', 'Início do preparo', 'date', 1],
+    lotes: { um: 'Lote de produção', oque: 'Uma batelada de bioinsumo. O código é gerado ao salvar. Só lote marcado como “Pronto” pode ser distribuído.', dicas: { dias: 'Preenchido pelo tipo; ajuste se o seu preparo for diferente.', obs: 'O que você observou ao conferir: é o registro de qualidade do lote.' }, nome: 'Lotes', titulo: 'Lotes de produção', desc: 'Um lote por batelada. O código é gerado pela sigla da unidade e pelo tipo. O saldo desconta o que já foi distribuído.', novo: 'Novo lote',
+      campos: [['_s1', 'Produção', 'sec'], ['unidade', 'Unidade', 'ref', 1, 'unidades'], ['tipo', 'Tipo de bioinsumo', 'select', 1, opt(Object.keys(D.TIPOS))], ['inicio', 'Início do preparo', 'date', 1],
         ['dias', 'Dias até ficar pronto', 'number'], ['qtd', 'Quantidade produzida', 'number', 1], ['med', 'Medida', 'select', 0, opt(['kg', 'L'])],
-        ['status', 'Situação', 'select', 0, opt(['Em preparo', 'Maturando', 'Pronto', 'Descartado'])], ['responsavel', 'Responsável', 'text'],
+        ['_s2', 'Acompanhamento do lote', 'sec'], ['status', 'Situação', 'select', 0, opt(['Em preparo', 'Maturando', 'Pronto', 'Descartado'])], ['responsavel', 'Responsável', 'text'],
         ['insumos', 'Ingredientes e proporções', 'textarea'], ['obs', 'Qualidade (cheiro, temperatura, pH, aspecto)', 'textarea']],
       cols: [['Lote', l => `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span>${exChip(l)}<div class="small">${esc(l.tipo)} · ${esc((by('unidades', l.unidade) || {}).nome)}</div>`],
         ['Situação', l => `<span class="chip ${l.status === 'Pronto' ? 'ok' : l.status === 'Descartado' ? 'bad' : 'f'}">${esc(l.status)}</span>`],
         ['Maturação', l => { const p = R.dias(pd(l.inicio), hoje()); return l.status === 'Pronto' || l.status === 'Descartado' ? `<span class="small">início ${dt(l.inicio)}</span>` : `${bar(p, l.dias, 'f')}<div class="small">dia ${Math.max(0, p)} de ${l.dias} · previsto ${dt(iso(R.pronto(l)))}</div>`; }],
         ['Produzido', l => `${num(l.qtd)} ${esc(l.med)}`, 'n'], ['Saldo', l => `<b>${num(saldo(l))} ${esc(l.med)}</b>`, 'n']] },
-    agricultores: { nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
-      campos: [['nome', 'Nome do agricultor ou agricultora', 'text', 1], ['comunidade', 'Comunidade ou assentamento', 'text'], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
+    agricultores: { um: 'Unidade produtiva', oque: 'Agricultor ou agricultora atendido pelo projeto. Conta como “acompanhada” quando recebe bioinsumo e tem pelo menos uma visita de monitoramento. É dado pessoal: registre só o necessário e não compartilhe fora da equipe.', dicas: { diag: 'Dia em que você levantou a situação antes do projeto. Sem essa data, a avaliação final não tem com o que comparar.', gasto0: 'Quanto a família gastava por mês com adubo e defensivo comprados, antes de receber bioinsumo.', kitdata: 'Obrigatória quando o kit foi entregue.' }, nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
+      campos: [['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome do agricultor ou agricultora', 'text', 1], ['comunidade', 'Comunidade ou assentamento', 'text'], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
         ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)], ['unidade', 'Biofábrica que atende', 'ref', 0, 'unidades'],
-        ['culturas', 'Culturas principais', 'text'], ['area', 'Área cultivada (ha)', 'number'],
-        ['diag', 'Data do diagnóstico inicial', 'date'], ['quimico', 'Usa adubo ou defensivo químico?', 'select', 0, opt(['', 'Sim', 'Parcial', 'Não'])], ['gasto0', 'Gasto com insumos comprados (R$/mês)', 'number'],
-        ['kit', 'Kit de apoio entregue', 'check'], ['kitdata', 'Data da entrega do kit', 'date']],
+        ['_s2', 'Produção', 'sec'], ['culturas', 'Culturas principais', 'text'], ['area', 'Área cultivada (ha)', 'number'],
+        ['_s3', 'Linha de base (antes do projeto)', 'sec'], ['diag', 'Data do diagnóstico inicial', 'date'], ['quimico', 'Usa adubo ou defensivo químico?', 'select', 0, opt(['', 'Sim', 'Parcial', 'Não'])], ['gasto0', 'Gasto com insumos comprados (R$/mês)', 'number'],
+        ['_s4', 'Kit de apoio', 'sec'], ['kit', 'Kit de apoio entregue', 'check'], ['kitdata', 'Data da entrega do kit', 'date']],
       cols: [['Agricultor(a)', a => `<b>${esc(a.nome)}</b>${exChip(a)}<div class="small">${esc(a.comunidade)} · ${esc(a.municipio)}/${esc(a.uf)}</div>`],
         ['Culturas', a => `${esc(a.culturas)}<div class="small">${num(a.area, 1)} ha</div>`],
         ['Linha de base', a => a.diag ? `<span class="chip ok">${dt(a.diag)}</span><div class="small">${brl(a.gasto0)}/mês · químico: ${esc(a.quimico || '—')}</div>` : '<span class="chip bad">falta</span>'],
         ['Kit', a => a.kit ? `<span class="chip ok">${dt(a.kitdata)}</span>` : '<span class="chip">não</span>'],
         ['Acompanhamento', a => { const r = recebeu(a.id).length, v = visitasDe(a.id); return `<span class="chip ${acompanhada(a) ? 'ok' : ''}">${r} entrega(s) · ${v.length} visita(s)</span>${v[0] ? `<div class="small">última ${dt(v[0].data)}</div>` : ''}`; }]] },
-    distribuicoes: { nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega',
+    distribuicoes: { um: 'Entrega de bioinsumo', oque: 'Liga um lote a quem recebeu. O sistema desconta do saldo do lote e não deixa entregar mais do que existe.', nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega',
       campos: [['data', 'Data', 'date', 1], ['lote', 'Lote (só os prontos)', 'ref', 1, 'lotes', l => l.status === 'Pronto'], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['qtd', 'Quantidade', 'number', 1],
         ['cultura', 'Cultura que vai receber', 'text'], ['area', 'Área de aplicação (ha)', 'number'], ['forma', 'Forma de aplicação', 'select', 0, opt(['No solo', 'Foliar', 'Na cova ou sulco', 'Tratamento de sementes', 'Outro'])]],
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Lote', d => { const l = by('lotes', d.lote) || {}; return `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span><div class="small">${esc(l.tipo)}</div>`; }],
         ['Para', d => esc((by('agricultores', d.agricultor) || {}).nome)], ['Uso', d => `${esc(d.cultura)}<div class="small">${esc(d.forma)} · ${num(d.area, 1)} ha</div>`],
         ['Quantidade', d => `${num(d.qtd)} ${esc((by('lotes', d.lote) || {}).med || '')}`, 'n']] },
-    visitas: { nome: 'Monitoramento', titulo: 'Visitas de monitoramento', desc: 'Registro do uso em campo. O gasto mensal com insumos comprados é comparado com a linha de base no painel.', novo: 'Registrar visita',
-      campos: [['data', 'Data', 'date', 1], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['tecnico', 'Quem visitou', 'text'],
+    visitas: { um: 'Visita de monitoramento', oque: 'O que foi visto em campo depois da entrega. O gasto informado aqui é comparado com a linha de base no painel.', dicas: { gasto: 'Mesma pergunta da linha de base, para comparar antes e depois.' }, nome: 'Monitoramento', titulo: 'Visitas de monitoramento', desc: 'Registro do uso em campo. O gasto mensal com insumos comprados é comparado com a linha de base no painel.', novo: 'Registrar visita',
+      campos: [['_s1', 'A visita', 'sec'], ['data', 'Data', 'date', 1], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['tecnico', 'Quem visitou', 'text'],
+        ['_s2', 'O que foi visto', 'sec'],
         ['usou', 'Aplicou o bioinsumo recebido?', 'select', 1, opt(['Sim', 'Parcial', 'Não'])], ['vigor', 'Vigor da cultura (1 ruim a 5 ótimo)', 'select', 0, opt(['', '1', '2', '3', '4', '5'])],
         ['gasto', 'Gasto atual com insumos comprados (R$/mês)', 'number'], ['obs', 'O que foi observado', 'textarea'], ['problemas', 'Dificuldades relatadas', 'textarea']],
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome)],
         ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
-    eventos: { nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
+    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano. Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
         ['part', 'Participantes', 'number'], ['mulheres', 'Dos quais, mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + exChip(e)], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
         ['Evidência', e => link(e.link)]] },
-    entregas: { nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
+    entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida.', dicas: { link: 'Onde o documento está guardado.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
       campos: [['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`])],
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
         ['Evidência', g => link(g.link)]] },
-    despesas: { nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
+    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
       campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
         ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor (R$)', 'number', 1],
         ['status', 'Situação', 'select', 1, opt(['Solicitado', 'Em compras na FUNCERN', 'Pago'])], ['favorecido', 'Favorecido', 'text'], ['doc', 'Documento (nota fiscal, solicitação)', 'text']],
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
-    pessoas: { nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
+    pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
       campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, opt(['Equipe', 'Coordenação'])], ['ativo', 'Acesso ativo', 'check']],
       cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : ''}">${esc(u.perfil)}</span>`],
         ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
@@ -911,6 +912,47 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
    <dt>Visitas em que o bioinsumo foi aplicado</dt><dd>${I.visitas ? `${I.usou} de ${I.visitas}` : '—'}</dd>
    <dt>Participantes em capacitações e dias de campo</dt><dd>${I.participantes ? `${num(I.participantes)} (${num(I.mulheres / I.participantes * 100)}% mulheres)` : '—'}</dd></dl></div>
  </div>`;
+  }
+  /* ---------- unidades produtivas: indicadores, cartão por pessoa e ficha com o histórico ---------- */
+  const iniciais = n => String(n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).map(x => x[0]).filter((x, i, a) => i === 0 || i === a.length - 1).join('').toUpperCase() || '?';
+  function situacaoAgr(a) {
+    if (!a.diag) return ['bad', 'Sem linha de base'];
+    const r = recebeu(a.id).length, v = visitasDe(a.id).length;
+    if (r && v) return ['ok', 'Acompanhada'];
+    if (r) return ['f', 'Recebeu, falta visita'];
+    return ['', 'Aguardando bioinsumo'];
+  }
+  function telaAgricultores() {
+    const L = db.agricultores, pode = R.podeGravar(eu, 'agricultores'), meta = 30;
+    const base = L.filter(a => a.diag).length, kits = L.filter(a => a.kit).length, acomp = L.filter(acompanhada).length;
+    const falta = (n, de) => n >= de ? 'completo' : `faltam ${de - n}`;
+    const ordem = [...L].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+    const cartao = a => { const st = situacaoAgr(a), u = by('unidades', a.unidade), v = visitasDe(a.id);
+      return `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(a.nome))}</span>
+     <div class="pc-t"><div class="pc-n"><b>${esc(a.nome)}</b><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? '<span class="chip ok">kit entregue</span>' : ''}${exChip(a)}</div>
+      <div class="pc-d"><span>${esc(a.comunidade || 'comunidade não informada')}</span><span>${esc(a.municipio || '')}${a.uf ? '/' + esc(a.uf) : ''}</span>${a.culturas ? `<span>${esc(a.culturas)}</span>` : ''}${u ? `<span>${esc(u.nome)}</span>` : ''}<span>${recebeu(a.id).length} entrega(s) · ${v.length} visita(s)</span></div></div>
+     <button class="b" data-ficha="${esc(a.id)}">Ver detalhes</button></li>`; };
+    return `<div class="head"><div><h2>Agricultores e unidades produtivas</h2><p>Meta de ${meta} unidades produtivas acompanhadas e ${meta} kits. Registre a linha de base antes da primeira entrega de bioinsumo.</p></div><div class="acts">${pode ? '<button class="b p" data-new="agricultores">Nova unidade produtiva</button>' : ''}</div></div>
+ <section class="dx-topo so panel" aria-label="Indicadores das unidades produtivas"><div class="dx-kpis">
+  ${kpi(1, L.length / meta * 100, L.length, 'de ' + meta, 'unidades produtivas cadastradas', falta(L.length, meta))}
+  ${kpi(2, L.length ? base / L.length * 100 : 0, base, 'de ' + L.length, 'com linha de base (diagnóstico inicial)', L.length ? falta(base, L.length) : 'nenhuma cadastrada')}
+  ${kpi(3, kits / meta * 100, kits, 'de ' + meta, 'kits de apoio entregues', falta(kits, meta))}
+  ${kpi(4, acomp / meta * 100, acomp, 'de ' + meta, 'acompanhadas (entrega e visita)', falta(acomp, meta))}</div></section>
+ <div><div class="head"><div><h2>Quem está cadastrado</h2><p>Em ordem alfabética. A etiqueta mostra o que falta para a unidade contar como acompanhada.</p></div></div>
+ ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
+  }
+  function abrirFicha(id) {
+    const a = by('agricultores', id); if (!a) return; ed = null; const st = situacaoAgr(a), u = by('unidades', a.unidade), ent = recebeu(id).sort((x, y) => x.data < y.data ? 1 : -1), vis = visitasDe(id);
+    const linha = (r, v) => `<dt>${r}</dt><dd>${v}</dd>`; $('#frm').className = '';
+    $('#frm').innerHTML = `<div class="pc-cab"><span class="pc-av g" aria-hidden="true">${esc(iniciais(a.nome))}</span><div><h2>${esc(a.nome)}</h2><div class="pc-n"><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? '<span class="chip ok">kit entregue</span>' : ''}${exChip(a)}</div></div></div>
+ <dl class="kv">${linha('Comunidade', esc(a.comunidade) || '—')}${linha('Município', (esc(a.municipio) || '—') + (a.uf ? '/' + esc(a.uf) : ''))}${linha('Território', esc(a.territorio) || '—')}${linha('Biofábrica que atende', esc(u ? u.nome : '') || '—')}
+  ${linha('Culturas', esc(a.culturas) || '—')}${linha('Área cultivada', R.vazio(a.area) ? '—' : num(a.area, 1) + ' ha')}${linha('Diagnóstico inicial', a.diag ? dt(a.diag) : '<span class="chip bad">falta</span>')}
+  ${linha('Usa químico', esc(a.quimico) || '—')}${linha('Gasto com insumos (linha de base)', R.vazio(a.gasto0) ? '—' : brl(a.gasto0) + '/mês')}${linha('Kit de apoio', a.kit ? 'entregue em ' + dt(a.kitdata) : 'não entregue')}</dl>
+ <div><h3>Bioinsumos recebidos (${ent.length})</h3>${ent.length ? `<div class="scroll"><table><tbody>${ent.map(d => { const l = by('lotes', d.lote) || {}; return `<tr><td>${dt(d.data)}</td><td><span class="mono">${esc(l.codigo || '')}</span> ${esc(l.tipo || '')}</td><td class="n">${num(d.qtd)} ${esc(l.med || '')}</td></tr>`; }).join('')}</tbody></table></div>` : '<p class="small">Nenhuma entrega registrada.</p>'}</div>
+ <div><h3>Visitas de monitoramento (${vis.length})</h3>${vis.length ? `<div class="scroll"><table><tbody>${vis.map(v => `<tr><td>${dt(v.data)}</td><td><span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">aplicou: ${esc(v.usou)}</span></td><td>${R.vazio(v.gasto) ? '' : brl(v.gasto) + '/mês'}</td><td class="small">${esc(v.obs || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma visita registrada.</p>'}</div>
+ <div class="frow">${R.podeExcluir(eu, 'agricultores', a) && !a._pendente ? `<button type="button" class="b d" data-del="agricultores:${esc(id)}" data-fechaapos>Excluir</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button>
+  ${R.podeGravar(eu, 'visitas') ? `<button type="button" class="b" data-new="visitas" data-pre="${esc(id)}">Registrar visita</button><button type="button" class="b" data-new="distribuicoes" data-pre="${esc(id)}">Registrar entrega</button><button type="button" class="b p" data-edit="agricultores:${esc(id)}">Editar cadastro</button>` : ''}</div>`;
+    if (!$('#dlg').open) $('#dlg').showModal();
   }
   /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
   let ritmoAtual = null;   // o que o gráfico mostrou por último (a dica ao passar o mouse lê daqui)
@@ -1033,14 +1075,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function render() {
     if (!eu || !db) return;
     nav(); const v = $('#view');
-    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tabela(tab));
+    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     $('#quem').textContent = demo() ? eu.perfil + ' · demonstração' : eu.nome + ' · ' + eu.perfil;
     $('#net').hidden = navigator.onLine !== false && !(api.offline);
   }
 
   /* ---------- formulário ---------- */
-  function abrir(m, id) {
-    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? { ativo: true } : {}); ed = { m, id };
+  function abrir(m, id, pre) {
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? { ativo: true } : pre ? { agricultor: pre } : {}); ed = { m, id };
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
@@ -1048,9 +1090,20 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
       if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
-      return `<div class="fld"><label for="${idc}">${l}</label><input id="${idc}" type="${t}" ${t === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : v)}"${Rq}></div>`;
+      return `<div class="fld${['nome', 'tema', 'titulo', 'descricao', 'email'].includes(k) ? ' w' : ''}"><label for="${idc}">${l}</label><input id="${idc}" type="${t}" ${t === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : v)}"${Rq}></div>`;
     };
-    $('#frm').innerHTML = `<h2>${id ? 'Editar' : M.novo}</h2><div class="fields">${M.campos.map(campo).join('')}</div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div>`;
+    // os campos vão em grupos: cada marcador de seção (tipo 'sec') fecha um grupo e abre outro com título
+    let corpo = '', aberto = false; const dica = k => M.dicas && M.dicas[k] ? `<span class="fm-dica">${esc(M.dicas[k])}</span>` : '';
+    M.campos.forEach(c => {
+      if (c[2] === 'sec') { corpo += (aberto ? '</div>' : '') + `<h3 class="fm-sec">${c[1]}</h3><div class="fields">`; aberto = true; return; }
+      if (!aberto) { corpo += '<div class="fields">'; aberto = true; }
+      corpo += campo(c).replace(/<\/div>$/, dica(c[0]) + '</div>');
+    });
+    if (aberto) corpo += '</div>';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${corpo}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
+    $('#frm').className = 'fm';
     $('#dlg').showModal();
   }
   /* guarda no aparelho quando não há internet (só o que a equipe lança em campo; despesas e acessos exigem conexão) */
@@ -1079,6 +1132,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     ev.preventDefault(); if (!ed) return; const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
     const er = t => { $('#ferr').textContent = t; };
     for (const [k, l, t, req] of M.campos) {
+      if (t === 'sec') continue;
       if (t === 'checks') { D.CHECK.forEach(c => { r[c[0]] = $('#f_' + c[0]).checked; }); continue; }
       const el = $('#f_' + k); r[k] = t === 'check' ? el.checked : t === 'number' ? (el.value === '' ? '' : +el.value) : el.value.trim();
       if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo.`); el.focus(); return; }
@@ -1098,7 +1152,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   /* ---------- planilhas e cópia ---------- */
   function csv(m) {
-    const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks' && c[2] !== 'sec'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
     // texto que começa com = + - @ vira fórmula no Excel: um apóstrofo na frente desarma
     const seguro = v => typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
     const val = (c, r) => c[2] === 'ref' ? (by(c[4], r[c[0]]) ? rotulo[c[4]](by(c[4], r[c[0]])) : '') : c[2] === 'check' ? (r[c[0]] ? 'Sim' : 'Não') : c[0] === 'rubrica' ? nomeRubrica(r[c[0]]) : typeof r[c[0]] === 'number' ? String(r[c[0]]).replace('.', ',') : r[c[0]];
@@ -1192,7 +1246,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.sair !== undefined) sair('');
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
     else if (d.print !== undefined) window.print();
-    else if (d.new) abrir(d.new);
+    else if (d.ficha) abrirFicha(d.ficha);
+    else if (d.new) abrir(d.new, null, d.pre);
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
@@ -1205,7 +1260,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (uso.length) { t.textContent = 'Em uso em ' + uso.join(', '); t.disabled = true; return; }
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; return; }
       t.disabled = true;
-      try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); render(); }
+      try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render(); }
       catch (e) { t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); db = await api.carregar(); render(); }
@@ -1213,7 +1268,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.exp) { if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
     else if (d.senha !== undefined) {
-      ed = null; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
+      ed = null; $('#frm').className = ''; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
     }
     else if (d.senhaok !== undefined) {
       const a = $('#s1').value, b = $('#s2').value; if (a.length < 8) { $('#ferr').textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; } if (a !== b) { $('#ferr').textContent = 'As duas senhas não são iguais.'; return; }
