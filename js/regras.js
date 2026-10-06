@@ -96,31 +96,34 @@
   /* ---------- o que precisa de atenção (painel) ---------- */
   const brl = v => 'R$ ' + n(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dt = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
+  /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
   function alertas(db, hoje) {
     hoje = hoje || new Date(); const A = [];
+    const add = (nivel, cat, titulo, detalhe, prazo, aba) => A.push([nivel, cat, titulo + (detalhe ? ' ' + detalhe : ''), titulo, detalhe || '', prazo || '', aba || '']);
     const F = fin(db), usado = soma(F, 'pago') + soma(F, 'comp'), rec = recebido();
     const prox = D.PARCELAS.find(p => !p.recebida);
-    if (usado > rec) A.push(['bad', 'Financeiro', `Pago e comprometido somam ${brl(usado)}, acima do que já foi recebido (${brl(rec)}).${prox ? ' A próxima parcela está prevista para ' + prox.previsao.split('-').reverse().join('/') + '.' : ''}`]);
-    F.filter(r => r.saldo < 0).forEach(r => A.push(['bad', 'Financeiro', `Meta ${r.m} está ${brl(-r.saldo)} acima do valor previsto no plano.`]));
+    if (usado > rec) add('bad', 'Financeiro', `Pago e comprometido somam ${brl(usado)}, acima do que já foi recebido (${brl(rec)}).`, prox ? 'A próxima parcela está prevista para ' + prox.previsao.split('-').reverse().join('/') + '.' : '', '', 'financeiro');
+    F.filter(r => r.saldo < 0).forEach(r => add('bad', 'Financeiro', `Meta ${r.m} está ${brl(-r.saldo)} acima do valor previsto no plano.`, 'Confira os lançamentos dessa meta.', '', 'financeiro'));
     finRubrica(db).forEach(r => {
-      if (r.semRubrica) A.push(['f', 'Financeiro', `Há despesa lançada sem rubrica (${brl(r.comp + r.pago)}). Sem rubrica ela não entra na conferência com a FUNCERN.`]);
-      else if (r.saldo < 0) A.push(['bad', 'Rubrica', `${r.nome}: ${brl(-r.saldo)} acima do previsto no plano. Remanejar exige ajuste do plano de trabalho.`]);
-      else if (r.prev && (r.comp + r.pago) / r.prev >= 0.9) A.push(['f', 'Rubrica', `${r.nome}: ${Math.round((r.comp + r.pago) / r.prev * 100)}% do previsto já pago ou comprometido.`]);
+      if (r.semRubrica) add('f', 'Financeiro', `Há despesa lançada sem rubrica (${brl(r.comp + r.pago)}).`, 'Sem rubrica ela não entra na conferência com a FUNCERN.', '', 'financeiro');
+      else if (r.saldo < 0) add('bad', 'Rubrica', `${r.nome}: ${brl(-r.saldo)} acima do previsto no plano.`, 'Remanejar exige ajuste do plano de trabalho.', '', 'financeiro');
+      else if (r.prev && (r.comp + r.pago) / r.prev >= 0.9) add('f', 'Rubrica', `${r.nome}: ${Math.round((r.comp + r.pago) / r.prev * 100)}% do previsto já pago ou comprometido.`, 'O que ainda falta comprar nessa rubrica cabe no saldo?', '', 'financeiro');
     });
     const e21 = D.ETAPAS.find(e => e.id === '2.1'); const lim = new Date(fimMes(e21.fim).getTime() - 60 * 864e5);
     db.unidades.filter(u => u.conta === 'Sim').forEach(u => {
-      if (!u.orcamento) A.push([dias(hoje, lim) < 30 ? 'bad' : 'f', 'Compras', `${u.nome}: envie os orçamentos à FUNCERN até ${dt(iso(lim))}. A etapa 2.1 termina em ${e21.fim.split('-').reverse().join('/')} e uma compra pela fundação leva cerca de dois meses.`]);
-      if (!u.parceiro_ok) A.push(['f', 'Patrimônio', `${u.nome}: defina o parceiro institucional que receberá os bens. Não é possível doar a pessoa física.`]);
+      if (!u.orcamento) add(dias(hoje, lim) < 30 ? 'bad' : 'f', 'Compras', `${u.nome}: envie os orçamentos à FUNCERN até ${dt(iso(lim))}.`, `A etapa 2.1 termina em ${e21.fim.split('-').reverse().join('/')} e uma compra pela fundação leva cerca de dois meses.`, iso(lim), 'unidades');
+      if (!u.parceiro_ok) add('f', 'Patrimônio', `${u.nome}: defina o parceiro institucional que receberá os bens.`, 'Não é possível doar a pessoa física.', '', 'unidades');
     });
     const semBase = db.agricultores.filter(a => !a.diag);
-    if (semBase.length) A.push(['bad', 'Linha de base', `${semBase.length} unidade(s) produtiva(s) sem diagnóstico inicial. Sem ele, a avaliação da Meta 5 não tem com o que comparar.`]);
+    if (semBase.length) add('bad', 'Linha de base', `${semBase.length} unidade(s) produtiva(s) sem diagnóstico inicial.`, 'Sem ele, a avaliação da Meta 5 não tem com o que comparar.', '', 'agricultores');
     db.agricultores.forEach(a => {
       const r = recebeu(db, a.id).sort((x, y) => x.data < y.data ? 1 : -1)[0]; if (!r) return; const v = visitasDe(db, a.id)[0];
-      if ((!v || v.data < r.data) && dias(pd(r.data), hoje) > 30) A.push(['f', 'Monitoramento', `${a.nome}: recebeu bioinsumo em ${dt(r.data)} e não teve visita depois.`]);
+      if ((!v || v.data < r.data) && dias(pd(r.data), hoje) > 30) add('f', 'Monitoramento', `${a.nome}: recebeu bioinsumo em ${dt(r.data)} e não teve visita depois.`, 'Registre a visita de monitoramento.', '', 'visitas');
     });
-    db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && pronto(l) < hoje) A.push(['f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}). Confira e marque como pronto.`]); });
-    D.ETAPAS.forEach(e => { if (fimMes(e.fim) < hoje && feito(db, e) < e.q) A.push(['bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e)} de ${e.q}.`]); });
-    return A;
+    db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && pronto(l) < hoje) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
+    D.ETAPAS.forEach(e => { if (fimMes(e.fim) < hoje && feito(db, e) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'entregas'); });
+    // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
+    return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
   }
 
   /* ---------- indicadores da Meta 5 ---------- */
