@@ -61,3 +61,9 @@ test('demonstração: quem acompanha (SEAB/MDA) não recebe nome de agricultor n
   await assert.rejects(api.salvar('eventos', { id: 'z', tipo: 'Reunião', data: '2026-10-01', tema: 'x' }), /permissão/);
   assert.strictEqual(SQC.regras.feito(db, SQC.dados.ETAPAS.find(e => e.id === '4.1')), 1);   // as contas do painel continuam fechando
 });
+test('mapa: contorno dos dois estados e todos os municípios do CE e do RN, com os do projeto no lugar certo', () => {
+  delete globalThis.SQC; const g = path.join(raiz, 'js', 'geo.js'); delete require.cache[require.resolve(g)]; require(g); const G = globalThis.SQC.GEO;
+  assert.deepStrictEqual(Object.keys(G.uf).sort(), ['CE', 'RN']); assert.ok(G.uf.CE.r[0].length > 100 && G.uf.RN.r[0].length > 100);
+  const ms = Object.keys(G.mun); assert.strictEqual(ms.filter(k => k.endsWith('/CE')).length, 184); assert.strictEqual(ms.filter(k => k.endsWith('/RN')).length, 167);
+  ['apodi/RN', 'sao paulo do potengi/RN', 'mulungu/CE'].forEach(k => { const p = G.mun[k], b = G.uf[k.slice(-2)].b; assert.ok(p && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3], k); });
+});
