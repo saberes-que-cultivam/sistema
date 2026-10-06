@@ -17,18 +17,32 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap">
 </head>
 <body>
-<section id="auth" hidden><div class="ent">
- <div class="ent-m">
-  <div class="ent-marca"><img src="assets/icon-192.png" alt="" width="76" height="76"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
-  <span class="eyebrow">Sistema de acompanhamento</span>
-  <h1 class="ent-h">O insumo nasce <em>na comunidade</em>.</h1>
-  <p class="ent-s">E volta para a terra de quem planta.</p>
-  <p class="ent-d">Unidades de produção de bioinsumos e adubos orgânicos em dois territórios do Nordeste, com agricultoras e agricultores familiares acompanhados de perto.</p>
-  <div class="ent-uf"><span><i>RN</i>Potengi</span><span><i>CE</i>Maciço de Baturité</span></div>
+<section id="auth" hidden>
+ <!-- fundo: curvas de plantio em nível e uma folha, quase invisíveis (decoração; não é lida por leitor de tela) -->
+ <svg class="ent-fundo" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+   <path d="M-80 640C180 540 420 720 720 610s520-90 880 20"/><path d="M-80 690C190 590 430 770 730 660s520-90 870 20"/><path d="M-80 740C200 640 440 820 740 710s520-90 860 20"/>
+   <path d="M-80 790C210 690 450 870 750 760s520-90 850 20"/><path d="M-80 840C220 740 460 920 760 810s520-90 840 20"/><path d="M-80 890C230 790 470 970 770 860s520-90 830 20"/>
+  </g>
+  <path class="folha" d="M1180 60c170 30 270 170 250 360-190 20-330-80-360-250 20-60 60-100 110-110z"/><path d="M1090 150c110 80 220 170 330 270" fill="none" stroke="currentColor" stroke-width="1.5"/>
+ </svg>
+ <div class="ent">
+  <div class="ent-topo">
+   <div class="ent-marca"><img src="assets/icon-192.png" alt="" width="64" height="64"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
+   <span class="eyebrow">Sistema de acompanhamento</span>
+   <h1 class="ent-h">O insumo nasce<br><em>na comunidade.</em></h1>
+   <p class="ent-s">E volta para a terra de quem planta.</p>
+  </div>
+  <div class="ent-base">
+   <p class="ent-d">Unidades de produção de bioinsumos e adubos orgânicos em dois territórios do Nordeste, com agricultoras e agricultores familiares acompanhados de perto.</p>
+   <ul class="ent-uf" aria-label="Territórios acompanhados pelo projeto"><li><i aria-hidden="true">RN</i><span>Potengi</span></li><li><i aria-hidden="true">CE</i><span>Maciço de Baturité</span></li></ul>
+  </div>
+  <div class="authbox">
+   <div class="ac-cab"><span class="eyebrow">Área de acesso</span><h2 class="ent-t">Que bom ver você</h2><p class="ent-p" id="authsub">Entre com o e-mail cadastrado pela coordenação.</p></div>
+   <div id="authcorpo"></div>
+  </div>
  </div>
- <div class="authbox panel"><div><span class="fm-eye">Sistema do projeto</span><h2 class="ent-t">Que bom ver você</h2><p class="ent-p" id="authsub">Entre com o e-mail cadastrado pela coordenação.</p></div>
-  <div id="authcorpo"></div></div>
-</div></section>
+</section>
 <div id="app" hidden>
 <header class="top"><div class="wrap">
   <div><p class="marca-nome">Saberes que Cultivam</p>
