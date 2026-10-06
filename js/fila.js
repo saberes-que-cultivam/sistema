@@ -1,6 +1,7 @@
 /* Saberes que Cultivam — fila do aparelho: guarda o que foi lançado sem internet e envia quando o sinal volta.
    Usa IndexedDB; se o navegador não permitir, guarda só na memória (vale até fechar a página).
-   Cada item: { id: 'tabela:idDoRegistro', tabela, dados, dono (id da pessoa), criado, erro }.
+   Cada item: { id: 'tabela:idDoRegistro', tabela, dados, op: { novo, base }, dono (id da pessoa), criado, erro }.
+   op.novo = registro que ainda não existe no servidor; op.base = versão (atualizado_em) que a pessoa leu antes de editar.
    Lançar de novo o mesmo registro antes de enviar substitui o item (mesmo id), mantendo a ordem. */
 (function () {
   const G = typeof window !== 'undefined' ? window : globalThis;
@@ -53,7 +54,7 @@
       try {
         for (const it of await F.listar(dono)) {
           if (it.erro && !it.reenviar) { erros++; continue; }
-          try { await api.salvar(it.tabela, it.dados); await F.remover(it.id); enviados++; }
+          try { await api.salvar(it.tabela, it.dados, it.op || {}); await F.remover(it.id); enviados++; }
           catch (e) {
             if (e.semRede) break;
             it.erro = e.message || 'Não foi possível enviar. Tente de novo.'; it.reenviar = false; erros++;

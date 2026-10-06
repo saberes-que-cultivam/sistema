@@ -107,6 +107,8 @@
     for (let i = 0; i < n; i++) {
       const d = mesDe(i), k = chaveMes(d), passou = k <= hj.slice(0, 7);
       ap += mensal[i]; if (passou) { ae += noMes(pagos, 'data', k); ar += noMes(recebidas, 'data', k); }
+      // o que for pago ou recebido depois do último mês do plano entra no último ponto (não some do acumulado)
+      if (i === n - 1 && passou) { const depois = l => l.filter(x => String(x.data).slice(0, 7) > k).reduce((s, x) => s + (+x.valor || 0), 0); ae += depois(pagos); ar += depois(recebidas); }
       pontos.push({ mes: k, rotulo: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2), previsto: Math.round(ap * 100) / 100, executado: passou ? ae : null, recebido: passou ? ar : null, atual: k === hj.slice(0, 7) });
     }
     return { pontos, total: Math.round(ap * 100) / 100, tempo: tempoDecorrido(hoje) };
@@ -117,6 +119,7 @@
   /* ---------- o que precisa de atenção (painel) ---------- */
   const brl = v => 'R$ ' + n(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dt = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
+  const venceu = (e, hoje) => iso(fimMes(e.fim)) < iso(hoje || new Date());   // a etapa só vence depois do último dia do mês final
   /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
   function alertas(db, hoje) {
     hoje = hoje || new Date(); const A = [];
@@ -141,15 +144,17 @@
       const r = recebeu(db, a.id).sort((x, y) => x.data < y.data ? 1 : -1)[0]; if (!r) return; const v = visitasDe(db, a.id)[0];
       if ((!v || v.data < r.data) && dias(pd(r.data), hoje) > 30) add('f', 'Monitoramento', `${a.nome}: recebeu bioinsumo em ${dt(r.data)} e não teve visita depois.`, 'Registre a visita de monitoramento.', '', 'visitas');
     });
-    db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && pronto(l) < hoje) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
-    D.ETAPAS.forEach(e => { if (fimMes(e.fim) < hoje && feito(db, e) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'entregas'); });
+    const hj = iso(hoje);   // datas comparadas como texto AAAA-MM-DD: o dia previsto e o último dia do mês ainda não são atraso
+    db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && iso(pronto(l)) < hj) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
+    D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'entregas'); });
     // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
     return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
   }
 
   /* ---------- indicadores da Meta 5 ---------- */
   function indicadores(db) {
-    const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto)); return a.diag && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
+    // só entra quem tem as duas pontas: linha de base com gasto informado E visita com gasto (campo vazio não é zero)
+    const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
     const m0 = comp.reduce((s, c) => s + c[0], 0) / (comp.length || 1), m1 = comp.reduce((s, c) => s + c[1], 0) / (comp.length || 1);
     const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo));
     return { pares: comp.length, base: m0, atual: m1, variacao: comp.length && m0 ? (m1 - m0) / m0 * 100 : null,
@@ -163,8 +168,13 @@
       if (!/^[A-Za-z]{2,4}$/.test(String(r.sigla || ''))) return 'A sigla precisa ter de 2 a 4 letras, sem número nem espaço.';
       if (db.unidades.some(u => u.id !== r.id && String(u.sigla).toUpperCase() === String(r.sigla).toUpperCase())) return 'Já existe uma unidade com essa sigla.';
     }
+    const inteiro = v => vazio(v) || Number.isInteger(+v);
     if (tabela === 'lotes') {
       if (!(n(r.qtd) > 0)) return 'Informe a quantidade produzida.';
+      if (!inteiro(r.dias) || n(r.dias) > 730) return 'Os dias até ficar pronto precisam ser um número inteiro, de 0 a 730.';
+      if (n(r.qtd) > 1000000) return 'Confira a quantidade: o valor está alto demais.';
+      if (anterior && (anterior.unidade !== r.unidade || anterior.tipo !== r.tipo)) return 'Lote não muda de unidade nem de tipo depois de criado, porque o código depende deles. Crie outro lote.';
+      if (anterior && distribuido(db, r.id) > 0 && (anterior.med !== r.med || anterior.inicio !== r.inicio)) return 'Este lote já teve distribuição: a medida e a data de início não mudam mais.';
       const ja = distribuido(db, r.id); if (n(r.qtd) < ja) return `A quantidade ficou menor do que o já distribuído (${ja}).`;
       if (anterior && anterior.status === 'Pronto' && r.status !== 'Pronto' && ja > 0) return 'Este lote já teve distribuição: não pode deixar de estar pronto.';
     }
@@ -175,8 +185,13 @@
       const disp = n(l.qtd) - distribuido(db, l.id, r.id);
       if (n(r.qtd) > disp) return `O lote ${l.codigo || ''} só tem ${disp} ${l.med} de saldo.`;
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
+      { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
-    if (tabela === 'eventos' && n(r.mulheres) > n(r.part)) return 'O número de mulheres não pode passar do total de participantes.';
+    if (tabela === 'eventos') {
+      if (!inteiro(r.part) || !inteiro(r.mulheres)) return 'Participantes e mulheres precisam ser números inteiros.';
+      if (!vazio(r.mulheres) && vazio(r.part)) return 'Informe o total de participantes antes do número de mulheres.';
+      if (n(r.mulheres) > n(r.part)) return 'O número de mulheres não pode passar do total de participantes.';
+    }
     if (tabela === 'agricultores' && r.kit && !r.kitdata) return 'Informe a data da entrega do kit.';
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
@@ -199,17 +214,21 @@
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
   const RESTRITAS = ['despesas', 'pessoas'];   // só a coordenação grava
-  const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || !RESTRITAS.includes(tabela));
+  /* perfil Acompanhamento (SEAB/MDA) só lê */
+  const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela)));
   /* excluir: a coordenação exclui tudo; a equipe, só o que ela mesma lançou (nunca despesas nem acessos) */
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
-    && (eu.perfil === 'Coordenação' || (!RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
+    && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
 
+  const MSG_CONFLITO = 'Este registro foi alterado por outra pessoa depois que você abriu. Feche, confira como ficou e faça a sua alteração de novo.';
+  const MSG_EXCLUIDO = 'Este registro foi excluído por outra pessoa enquanto você editava.';
   /* ---------- mensagens de erro do servidor em português de gente ---------- */
   function mensagemErro(e) {
     const m = String((e && (e.message || e.error_description || e.msg)) || e || ''), c = e && e.code;
     if (c === 'P0001') return m;   // mensagem escrita por nós no banco
     if (c === '23503') return 'Este registro está em uso em outro cadastro e não pode ser excluído.';
     if (c === '23505') return 'Já existe um registro igual a este.';
+    if (c === '22P02') return 'Algum número foi digitado com vírgula ou letra onde só cabe número inteiro. Confira e tente de novo.';
     if (c === '23514' || c === '23502') return 'Algum campo ficou em branco ou com valor fora do permitido. Confira e tente de novo.';
     if (c === '42501' || /row-level security|permission denied/i.test(m)) return 'O seu perfil não tem permissão para fazer isso.';
     if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
@@ -222,5 +241,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    recebido, previstoMeta, fin, finRubrica, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

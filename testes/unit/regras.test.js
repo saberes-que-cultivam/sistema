@@ -95,6 +95,8 @@ test('permissões: equipe não grava despesa nem acesso e só exclui o que lanç
   assert.ok(!R.podeGravar(x, 'visitas')); assert.ok(!R.podeGravar(null, 'visitas'));
   assert.ok(R.podeExcluir(c, 'visitas', { criado_por: 'e' })); assert.ok(R.podeExcluir(e, 'visitas', { criado_por: 'e' })); assert.ok(!R.podeExcluir(e, 'visitas', { criado_por: 'c' }));
   assert.ok(!R.podeExcluir(e, 'despesas', { criado_por: 'e' })); assert.ok(!R.podeExcluir(c, 'pessoas', {}));
+  const m = { id: 'm', perfil: 'Acompanhamento' };   // SEAB/MDA: só leitura
+  ['visitas', 'lotes', 'despesas', 'pessoas', 'eventos'].forEach(t => { assert.ok(!R.podeGravar(m, t), t); assert.ok(!R.podeExcluir(m, t, { criado_por: 'm' }), t); });
 });
 test('registro em uso não é excluído', () => {
   const db = base(); assert.deepStrictEqual(R.emUso(db, 'lotes', 'l1'), ['distribuicoes']); assert.deepStrictEqual(R.emUso(db, 'lotes', 'l2'), []); assert.deepStrictEqual(R.emUso(db, 'unidades', 'u1'), ['lotes']);
@@ -114,4 +116,25 @@ test('execução física: pesa pelo valor de cada etapa e compara com o previsto
   assert.strictEqual(R.previstoEtapa(e('2.1'), HOJE), 2 / 6);   // ago e set completos, de 6 meses
   assert.strictEqual(R.previstoEtapa(e('3.2'), HOJE), 0); assert.strictEqual(R.previstoEtapa(e('2.1'), new Date(2027, 5, 1)), 1);
   assert.strictEqual(Math.round(R.execucaoGeral(db, new Date(2027, 7, 15)).prev), 100);
+});
+test('auditoria 06/10: linha de base vazia não vira zero; dia previsto e último dia do mês não são atraso', () => {
+  const db = base(); db.agricultores = [{ id: 'a1', nome: 'A', diag: '2026-08-10', gasto0: '' }, { id: 'a2', nome: 'B', diag: '2026-08-10', gasto0: 200 }];
+  db.visitas = [{ id: 'v1', data: '2026-09-30', agricultor: 'a1', usou: 'Sim', gasto: 50 }, { id: 'v2', data: '2026-09-30', agricultor: 'a2', usou: 'Sim', gasto: 150 }];
+  const I = R.indicadores(db); assert.strictEqual(I.pares, 1); assert.strictEqual(I.base, 200); assert.strictEqual(I.variacao, -25);
+  const txt = d => R.alertas(base(), d).map(a => a[2]).join('\n');
+  assert.doesNotMatch(txt(new Date(2026, 7, 31, 10)), /PA-BIO-001: passou da previsão/);     // 31/08: é o próprio dia previsto
+  assert.match(txt(new Date(2026, 8, 1, 0, 1)), /PA-BIO-001: passou da previsão/);
+  assert.doesNotMatch(txt(new Date(2027, 0, 31, 10)), /Etapa 2\.1 venceu/);                    // último dia de jan/2027, 10h
+  assert.match(txt(new Date(2027, 1, 1, 0, 1)), /Etapa 2\.1 venceu/);
+});
+test('auditoria 06/10: validações que faltavam (inteiros, mulheres sem total, lote e entrega)', () => {
+  const db = base(), l = db.lotes[0];
+  assert.match(R.validar(db, 'eventos', { part: 2.5, mulheres: 1 }), /inteiros/);
+  assert.match(R.validar(db, 'eventos', { part: '', mulheres: 3 }), /total de participantes/);
+  assert.strictEqual(R.validar(db, 'eventos', { part: '', mulheres: '' }), '');
+  assert.match(R.validar(db, 'lotes', { ...l, dias: 1.5 }, l), /inteiro/);
+  assert.match(R.validar(db, 'lotes', { ...l, tipo: 'Bokashi' }, l), /não muda de unidade nem de tipo/);
+  assert.match(R.validar(db, 'lotes', { ...l, inicio: '2026-07-01' }, l), /medida e a data de início não mudam/);
+  assert.strictEqual(R.validar(db, 'lotes', { ...db.lotes[1], inicio: '2026-07-01' }, db.lotes[1]), '');   // sem distribuição pode
+  assert.match(R.validar(db, 'distribuicoes', { id: 'n', data: '2999-01-01', lote: 'l1', agricultor: 'a1', qtd: 1 }), /futuro/);
 });

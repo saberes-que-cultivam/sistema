@@ -47,3 +47,17 @@ test('fila do aparelho: envia na ordem, para na falta de rede, guarda o erro de 
   const resto = await F.listar('p'); assert.strictEqual(resto.length, 1); assert.match(resto[0].erro, /3 kg/);
   assert.strictEqual((await F.listar('outra')).length, 1);
 });
+test('a política de conteúdo da página só deixa falar com o Supabase do config.js', () => {
+  const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8'), cfg = fs.readFileSync(path.join(raiz, 'js', 'config.js'), 'utf8');
+  const host = (cfg.match(/supabaseUrl:\s*'https:\/\/([^']+)'/) || [])[1]; assert.ok(host, 'config.js sem supabaseUrl');
+  assert.ok(html.includes('https://' + host) && html.includes('wss://' + host), 'index.html: connect-src não tem o endereço do config.js');
+  assert.doesNotMatch(html, /\*\.supabase\.co/);
+});
+test('demonstração: quem acompanha (SEAB/MDA) não recebe nome de agricultor nem texto de visita e não grava', async () => {
+  const SQC = carregar(), api = SQC.apiDemo; api._zerar(); await api.entrarDemo('Acompanhamento'); const db = await api.carregar();
+  assert.strictEqual(db.agricultores.length, 3); assert.ok(db.agricultores.every(a => /^Unidade produtiva \d\d$/.test(a.nome) && !('comunidade' in a) && !('culturas' in a)));
+  assert.ok(db.visitas.every(v => !('obs' in v) && !('tecnico' in v) && !('problemas' in v))); assert.strictEqual(db.pessoas.length, 1);
+  assert.ok(!JSON.stringify(db).includes('Maria das Dores'));
+  await assert.rejects(api.salvar('eventos', { id: 'z', tipo: 'Reunião', data: '2026-10-01', tema: 'x' }), /permissão/);
+  assert.strictEqual(SQC.regras.feito(db, SQC.dados.ETAPAS.find(e => e.id === '4.1')), 1);   // as contas do painel continuam fechando
+});

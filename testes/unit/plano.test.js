@@ -28,6 +28,10 @@ test('plano de desembolso: cada rubrica e o total batem com o orçamento do plan
   D.RUBRICAS.forEach(r => assert.strictEqual(Math.round(it.filter(x => x.rubrica === r.id).reduce((s, x) => s + x.m.reduce((a, b) => a + b, 0), 0) * 100) / 100, r.v, r.nome));
   assert.strictEqual(Math.round(R.desembolsoMensal().reduce((a, b) => a + b, 0)), 400000);
 });
+test('ritmo do gasto: pagamento depois do último mês do plano não some do acumulado', () => {
+  const X = R.ritmo({ despesas: [{ data: '2027-08-05', valor: 1000, status: 'Pago' }, { data: '2027-07-05', valor: 10, status: 'Pago' }] }, new Date(2027, 8, 1));
+  assert.strictEqual(X.pontos[11].executado, 1010);
+});
 test('ritmo do gasto: acumulados por mês, só até o mês atual para pago e recebido', () => {
   const db = { despesas: [{ data: '2026-09-10', valor: 1000, status: 'Pago' }, { data: '2026-10-02', valor: 500, status: 'Pago' }, { data: '2026-10-03', valor: 900, status: 'Solicitado' }, { data: '2026-07-20', valor: 50, status: 'Pago' }] };
   const X = R.ritmo(db, new Date(2026, 9, 6)), p = X.pontos;

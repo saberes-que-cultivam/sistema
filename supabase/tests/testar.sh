@@ -20,5 +20,8 @@ rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null
 rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null      # rodar duas vezes não pode dar erro
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
+for n in 04_endurecimento 05_acompanhamento 04_endurecimento 05_acompanhamento; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
 rodar "$P -f $DIR/00_verificar.sql" >/dev/null
 rodar "$P -f $DIR/test_banco.sql" | tail -3
+# ESTRESSE=1: com o banco de teste ainda de pé, roda as gravações simultâneas e as medidas com volume
+if [ -n "${ESTRESSE:-}" ]; then cp "$AQUI"/estresse.sh "$AQUI"/estresse_*.sql "$DIR"/; chmod -R a+rX "$DIR"; PSQL="$P" COMO="$COMO" DIR="$DIR" bash "$DIR/estresse.sh"; fi

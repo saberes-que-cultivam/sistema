@@ -13,7 +13,10 @@ Sistema web de acompanhamento do projeto **Saberes que Cultivam: Bioinsumos, Agr
 - **Formação e entregas:** capacitações, dias de campo, reuniões e evidências do plano.
 - **Financeiro:** despesas por **meta/etapa** (plano do TED) e por **rubrica** (plano executado pela FUNCERN), com aviso quando uma rubrica chega a 90% ou estoura.
 - **Relatórios:** relatório de execução por período, pronto para imprimir ou salvar em PDF; planilhas CSV.
-- **Acessos e histórico:** dois perfis (Coordenação e Equipe) e registro de quem incluiu, alterou ou excluiu cada coisa.
+- **Acessos e histórico:** três perfis e registro de quem incluiu, alterou ou excluiu cada coisa.
+  - **Coordenação:** faz tudo.
+  - **Equipe:** registra o trabalho de campo e de produção; não lança despesa nem cadastra acesso; só exclui o que ela mesma lançou.
+  - **Acompanhamento (SEAB/MDA):** consulta em tempo real o painel, biofábricas, lotes, distribuição, atividades, entregas, financeiro e relatórios. Não grava nada e não recebe nome nem dado pessoal de agricultor (as unidades produtivas chegam numeradas, direto do banco).
 
 Funciona no celular, pode ser instalado como aplicativo e guarda no aparelho o que for lançado sem internet (lotes, entregas, visitas, cadastros de campo), enviando quando o sinal volta. Despesas e acessos exigem conexão.
 
@@ -36,17 +39,20 @@ supabase/00_verificar.sql            conferência do banco (não muda nada)
 supabase/01_criar_banco.sql          tabelas, regras de acesso (RLS), auditoria, login
 supabase/02_primeira_coordenacao.sql primeiro acesso de coordenação (troque o e-mail antes de rodar)
 supabase/03_dados_iniciais.sql       unidades e registros já conhecidos dos documentos (opcional)
-supabase/tests/                      testes do banco num Postgres local
+supabase/04_endurecimento.sql        correções da auditoria de 06/10/2026 (obrigatório)
+supabase/05_acompanhamento.sql       perfil de acompanhamento para a SEAB/MDA (obrigatório)
+supabase/tests/                      testes do banco e de estresse num Postgres local
+testes/desempenho/                   desempenho das contas com volume (1x, 10x e 50x)
 testes/unit/                         testes de unidade (npm test)
 testes/automaticos/fumaca.js         teste no navegador, em modo demonstração
 ```
 
 ## Colocar no ar (uma vez)
 
-1. **Banco:** no painel do Supabase, abra *SQL Editor* e rode, nesta ordem, `01_criar_banco.sql`, `02_primeira_coordenacao.sql` (trocando nome e e-mail no começo do arquivo) e, se quiser, `03_dados_iniciais.sql`. Rode `00_verificar.sql` para conferir.
+1. **Banco:** no painel do Supabase, abra *SQL Editor* e rode, nesta ordem, `01_criar_banco.sql`, `02_primeira_coordenacao.sql` (trocando nome e e-mail no começo do arquivo), `03_dados_iniciais.sql` (opcional), `04_endurecimento.sql` e `05_acompanhamento.sql`. Rode `00_verificar.sql` para conferir.
 2. **Login:** em *Authentication*, deixe **Confirm email ligado** e coloque em *URL Configuration > Site URL* o endereço do sistema.
 3. **Site:** no GitHub, *Settings > Pages > Deploy from a branch > main / (root)*. O endereço fica `https://saberes-que-cultivam.github.io/sistema/`.
-4. **Entrar:** abra o sistema, use **Primeiro acesso** com o e-mail do passo 1, confirme pelo e-mail recebido e entre. As outras pessoas são cadastradas na aba *Dados > Pessoas com acesso*; cada uma cria a própria senha em *Primeiro acesso*.
+4. **Entrar:** abra o sistema, use **Primeiro acesso** com o e-mail do passo 1, toque no link que chegar por e-mail e crie a senha na tela que abrir. As outras pessoas são cadastradas na aba *Dados > Pessoas com acesso*; cada uma faz o próprio **Primeiro acesso**.
 
 ## Desenvolver
 
@@ -54,6 +60,8 @@ testes/automaticos/fumaca.js         teste no navegador, em modo demonstração
 node ferramentas/montar.js        # depois de mudar js/
 npm test                          # testes de unidade
 npm run test:banco                # testes do banco (precisa de PostgreSQL local)
+npm run test:estresse             # gravações simultâneas e volume no banco de teste
+npm run test:desempenho           # contas do painel com 1x, 10x e 50x o volume do projeto
 node ferramentas/servidor_teste.js   # abre em http://localhost:8766
 ```
 
@@ -61,7 +69,10 @@ Para ver o modo demonstração no seu computador, esvazie `supabaseUrl` no `js/c
 
 ## Limites conhecidos
 
-- Se duas pessoas editarem o mesmo registro ao mesmo tempo, vale a última gravação (o histórico guarda as duas versões).
+- Se duas pessoas editarem o mesmo registro, a segunda a salvar recebe o aviso de que o registro mudou e refaz a alteração sobre a versão nova (nada é sobrescrito em silêncio).
+- A Equipe pode alterar registros lançados por colegas (o trabalho de campo é compartilhado); fica no histórico quem alterou.
+- Sem falar com o servidor há mais de 72 horas, o aparelho deixa de abrir os dados guardados e pede internet.
+- As listas mostram 100 registros por vez. O sistema foi medido até 10 vezes o tamanho previsto do projeto; acima disso o relatório por período fica lento.
 - Excluir registro exige internet.
 - O financeiro é um espelho para acompanhamento: o registro oficial é o da FUNCERN.
 - O plano gratuito do Supabase pode pausar projeto sem uso; confira no painel se o sistema parar de responder.

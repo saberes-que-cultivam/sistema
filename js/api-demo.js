@@ -15,7 +15,8 @@
     return {
       pessoas: [
         { id: 'p-coord', nome: 'Coordenação (demonstração)', email: 'coordenacao@exemplo.br', perfil: 'Coordenação', ativo: true },
-        { id: 'p-equipe', nome: 'Equipe (demonstração)', email: 'equipe@exemplo.br', perfil: 'Equipe', ativo: true }],
+        { id: 'p-equipe', nome: 'Equipe (demonstração)', email: 'equipe@exemplo.br', perfil: 'Equipe', ativo: true },
+        { id: 'p-mda', nome: 'Acompanhamento (demonstração)', email: 'acompanhamento@exemplo.br', perfil: 'Acompanhamento', orgao: 'SEAB/MDA', ativo: true }],
       unidades: [
         { id: 'u1', nome: 'Polo São Paulo do Potengi', sigla: 'SPP', municipio: 'São Paulo do Potengi', uf: 'RN', territorio: 'Potengi/RN', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: microrganismos isolados se houver local adequado; senão, área aberta com cobertura.' },
         { id: 'u2', nome: 'Polo Mulungu', sigla: 'MUL', municipio: 'Mulungu', uf: 'CE', territorio: 'Maciço de Baturité/CE', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: mesma regra do polo de São Paulo do Potengi.' },
@@ -49,6 +50,7 @@
     try { db = JSON.parse(ler(CHAVE)); } catch (e) { db = null; }
     const s = semente(); if (!db || !Array.isArray(db.unidades)) db = s;
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = s[t]; });
+    if (!db.pessoas.some(p => p.perfil === 'Acompanhamento')) db.pessoas.push(s.pessoas.find(p => p.perfil === 'Acompanhamento'));   // demonstração criada antes desse perfil existir
     return db;
   }
   const persistir = () => gravar(CHAVE, JSON.stringify(db));
@@ -65,7 +67,16 @@
       gravar(CHAVE + '-eu', eu.id); return eu;
     },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
-    async carregar() { return JSON.parse(JSON.stringify(carregarLocal())); },
+    /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */
+    async carregar() {
+      const c = JSON.parse(JSON.stringify(carregarLocal()));
+      if (eu && eu.perfil === 'Acompanhamento') {
+        c.agricultores = c.agricultores.map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
+        c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
+        c.pessoas = c.pessoas.filter(p => p.id === eu.id);
+      }
+      return c;
+    },
     async salvar(tabela, reg) {
       if (!db) carregarLocal();
       if (!R.podeGravar(eu, tabela)) throw falha('O seu perfil não tem permissão para fazer isso.');
