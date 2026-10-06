@@ -1378,8 +1378,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="ent-p">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${campoA('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${campoA('a_senha2', 'Repita a senha', 'password', 'new-password')}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>Guardar a senha e entrar</span>${IC_SETA}</button></form>`;
       return;
     }
-    /* "Já tenho senha | Primeiro acesso" troca o painel logo abaixo: é um conjunto de abas (setas trocam, Tab entra no painel) */
-    const sel = authModo === 'primeiro' ? 1 : 0, aba = (m, i, t) => `<button type="button" role="tab" id="tab_${m}" aria-controls="painel_acesso" aria-selected="${sel === i}" tabindex="${sel === i ? 0 : -1}" data-auth="${m}">${t}</button>`;
+    /* "Já tenho senha | Primeiro acesso" troca o painel logo abaixo: é um conjunto de abas (Tab para nas duas opções; Enter, Espaço ou setas trocam) */
+    const sel = authModo === 'primeiro' ? 1 : 0, aba = (m, i, t) => `<button type="button" role="tab" id="tab_${m}" aria-controls="painel_acesso" aria-selected="${sel === i}" data-auth="${m}">${t}</button>`;
     $('#authcorpo').innerHTML = `${authModo === 'esqueci' ? '' : `<div class="sg" role="tablist" aria-label="Forma de acesso" data-sel="${sel}">${aba('entrar', 0, 'Já tenho senha')}${aba('primeiro', 1, 'Primeiro acesso')}</div>`}
      <div id="painel_acesso"${authModo === 'esqueci' ? '' : ` role="tabpanel" aria-labelledby="tab_${authModo}"`}>${painelAcesso(msg, ok)}</div>`;
   }
@@ -1388,7 +1388,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const sg = $('.sg');
     if (!sg || !['entrar', 'primeiro'].includes(m) || !['entrar', 'primeiro'].includes(authModo)) { authModo = m; telaAcesso(''); const alvo = m === 'esqueci' ? $('#a_email') : $('#tab_' + m); if (focar && alvo) alvo.focus(); return; }
     authModo = m; const sel = m === 'primeiro' ? 1 : 0; sg.dataset.sel = sel;
-    sg.querySelectorAll('[role="tab"]').forEach((b, i) => { b.setAttribute('aria-selected', i === sel); b.tabIndex = i === sel ? 0 : -1; });
+    sg.querySelectorAll('[role="tab"]').forEach((b, i) => { b.setAttribute('aria-selected', i === sel); });
     const pn = $('#painel_acesso'); pn.setAttribute('aria-labelledby', 'tab_' + m); pn.innerHTML = painelAcesso('');
     if (focar) $('#tab_' + m).focus();
   }

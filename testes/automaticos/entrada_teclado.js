@@ -31,7 +31,7 @@ const foco = p => p.evaluate(() => { const e = document.activeElement; if (!e ||
   return { nome: e.id || (e.dataset.olho ? 'olho' : e.dataset.auth ? 'lk_' + e.dataset.auth : e.tagName.toLowerCase()), dentro: !!e.closest('#auth'), anel: s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, afast: parseFloat(s.outlineOffset), cor: s.outlineColor,
     visivel: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight + 1 }; });
 const caixa = p => p.evaluate(() => JSON.stringify(['.authbox', '#fauth', '#abotao', '#a_email'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x + scrollX, r.y + scrollY, r.width, r.height].map(Math.round); })));
-const ORDEM = ['tab_entrar', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'summary'];
+const ORDEM = ['tab_entrar', 'tab_primeiro', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'summary'];
 
 async function roteiro(b, largura, altura) {
   console.log(`\n== ${largura} × ${altura} ==`);
@@ -53,11 +53,13 @@ async function roteiro(b, largura, altura) {
   // 3. seletor: setas trocam, foco e seleção são coisas diferentes
   await k('ArrowRight'); let f = await foco(p);
   ok(f.nome === 'tab_primeiro' && await p.getAttribute('#tab_primeiro', 'aria-selected') === 'true' && !(await p.$('#a_senha')), 'seta para a direita: “Primeiro acesso” selecionado, painel só com o e-mail');
-  ok(await p.getAttribute('#tab_entrar', 'tabindex') === '-1', 'a aba não selecionada sai da ordem do Tab');
+  
   await k('ArrowLeft'); ok((await foco(p)).nome === 'tab_entrar' && !!(await p.$('#a_senha')), 'seta para a esquerda volta para “Já tenho senha”');
   await k('End'); await k('Home'); ok(await p.getAttribute('#tab_entrar', 'aria-selected') === 'true', 'Home e End funcionam no seletor');
+  await k('Tab'); ok((await foco(p)).nome === 'tab_primeiro', 'Tab chega em “Primeiro acesso”'); await k('Enter'); ok(await p.getAttribute('#tab_primeiro', 'aria-selected') === 'true' && !(await p.$('#a_senha')) && (await foco(p)).nome === 'tab_primeiro', 'Enter em “Primeiro acesso” abre essa opção');
+  await k('Shift+Tab'); await k('Space'); ok(await p.getAttribute('#tab_entrar', 'aria-selected') === 'true', 'Espaço em “Já tenho senha” volta');
   // 4. Enter com tudo vazio: erro em cada campo, com texto, e o foco vai ao primeiro
-  await k('Tab'); await k('Enter'); f = await foco(p);
+  await k('Tab'); await k('Tab'); await k('Enter'); f = await foco(p);
   ok(f.nome === 'a_email', 'Enter com campos vazios: foco no primeiro campo com erro');
   for (const id of ['a_email', 'a_senha']) { ok(await p.getAttribute('#' + id, 'aria-invalid') === 'true' && await p.getAttribute('#' + id, 'aria-describedby') === 'e_' + id, id + ': aria-invalid e aria-describedby');
     ok((await p.textContent('#e_' + id)).trim().length > 5 && !!(await p.$(`#e_${id} svg`)), id + ': erro com texto e ícone (não só cor)'); }
@@ -78,7 +80,7 @@ async function roteiro(b, largura, altura) {
   await k('Tab'); await k('Tab'); ok((await foco(p)).nome === 'lk_entrar', 'Tab chega em “Voltar para a entrada”'); await k('Enter');
   ok((await foco(p)).nome === 'tab_entrar', 'voltar devolve o foco ao seletor');
   // 8. entrada completa só com o teclado
-  await k('Tab'); await p.keyboard.type(EMAIL); await k('Tab'); await p.keyboard.type(SENHA); await k('Enter');
+  await k('Tab'); await k('Tab'); await p.keyboard.type(EMAIL); await k('Tab'); await p.keyboard.type(SENHA); await k('Enter');
   await p.waitForSelector('#app:not([hidden])'); ok(await p.evaluate(() => document.querySelector('#auth').hidden), 'ENTRADA CONCLUÍDA só com o teclado');
   ok(!erros.length, 'sem erro de script' + (erros.length ? ': ' + erros.join(' | ') : ''));
   await ctx.close();
