@@ -355,7 +355,7 @@
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
-      if (t === 'check') return `<div class="fld"><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
+      if (t === 'check') return `<div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
       if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
       if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
