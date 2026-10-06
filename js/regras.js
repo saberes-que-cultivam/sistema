@@ -47,6 +47,26 @@
     }
   }
 
+  /* ---------- execução física do projeto (número grande do painel) ----------
+     Cada etapa pesa o valor que o plano de trabalho destina a ela (quantidade x valor unitário); não é média simples.
+     "Previsto" = quanto da etapa já deveria estar feito até o fim do mês passado, distribuído por igual na janela da etapa. */
+  const mesesEntre = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
+  function previstoEtapa(e, hoje) {
+    const ini = pd(e.ini), total = mesesEntre(ini, pd(e.fim)) + 1;
+    return Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth(), 1)) / total));
+  }
+  function execucaoGeral(db, hoje) {
+    hoje = hoje || new Date();
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e) / e.q), prev: previstoEtapa(e, hoje) }));
+    const tot = linhas.reduce((s, x) => s + x.valor, 0);
+    const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
+    const st = real >= 99.5 ? 'concluida' : real >= prev ? 'andamento' : real >= prev * 0.7 ? 'atencao' : 'atrasada';
+    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100 }; });
+    const meses = mesesEntre(pd(D.G0), pd(D.G1)), mes = Math.max(1, Math.min(meses, mesesEntre(pd(D.G0), hoje) + 1));
+    const ant = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    return { real, prev, st, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
+  }
+
   /* ---------- financeiro ---------- */
   const recebido = () => D.PARCELAS.filter(p => p.recebida).reduce((s, p) => s + p.valor, 0);
   const previstoMeta = m => D.ETAPAS.filter(e => e.m === m).reduce((s, e) => s + e.q * e.v, 0);
@@ -177,6 +197,6 @@
     return m || 'Não foi possível concluir. Tente de novo.';
   }
 
-  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito,
+  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     recebido, previstoMeta, fin, finRubrica, soma, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
