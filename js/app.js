@@ -181,6 +181,63 @@
    <dt>Participantes em capacitações e dias de campo</dt><dd>${I.participantes ? `${num(I.participantes)} (${num(I.mulheres / I.participantes * 100)}% mulheres)` : '—'}</dd></dl></div>
  </div>`;
   }
+  /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
+  let ritmoAtual = null;   // o que o gráfico mostrou por último (a dica ao passar o mouse lê daqui)
+  const GR = { w: 640, h: 300, l: 78, r: 14, t: 14, b: 30 };
+  function graficoRitmo() {
+    const X = R.ritmo(db, hoje()), P = X.pontos, n = P.length, max = X.total; ritmoAtual = X;
+    const x = i => GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n, y = v => GR.h - GR.b - (GR.h - GR.t - GR.b) * v / max, x0 = GR.l;
+    const linha = k => { const pts = P.map((p, i) => p[k] == null ? null : [x(i), y(p[k])]).filter(Boolean); return pts.length ? 'M' + [[x0, y(0)]].concat(pts).map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' L') : ''; };
+    // recebido entra de uma vez (parcela): linha em degrau
+    const degrau = () => { let d = `M${x0} ${y(0)}`, ant = 0; P.forEach((p, i) => { if (p.recebido == null) return; if (p.recebido !== ant) { d += ` L${(i ? x(i - 1) : x0).toFixed(1)} ${y(p.recebido).toFixed(1)}`; ant = p.recebido; } d += ` L${x(i).toFixed(1)} ${y(p.recebido).toFixed(1)}`; }); return d; };
+    const ult = P.filter(p => p.executado != null).length - 1, grade = [0, .25, .5, .75, 1].map(f => max * f);
+    const mk = v => v === 0 ? '0' : 'R$ ' + num(v / 1000) + ' mil';
+    const atual = P.findIndex(p => p.atual);
+    return `<div class="panel box fin-g"><div><h2 class="fin-t">Ritmo do gasto <small>acumulado mês a mês</small></h2>
+   <div class="leg"><span><i class="lg prev"></i>Previsto (plano de desembolso)</span><span><i class="lg exec"></i>Pago</span><span><i class="lg rec"></i>Recebido do MDA</span></div></div>
+   <div class="rg" data-rg><svg viewBox="0 0 ${GR.w} ${GR.h}" role="img" aria-label="Gasto acumulado mês a mês: previsto, pago e recebido. Os valores estão na tabela logo abaixo.">
+    ${grade.map(v => `<line class="gr" x1="${GR.l}" x2="${GR.w - GR.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${GR.l - 8}" y="${y(v) + 4}" text-anchor="end">${mk(v)}</text>`).join('')}
+    ${P.map((p, i) => i % 2 ? '' : `<text class="ax" x="${x(i)}" y="${GR.h - 8}" text-anchor="middle">${p.rotulo}</text>`).join('')}
+    ${atual >= 0 ? `<line class="hj" x1="${x(atual)}" x2="${x(atual)}" y1="${GR.t}" y2="${GR.h - GR.b}"/><text class="ax" x="${x(atual) + 5}" y="${GR.t + 10}">mês atual</text>` : ''}
+    <path class="l prev" d="${linha('previsto')}"/><path class="l rec" d="${degrau()}"/><path class="l exec" d="${linha('executado')}"/>
+    ${ult >= 0 ? `<circle class="pt exec" cx="${x(ult)}" cy="${y(P[ult].executado)}" r="4.5"/><circle class="pt rec" cx="${x(ult)}" cy="${y(P[ult].recebido)}" r="4.5"/>` : ''}
+    <line class="cr" data-cr x1="0" x2="0" y1="${GR.t}" y2="${GR.h - GR.b}" hidden/></svg><div class="dica" data-dica hidden></div></div>
+   <p class="small">Passe o mouse ou toque num mês. O previsto é o plano de desembolso enviado à FUNCERN (atualização de 05/10/2026) e fecha em ${brl(X.total)}.</p>
+   <details class="dx-como"><summary>Ver os números em tabela</summary><div class="scroll"><table><thead><tr><th>Mês</th><th class="n">Previsto</th><th class="n">Pago</th><th class="n">Recebido</th></tr></thead><tbody>${P.map(p => `<tr><td>${p.rotulo}</td><td class="n">${brl(p.previsto)}</td><td class="n">${p.executado == null ? '—' : brl(p.executado)}</td><td class="n">${p.recebido == null ? '—' : brl(p.recebido)}</td></tr>`).join('')}</tbody></table></div></details></div>`;
+  }
+  function usoRubricas(FR) {
+    const t = R.tempoDecorrido(hoje()) * 100;
+    return `<div class="panel box fin-g"><div><h2 class="fin-t">Uso de cada rubrica <small>% do previsto · clique para ver os itens</small></h2>
+   <div class="leg"><span><i class="lg exec"></i>Pago</span><span><i class="lg comp"></i>Comprometido</span><span><i class="lg tempo"></i>Tempo decorrido (${pct(t)}%)</span></div></div>
+   <div class="ur">${FR.filter(r => !r.semRubrica).map(r => { const a = r.prev ? r.pago / r.prev * 100 : 0, b = r.prev ? r.comp / r.prev * 100 : 0, tot = a + b;
+      return `<button type="button" class="ur-l" data-rub="${r.id}" title="Pago ${brl(r.pago)} · comprometido ${brl(r.comp)} · previsto ${brl(r.prev)}"><span class="ur-n">${esc(r.nome)}</span><span class="ur-p${tot > 100 ? ' est' : ''}">${pct(tot)}%${tot > 100 ? ' · acima' : ''}</span>
+       <span class="ur-b"><i class="exec" style="width:${Math.min(100, a)}%"></i><i class="comp" style="left:${Math.min(100, a)}%;width:${Math.max(0, Math.min(100 - Math.min(100, a), b))}%"></i><b style="left:${t}%"></b></span></button>`; }).join('')}</div>
+   <p class="small">O traço marca quanto da vigência já passou. Barra muito à frente do traço: a rubrica acaba antes do projeto. Muito atrás: há recurso parado.</p></div>`;
+  }
+  function tabelaRubricas(FR) {
+    const linha = r => { const u = r.prev ? (r.pago + r.comp) / r.prev * 100 : 0, itens = D.DESEMBOLSO.itens.filter(i => i.rubrica === r.id), ds = db.despesas.filter(d => r.semRubrica ? !D.RUBRICAS.some(x => x.id === d.rubrica) : d.rubrica === r.id).sort((a, b) => a.data < b.data ? 1 : -1);
+      const v = (x, forte) => x ? (forte ? `<b>${brl(x)}</b>` : brl(x)) : '—';
+      return `<details class="rb" id="rb-${r.id || 'sem'}"><summary><span class="rb-n"><i class="rb-s" aria-hidden="true"></i><span>${esc(r.nome)}</span><span class="chip">${itens.length ? itens.length + (itens.length === 1 ? ' item' : ' itens') : ds.length + ' despesa(s)'}</span></span>
+     <span class="rb-v" data-r="Previsto">${v(r.prev)}</span><span class="rb-v" data-r="Pago">${v(r.pago)}</span><span class="rb-v" data-r="Comprometido">${v(r.comp)}</span><span class="rb-v${r.saldo < 0 ? ' neg' : ''}" data-r="Saldo"><b>${brl(r.saldo)}</b></span>
+     <span class="rb-e"><span class="medidor fino"><i class="${u > 100 ? 'bad' : ''}" style="width:${Math.min(100, u)}%"></i></span><b>${pct(u)}%</b></span></summary>
+    <div class="rb-c">${itens.length ? `<div><h3>Itens do plano</h3><div class="scroll"><table><thead><tr><th>Item</th><th class="n">Previsto</th><th>Meses com desembolso previsto</th></tr></thead><tbody>${itens.map(i => { const tot = i.m.reduce((a, b) => a + b, 0), ms = i.m.map((x, k) => x ? k : -1).filter(k => k >= 0);
+        return `<tr><td>${esc(i.nome)}</td><td class="n">${brl(tot)}</td><td class="small">${ms.length === 12 ? 'todos os meses' : ms.map(k => ritmoAtual ? ritmoAtual.pontos[k].rotulo : k + 1).join(', ')}</td></tr>`; }).join('')}</tbody></table></div></div>` : ''}
+     <div><h3>Despesas lançadas nesta rubrica</h3>${ds.length ? `<div class="scroll"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}${d.favorecido ? `<div class="small">${esc(d.favorecido)}</div>` : ''}</td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
+    return `<div><div class="head"><div><h2>Por rubrica</h2><p>Toque na rubrica para ver os itens do plano e as despesas lançadas nela.</p></div><div class="acts"><button class="b" data-abrir-rub>Abrir todas</button></div></div>
+   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(linha).join('')}
+    <div class="rb-tot"><span>Total</span><span>${brl(R.soma(FR, 'prev'))}</span><span>${brl(R.soma(FR, 'pago'))}</span><span>${brl(R.soma(FR, 'comp'))}</span><span><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
+   <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>`;
+  }
+  /* dica do gráfico: mês mais próximo do ponteiro, com os três valores */
+  function aoMoverGrafico(ev) {
+    const g = ev.target.closest && ev.target.closest('[data-rg]'); const dica = document.querySelector('[data-dica]'), cr = document.querySelector('[data-cr]');
+    if (!g || !ritmoAtual) { if (dica) dica.hidden = true; if (cr) cr.setAttribute('hidden', ''); return; }
+    const svg = g.querySelector('svg'), b = svg.getBoundingClientRect(), P = ritmoAtual.pontos, n = P.length, k = GR.w / b.width;
+    const px = (ev.clientX - b.left) * k, i = Math.max(0, Math.min(n - 1, Math.round((px - GR.l) / (GR.w - GR.l - GR.r) * n) - 1)), p = P[i], cx = GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n;
+    cr.removeAttribute('hidden'); cr.setAttribute('x1', cx); cr.setAttribute('x2', cx);
+    dica.innerHTML = `<b>${p.rotulo}</b><span><i class="lg prev"></i>Previsto <b>${brl(p.previsto)}</b></span>${p.executado == null ? '<span class="small">mês que ainda não chegou</span>' : `<span><i class="lg exec"></i>Pago <b>${brl(p.executado)}</b></span><span><i class="lg rec"></i>Recebido <b>${brl(p.recebido)}</b></span>`}`;
+    dica.hidden = false; const gb = g.getBoundingClientRect(), esq = cx / k; dica.style.left = Math.max(0, Math.min(gb.width - dica.offsetWidth, esq > gb.width / 2 ? esq - dica.offsetWidth - 12 : esq + 12)) + 'px';
+  }
   function financeiro() {
     const F = R.fin(db), FR = R.finRubrica(db), pago = R.soma(F, 'pago'), comp = R.soma(F, 'comp'), usado = pago + comp, rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
     const mil = v => num(v / 1000, Math.abs(v) % 1000 ? 1 : 0);
@@ -196,9 +253,9 @@
    ${kpi(3, comp / rec * 100, mil(comp), 'de ' + mil(rec) + ' mil', 'comprometido', `${db.despesas.filter(d => d.status !== 'Pago').length} despesa(s) solicitada(s) ou em compras`)}
    ${kpi(4, (rec - usado) / rec * 100, mil(rec - usado), 'de ' + mil(rec) + ' mil', 'disponível do recebido', rec - usado < 0 ? 'o lançado passa do que já foi recebido' : 'recebido menos pago e comprometido')}</div>
  </section>
- <div><h3>Por meta do TED</h3><div class="panel scroll" style="margin-top:8px">${finTabela(F, 'Meta')}</div></div>
- <div><h3>Por rubrica do plano executado pela FUNCERN</h3><div class="panel scroll" style="margin-top:8px">${finTabela(FR, 'Rubrica')}</div>
- <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>
+ <div class="two fin-2">${graficoRitmo()}${usoRubricas(FR)}</div>
+ ${tabelaRubricas(FR)}
+ <div><div class="head"><div><h2>Por meta do TED</h2><p>O mesmo gasto, visto pelas metas do plano pactuado com o MDA.</p></div></div><div class="panel scroll" style="margin-top:10px">${finTabela(F, 'Meta')}</div></div>
  ${tabela('despesas')}`;
   }
   function relatorio() {
@@ -408,6 +465,8 @@
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
+    else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
+    else if (d.abrirRub !== undefined) { const todos = [...document.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); db = await api.carregar(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
@@ -438,6 +497,7 @@
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
     document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('close', () => { ed = null; });
+    document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
     try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
     if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) tab = location.hash.slice(1);
