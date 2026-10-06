@@ -228,11 +228,33 @@
     ed = null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como usar o sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><div class="fm-oque"><span>O seu perfil</span><p>${esc(eu.perfil)}${eu.orgao ? ' · ' + esc(eu.orgao) : ''}: ${coord() ? 'faz tudo, inclusive lançar despesas, cadastrar acessos e ver o histórico.' : fora() ? 'consulta o andamento em tempo real, sem alterar nada e sem ver dados pessoais.' : 'registra o trabalho de campo e de produção. Despesas e acessos são da coordenação.'}</p></div>
-      <h3 class="fm-sec">O que tem em cada aba</h3><dl class="aj">${abas().map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
+      <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${AJUDA[tab] || ''}</p>
+      <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
       <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
      <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  /* relatar problema: monta um texto com o que a coordenação precisa para entender (onde estava, perfil, aparelho) e a pessoa
+     envia pelo canal que já usa. Nada é gravado no banco: o projeto é pequeno e o relato vai direto para quem resolve. */
+  function abrirRelato() {
+    ed = null; $('#frm').className = 'fm'; const aba = (abas().find(t => t[0] === tab) || ['', ''])[1];
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Relatar problema</span><h2>O que aconteceu?</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><div class="fm-oque"><span>Como funciona</span><p>Escreva o que você estava fazendo e o que deu errado. O sistema junta as informações técnicas e você envia o texto para a coordenação do projeto pelo WhatsApp ou e-mail.</p></div>
+      <div class="fields"><div class="fld w"><label for="rl_txt">O que você estava fazendo e o que aconteceu</label><textarea id="rl_txt" rows="5" placeholder="Exemplo: fui registrar uma entrega do lote APO-HUM-001 e apareceu que não tem saldo, mas o lote mostra 80 kg."></textarea><span class="fm-dica">Não escreva nome nem dado de agricultor aqui: diga só a aba e o que tentou fazer.</span></div></div>
+      <div class="fld w" id="rl_saida" hidden><label for="rl_pronto">Texto pronto para enviar</label><textarea id="rl_pronto" rows="8" readonly></textarea></div></div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button><button type="button" class="b p" data-relatook>Gerar e copiar o texto</button></div></div>`;
+    $('#frm').dataset.aba = aba; if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  async function gerarRelato(botao) {
+    const t = $('#rl_txt').value.trim(); if (t.length < 10) { $('#ferr').textContent = 'Conte em uma ou duas frases o que aconteceu.'; return; }
+    let versao = ''; try { versao = (await caches.keys()).filter(k => k.startsWith('sqc-')).join(', '); } catch (e) { /* sem cache */ }
+    const txt = ['PROBLEMA NO SISTEMA SABERES QUE CULTIVAM', '', t, '', '— informações técnicas —', 'Quando: ' + new Date().toLocaleString('pt-BR'), 'Quem: ' + eu.nome + ' (' + eu.perfil + ')', 'Aba: ' + ($('#frm').dataset.aba || tab),
+      'Versão: ' + (versao || 'não instalada neste aparelho'), 'Internet: ' + (navigator.onLine === false ? 'sem conexão' : 'com conexão') + (pend.length ? ' · ' + pend.length + ' lançamento(s) aguardando envio' : ''),
+      'Tela: ' + window.innerWidth + ' x ' + window.innerHeight, 'Navegador: ' + navigator.userAgent].join('\n');
+    $('#rl_saida').hidden = false; $('#rl_pronto').value = txt; $('#ferr').textContent = '';
+    try { await navigator.clipboard.writeText(txt); botao.textContent = 'Copiado'; toast('Texto copiado. Cole no WhatsApp ou no e-mail da coordenação.'); }
+    catch (e) { $('#rl_pronto').focus(); $('#rl_pronto').select(); toast('Selecione e copie o texto que apareceu, e envie para a coordenação.'); }
   }
   function abrirFicha(id) {
     const a = by('agricultores', id); if (!a) return; ed = null; const st = situacaoAgr(a), u = by('unidades', a.unidade), ent = recebeu(id).sort((x, y) => x.data < y.data ? 1 : -1), vis = visitasDe(id);
@@ -554,7 +576,7 @@
     } catch (e) { er(e.message); b.disabled = false; b.textContent = rot; }
   }
   async function aposEntrar() {
-    $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando').textContent = 'Carregando os dados…';
+    $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando-txt').textContent = 'Carregando os dados…';
     try { db = await api.carregar(); }
     catch (e) { $('#carregando').hidden = true; eu = null; return telaAcesso(e.message); }
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = []; });
@@ -597,6 +619,8 @@
     else if (d.tab) { tab = d.tab; try { localStorage.setItem('sqc-aba', tab); } catch (e) {} render(); window.scrollTo(0, 0); }
     else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.classList.add('conf'); toast(`Há ${pend.length} lançamento(s) guardado(s) neste aparelho ainda não enviado(s). Eles ficam guardados e sobem na sua próxima entrada com internet. Toque em sair de novo para confirmar.`); return; } delete d.ok; t.classList.remove('conf'); sair(''); }
     else if (d.ajuda !== undefined) abrirAjuda();
+    else if (d.relatar !== undefined) abrirRelato();
+    else if (d.relatook !== undefined) await gerarRelato(t);
     else if (d.mapa) { const y = window.scrollY; mapaUF = d.mapa; render(); window.scrollTo(0, y); }
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
     else if (d.print !== undefined) window.print();

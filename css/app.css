@@ -398,3 +398,34 @@ button.b.ent-b{width:100%;padding:15px 18px;border-radius:12px;font-size:16px}
 .mp-s small{display:block;color:var(--muted);font-size:12.5px}
 .mp-s.pt li{border-bottom:1px dotted var(--line);padding-bottom:4px}
 @media (max-width:860px){.mp{padding:16px}.mp-g{grid-template-columns:1fr}}
+
+/* ---------- rodapé escuro: marca, instituições e processo, ajuda e relato de problema ---------- */
+#app{min-height:100%;display:flex;flex-direction:column} #app>main{flex:1}
+.pe{background:var(--topo);color:var(--topo-2);padding-block:30px;margin-top:20px}
+.pe .wrap{display:grid;grid-template-columns:auto 1fr auto;gap:20px 44px;align-items:center}
+.pe-m{display:flex;align-items:center;gap:14px} .pe-m img{border-radius:10px}
+.pe-m b{display:block;font:700 19px var(--marca);color:var(--topo-ink)} .pe-m span{font-size:15px}
+.pe-i{display:flex;flex-direction:column;gap:4px;font-size:15px} .pe-i span:first-child{color:var(--topo-ink)}
+.pe-a{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.pe-b{display:inline-flex;align-items:center;gap:10px;padding:6px 18px 6px 6px;border:1.5px solid var(--topo-linha);border-radius:99px;background:none;color:var(--topo-ink);font:500 16px var(--body);cursor:pointer}
+.pe-b:hover{background:rgba(255,255,255,.1)} .pe-b:focus-visible{outline:2px solid var(--topo-ink);outline-offset:2px}
+.pe-b i{font:700 15px var(--body);font-style:normal;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--topo-linha);display:inline-flex;align-items:center;justify-content:center}
+.pe-a p{margin:4px 0 0;font-size:13.5px;text-align:right;max-width:38ch}
+.aj-aqui{color:var(--ink);font-size:16px}
+@media (max-width:860px){.pe .wrap{grid-template-columns:1fr;gap:18px}.pe-a{align-items:flex-start}.pe-a p{text-align:left}}
+@media print{.pe{display:none}}
+
+/* ---------- carregando: bombona de biofertilizante fermentando, com um broto nascendo ---------- */
+.carregando{flex-direction:column;gap:14px;min-height:100%;color:var(--accent);font:500 16px var(--body)}
+.carregando #carregando-txt{color:var(--muted)}
+.bio{overflow:visible;width:124px;height:auto}
+.bio-liq{fill:color-mix(in srgb,var(--ferment) 55%,var(--surface))}
+.bio-bolhas circle{fill:var(--surface);opacity:0;animation:bio-sobe 1.8s ease-in infinite}
+.bio-bolhas circle:nth-child(2){animation-delay:.45s} .bio-bolhas circle:nth-child(3){animation-delay:.9s} .bio-bolhas circle:nth-child(4){animation-delay:1.3s}
+.bio-broto{transform-origin:48px 30px;animation:bio-nasce 3.6s ease-in-out infinite}
+.bio-broto .f1{transform-origin:48px 22px;animation:bio-folha 3.6s ease-in-out infinite}
+.bio-broto .f2{transform-origin:48px 17px;animation:bio-folha 3.6s ease-in-out .25s infinite}
+@keyframes bio-sobe{0%{transform:translateY(0);opacity:0}15%{opacity:.95}80%{opacity:.8}100%{transform:translateY(-30px);opacity:0}}
+@keyframes bio-nasce{0%,8%{transform:scaleY(.15)}45%,88%{transform:scaleY(1)}100%{transform:scaleY(.15)}}
+@keyframes bio-folha{0%,25%{transform:scale(0)}55%,88%{transform:scale(1)}100%{transform:scale(0)}}
+@media (prefers-reduced-motion:reduce){.bio-bolhas circle{animation:none;opacity:.9;transform:translateY(-14px)}.bio-broto,.bio-broto .f1,.bio-broto .f2{animation:none}}
