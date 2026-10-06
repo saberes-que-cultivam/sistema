@@ -535,3 +535,83 @@ th,.rb-h,.at-col,.rb-v::before{font:600 var(--t-2xs)/1.3 var(--body);letter-spac
 .ent-marca b{font-size:var(--t-3xl)} .ent-marca span{font-size:var(--t-lg)}
 .ent-uf span{font-size:var(--t-lg)} .ent-uf i{font-size:var(--t-sm)}
 .ent-m .eyebrow{margin-top:10px}
+
+/* ---------- tela de entrada, refinamento (v20): mesma identidade, mais acabamento. Espaços em múltiplos de 8 px. ---------- */
+:root{--t-hero:clamp(34px,4.3vw,54px);--anel:var(--accent)}
+#auth{position:relative;overflow:hidden;min-height:100vh;min-height:100dvh;display:flex;align-items:center;background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 9%,var(--bg)) 0%,var(--bg) 55%,color-mix(in srgb,var(--ferment) 5%,var(--bg)) 100%)}
+.ent-fundo{position:absolute;inset:0;width:100%;height:100%;color:var(--accent);opacity:.11;pointer-events:none}
+.ent-fundo .folha{fill:currentColor;opacity:.35}
+.ent{position:relative;width:100%;max-width:1200px;margin:0 auto;padding:64px 40px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(380px,464px);grid-template-areas:"topo cartao" "base cartao";gap:32px 80px;align-items:start}
+.ent-topo{grid-area:topo;align-self:end;display:flex;flex-direction:column;gap:16px;min-width:0}
+.ent-base{grid-area:base;display:flex;flex-direction:column;gap:24px;min-width:0}
+#auth .authbox{grid-area:cartao;align-self:center;width:auto;padding:40px;gap:24px;border-radius:26px;background:var(--surface);border:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 1px 2px rgba(24,36,28,.04),0 24px 56px -16px rgba(24,36,28,.16)}
+.ent-marca{margin-bottom:24px;gap:16px}
+.ent-marca img{border-radius:16px;box-shadow:0 4px 16px rgba(24,36,28,.14)}
+.ent-marca b{font-size:var(--t-2xl)} .ent-marca span{font-size:var(--t-base);color:var(--txt-2)}
+.ent-h{font-size:var(--t-hero);font-weight:600;line-height:1.08;letter-spacing:-.025em;max-width:14ch;margin:0}
+.ent-h em{color:var(--accent);font-style:normal;font-weight:600;text-decoration:none}
+.ent-h::after{content:"";display:block;width:56px;height:3px;border-radius:2px;margin-top:24px;background:color-mix(in srgb,var(--accent) 55%,transparent)}
+.ent-s{font-size:var(--t-2xl);font-weight:500;line-height:1.3;margin:8px 0 0;color:var(--txt-1)}
+.ent-d{font-size:var(--t-xl);line-height:1.55;max-width:46ch;margin:0;color:var(--txt-2)}
+ul.ent-uf{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+ul.ent-uf li{display:inline-flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:99px;background:color-mix(in srgb,var(--surface) 60%,transparent)}
+ul.ent-uf li span{display:inline;border:0;background:none;padding:0;border-radius:0;font-size:var(--t-md);font-weight:500;color:var(--txt-1)}
+ul.ent-uf i{width:24px;height:24px;font:700 var(--t-2xs)/1 var(--body);font-style:normal;letter-spacing:.02em}
+.ac-cab{display:flex;flex-direction:column;gap:8px}
+.ac-cab .ent-t{margin:8px 0 0;font-size:var(--t-3xl);letter-spacing:-.02em} .ac-cab .ent-p{margin:0}
+#authcorpo{gap:24px} #painel_acesso{display:flex;flex-direction:column;gap:24px}
+#auth form{display:flex;flex-direction:column;gap:16px}
+/* seletor "Já tenho senha | Primeiro acesso" */
+.sg{position:relative;display:grid;grid-template-columns:1fr 1fr;height:48px;padding:4px;border-radius:14px;background:var(--sunken)}
+.sg button{position:relative;border:0;background:none;border-radius:10px;font:600 var(--t-md)/1.2 var(--body);color:var(--txt-2);cursor:pointer;white-space:nowrap;transition:color .18s,background-color .18s,box-shadow .18s}
+.sg button:hover{color:var(--txt-1)} .sg button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);box-shadow:0 1px 3px rgba(24,36,28,.22)}
+/* campos */
+.cp{display:flex;flex-direction:column;gap:8px}
+.cp label{font:600 var(--t-sm)/1.3 var(--body);color:var(--txt-1)}
+.cp-c{position:relative}
+#auth .cp input{width:100%;height:56px;padding:0 16px;border-radius:14px;font-size:var(--t-lg);color:var(--txt-1);background:var(--surface);border:1px solid color-mix(in srgb,var(--ink) 26%,var(--line));transition:border-color .15s,background-color .15s,box-shadow .15s}
+#auth .cp input[type="password"],#auth .cp-c:has(.cp-olho) input{padding-right:56px}
+#auth .cp input:hover{border-color:color-mix(in srgb,var(--ink) 50%,var(--line))}
+#auth .cp input:focus{outline:3px solid var(--anel);outline-offset:2px;border-color:var(--accent)}
+#auth .cp input:disabled{background:var(--sunken);color:var(--txt-3);cursor:not-allowed}
+#auth .cp.erro input{border-color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad)}
+.cp-olho{position:absolute;top:6px;right:6px;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;background:none;color:var(--txt-3);cursor:pointer;transition:background-color .15s,color .15s}
+.cp-olho:hover{background:var(--sunken);color:var(--txt-1)}
+.cp-olho .o2,.cp-olho[aria-pressed="true"] .o1{display:none} .cp-olho[aria-pressed="true"] .o2{display:block}
+.cp-e,.ac-erro{display:flex;align-items:flex-start;gap:8px;margin:0;font:600 var(--t-sm)/1.4 var(--body);color:var(--bad)}
+.cp-e svg,.ac-erro svg{flex:none;margin-top:2px}
+.ac-erro{padding:12px 16px;border-radius:12px;background:var(--bad-soft)}
+.ac-ok{margin:0;padding:12px 16px;border-radius:12px;background:var(--accent-soft);color:var(--txt-1);font:500 var(--t-sm)/1.5 var(--body)}
+/* botão principal */
+.bt{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;height:56px;padding:0 24px;margin-top:8px;border:1px solid var(--accent);border-radius:14px;background:var(--accent);color:var(--accent-ink);font:600 var(--t-lg)/1 var(--body);cursor:pointer;transition:background-color .15s,box-shadow .15s,transform .08s}
+.bt:hover{background:color-mix(in srgb,var(--accent) 86%,#000);border-color:color-mix(in srgb,var(--accent) 86%,#000);box-shadow:0 6px 16px -6px color-mix(in srgb,var(--accent) 60%,transparent)}
+.bt:active{transform:translateY(1px)}
+.bt .seta{transition:transform .18s} .bt:hover .seta{transform:translateX(3px)}
+.bt:disabled,.bt[aria-busy="true"]{opacity:.6;cursor:progress;box-shadow:none} .bt:disabled .seta{transform:none}
+.bt.sec{margin-top:0;background:var(--surface);color:var(--txt-1);border-color:color-mix(in srgb,var(--ink) 26%,var(--line))}
+.bt.sec:hover{background:var(--sunken);border-color:color-mix(in srgb,var(--ink) 50%,var(--line));box-shadow:none}
+.ent-demo{gap:8px} .ent-demo .bt{margin-top:0}
+/* ligações: "Esqueci a senha" é ação (verde, firme); a ajuda é apoio (cinza, com sinal de pergunta) */
+.ent-links{gap:8px}
+.lk{padding:8px 12px;border-radius:8px;color:var(--accent);font:600 var(--t-md)/1.2 var(--body);text-decoration:none}
+.lk:hover{text-decoration:underline;text-underline-offset:4px}
+.ent-aj summary{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;color:var(--txt-2);font:500 var(--t-md)/1.2 var(--body);text-decoration:none}
+.ent-aj summary:hover{color:var(--txt-1);text-decoration:underline;text-underline-offset:4px}
+.ent-aj summary i{flex:none;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid currentColor;font:700 var(--t-2xs)/1 var(--body);font-style:normal}
+.ent-aj p{margin:8px 0 0}
+/* foco de teclado: anel verde afastado do elemento (não é o mesmo desenho do passar do mouse e não mexe no tamanho de nada) */
+#auth :is(button,summary,a):focus-visible{outline:3px solid var(--anel);outline-offset:3px}
+#auth .sg button:focus-visible{outline-offset:5px}
+@media (max-width:1100px){.ent{padding:48px 32px;gap:24px 48px;grid-template-columns:minmax(0,1fr) minmax(360px,432px)}#auth .authbox{padding:32px}}
+@media (max-width:860px){
+  #auth{align-items:flex-start}
+  .ent{grid-template-columns:minmax(0,1fr);grid-template-areas:"topo" "cartao" "base";max-width:560px;padding:40px 24px 48px;gap:32px}
+  .ent-topo{align-self:auto} .ent-marca{margin-bottom:16px} .ent-h{max-width:none} .ent-h::after{margin-top:16px}
+  .ent-d{font-size:var(--t-lg)}
+}
+@media (max-width:480px){
+  .ent{padding:24px 16px 40px;gap:24px} #auth .authbox{padding:24px 20px;border-radius:24px}
+  .ent-marca img{width:48px;height:48px} .ent-marca b{font-size:var(--t-xl)} .ent-marca span{font-size:var(--t-sm)}
+  .ent-s{font-size:var(--t-xl)} .ac-cab .ent-t{font-size:var(--t-2xl)}
+}
+@media (prefers-reduced-motion:reduce){.sg button,.bt,.bt .seta,.cp-olho,#auth .cp input{transition:none}.bt:hover .seta{transform:none}.bt:active{transform:none}}

@@ -1350,44 +1350,79 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   /* ---------- entrada no sistema ---------- */
   const EXP = 'Sessão encerrada após 15 minutos sem uso. Entre de novo para continuar.';
+  /* ---------- tela de entrada ---------- */
+  const IC_OLHO = '<svg class="o1" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="o2" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.7 8.5 2 12 2 12s3.6 7 10 7c1.7 0 3.2-.5 4.5-1.200M9.9 9.900a3 3 0 0 0 4.2 4.2"/></svg>';
+  const IC_ERRO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.500v.01"/></svg>';
+  const IC_SETA = '<svg class="seta" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  /* campo da entrada: rótulo ligado ao campo, mensagem de erro própria (ligada por aria-describedby quando aparece) e, na senha, botão de mostrar */
+  const campoA = (id, rotulo, tipo, ac) => `<div class="cp"><label for="${id}">${rotulo}</label><div class="cp-c">
+    <input id="${id}" name="${id}" type="${tipo}" autocomplete="${ac}" required${tipo === 'email' ? ' inputmode="email" autocapitalize="none" spellcheck="false"' : ''}>${tipo === 'password' ? `<button type="button" class="cp-olho" data-olho="${id}" aria-label="Mostrar senha" aria-pressed="false">${IC_OLHO}</button>` : ''}</div>
+    <p class="cp-e" id="e_${id}" hidden></p></div>`;
+  const avisoA = (msg, ok) => `<p class="ac-erro" id="aerr" role="alert"${msg ? '' : ' hidden'}>${msg ? IC_ERRO + '<span>' + esc(msg) + '</span>' : ''}</p><p class="ac-ok" id="aok" role="status"${ok ? '' : ' hidden'}>${esc(ok || '')}</p>`;
+  function painelAcesso(msg, ok) {
+    const esq = authModo === 'esqueci', pri = authModo === 'primeiro';
+    const intro = pri ? '<p class="ent-p">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>' : esq ? '<p class="ent-p">Você recebe um e-mail com um link para criar outra senha.</p>' : '';
+    const campos = pri ? campoA('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username') : esq ? campoA('a_email', 'Seu e-mail', 'email', 'username') : campoA('a_email', 'E-mail', 'email', 'username') + campoA('a_senha', 'Senha', 'password', 'current-password');
+    return `<form id="fauth" novalidate>${intro}${campos}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>${pri ? 'Enviar o link' : esq ? 'Enviar o e-mail' : 'Entrar'}</span>${IC_SETA}</button></form>
+     <div class="ent-links">${esq ? '<button type="button" class="lk" data-auth="entrar">Voltar para a entrada</button>' : '<button type="button" class="lk" data-auth="esqueci">Esqueci a senha</button>'}
+      <details class="ent-aj"><summary><i aria-hidden="true">?</i>Precisa de ajuda para entrar?</summary><p>Só entra quem a coordenação do projeto cadastrou. Na primeira vez, use “Primeiro acesso” com o mesmo e-mail que você passou para a coordenação, abra a mensagem que chegar (confira o spam) e toque no link. Se o e-mail não chegar em alguns minutos ou a tela disser que você não tem acesso, fale com a coordenação.</p></details></div>`;
+  }
   function telaAcesso(msg, ok) {
     $('#carregando').hidden = true; $('#app').hidden = true; $('#auth').hidden = false;
-    const f = (id, l, t, ac) => `<div class="fld"><label for="${id}">${l}</label><input id="${id}" type="${t}" autocomplete="${ac}" required></div>`;
-    const aviso = `<div class="err" id="aerr" role="alert">${esc(msg || '')}</div><div class="ok-msg" id="aok" role="status">${esc(ok || '')}</div>`;
     if (demo()) {
       $('#authsub').textContent = 'Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios.';
-      $('#authcorpo').innerHTML = `<p class="ent-p">Escolha com qual perfil quer ver o sistema.</p><div class="ent-demo"><button class="b p ent-b" data-demo="Coordenação">Entrar como Coordenação</button><button class="b ent-b" data-demo="Equipe">Entrar como Equipe</button><button class="b ent-b" data-demo="Acompanhamento">Entrar como SEAB/MDA</button></div>${aviso}`;
+      $('#authcorpo').innerHTML = `<p class="ent-p">Escolha com qual perfil quer ver o sistema.</p><div class="ent-demo"><button class="bt" data-demo="Coordenação"><span>Entrar como Coordenação</span>${IC_SETA}</button><button class="bt sec" data-demo="Equipe"><span>Entrar como Equipe</span></button><button class="bt sec" data-demo="Acompanhamento"><span>Entrar como SEAB/MDA</span></button></div>${avisoA(msg, ok)}`;
       return;
     }
     if (authModo === 'nova') {
-      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="ent-p">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p ent-b">Guardar a senha e entrar</button></form>`;
+      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="ent-p">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${campoA('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${campoA('a_senha2', 'Repita a senha', 'password', 'new-password')}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>Guardar a senha e entrar</span>${IC_SETA}</button></form>`;
       return;
     }
-    const esq = authModo === 'esqueci';
-    const corpo = authModo === 'primeiro' ? `<p class="ent-p">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}`
-      : esq ? `<p class="ent-p">Você recebe um e-mail com um link para criar outra senha.</p>${f('a_email', 'Seu e-mail', 'email', 'username')}`
-        : `${f('a_email', 'E-mail', 'email', 'username')}${f('a_senha', 'Senha', 'password', 'current-password')}`;
-    $('#authcorpo').innerHTML = `${esq ? '' : `<div class="seg" role="tablist"><button type="button" role="tab" aria-selected="${authModo === 'entrar'}" data-auth="entrar">Já tenho senha</button><button type="button" role="tab" aria-selected="${authModo === 'primeiro'}" data-auth="primeiro">Primeiro acesso</button></div>`}
- <form id="fauth" novalidate>${corpo}${aviso}<button class="b p ent-b" id="abotao">${authModo === 'primeiro' ? 'Enviar o link' : esq ? 'Enviar o e-mail' : 'Entrar'}</button></form>
- <div class="ent-links">${esq ? '<button type="button" class="lk" data-auth="entrar">Voltar para a entrada</button>' : '<button type="button" class="lk" data-auth="esqueci">Esqueci a senha</button>'}
-  <details class="ent-aj"><summary>Precisa de ajuda para entrar?</summary><p>Só entra quem a coordenação do projeto cadastrou. Na primeira vez, use “Primeiro acesso” com o mesmo e-mail que você passou para a coordenação, abra a mensagem que chegar (confira o spam) e toque no link. Se o e-mail não chegar em alguns minutos ou a tela disser que você não tem acesso, fale com a coordenação.</p></details></div>`;
+    /* "Já tenho senha | Primeiro acesso" troca o painel logo abaixo: é um conjunto de abas (setas trocam, Tab entra no painel) */
+    const sel = authModo === 'primeiro' ? 1 : 0, aba = (m, i, t) => `<button type="button" role="tab" id="tab_${m}" aria-controls="painel_acesso" aria-selected="${sel === i}" tabindex="${sel === i ? 0 : -1}" data-auth="${m}">${t}</button>`;
+    $('#authcorpo').innerHTML = `${authModo === 'esqueci' ? '' : `<div class="sg" role="tablist" aria-label="Forma de acesso" data-sel="${sel}">${aba('entrar', 0, 'Já tenho senha')}${aba('primeiro', 1, 'Primeiro acesso')}</div>`}
+     <div id="painel_acesso"${authModo === 'esqueci' ? '' : ` role="tabpanel" aria-labelledby="tab_${authModo}"`}>${painelAcesso(msg, ok)}</div>`;
+  }
+  /* troca entre "Já tenho senha" e "Primeiro acesso" sem redesenhar o seletor (o destaque desliza e o foco fica onde estava) */
+  function trocarModo(m, focar) {
+    const sg = $('.sg');
+    if (!sg || !['entrar', 'primeiro'].includes(m) || !['entrar', 'primeiro'].includes(authModo)) { authModo = m; telaAcesso(''); const alvo = m === 'esqueci' ? $('#a_email') : $('#tab_' + m); if (focar && alvo) alvo.focus(); return; }
+    authModo = m; const sel = m === 'primeiro' ? 1 : 0; sg.dataset.sel = sel;
+    sg.querySelectorAll('[role="tab"]').forEach((b, i) => { b.setAttribute('aria-selected', i === sel); b.tabIndex = i === sel ? 0 : -1; });
+    const pn = $('#painel_acesso'); pn.setAttribute('aria-labelledby', 'tab_' + m); pn.innerHTML = painelAcesso('');
+    if (focar) $('#tab_' + m).focus();
+  }
+  function erroCampo(id, msg) {
+    const el = $('#' + id), p = $('#e_' + id); if (!el || !p) return; el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'e_' + id);
+    p.innerHTML = IC_ERRO + '<span>' + esc(msg) + '</span>'; p.hidden = false; el.closest('.cp').classList.add('erro');
+  }
+  function limparErros() {
+    document.querySelectorAll('#fauth [aria-invalid]').forEach(el => { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); });
+    document.querySelectorAll('#fauth .cp').forEach(c => c.classList.remove('erro')); document.querySelectorAll('#fauth .cp-e').forEach(p => { p.hidden = true; p.textContent = ''; });
+    const a = $('#aerr'); if (a) { a.hidden = true; a.textContent = ''; } const o = $('#aok'); if (o) { o.hidden = true; o.textContent = ''; }
   }
   async function aoEntrar(ev) {
-    ev.preventDefault(); const g = id => ($('#' + id) || { value: '' }).value, er = t => { $('#aerr').textContent = t; $('#aok').textContent = ''; };
-    const email = g('a_email').trim().toLowerCase(), pw = g('a_senha'), b = ev.target.querySelector('button.b.p'), rot = b.textContent;
-    if (authModo !== 'nova' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return er('Informe o seu e-mail.');
-    if (authModo === 'nova') { if (pw.length < 8) return er('A senha precisa de pelo menos 8 caracteres.'); if (pw !== g('a_senha2')) return er('As duas senhas não são iguais.'); }
-    if (authModo === 'entrar' && !pw) return er('Informe a senha.');
-    b.disabled = true; b.textContent = 'Aguarde…';
+    ev.preventDefault(); const g = id => ($('#' + id) || { value: '' }).value; limparErros();
+    const email = g('a_email').trim().toLowerCase(), pw = g('a_senha'), b = $('#abotao'), rot = b.querySelector('span').textContent, erros = [];
+    if (authModo !== 'nova' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) erros.push(['a_email', email ? 'Este e-mail não parece completo. Confira se tem @ e o final (por exemplo, .br).' : 'Informe o seu e-mail.']);
+    if (authModo === 'nova') { if (pw.length < 8) erros.push(['a_senha', 'A senha precisa de pelo menos 8 caracteres.']); else if (pw !== g('a_senha2')) erros.push(['a_senha2', 'As duas senhas não são iguais.']); }
+    if (authModo === 'entrar' && !pw) erros.push(['a_senha', 'Informe a senha.']);
+    if (erros.length) { erros.forEach(e => erroCampo(e[0], e[1])); $('#' + erros[0][0]).focus(); return; }   // o foco vai para o primeiro campo com problema
+    b.disabled = true; b.setAttribute('aria-busy', 'true'); b.querySelector('span').textContent = 'Aguarde…';
     try {
       if (authModo === 'entrar') { eu = await api.entrar(email, pw); return await aposEntrar(); }
       if (authModo === 'primeiro') {
         await api.primeiroAcesso(email);
-        authModo = 'entrar'; return telaAcesso('', 'Se esse e-mail foi cadastrado pela coordenação, o link já foi enviado. Abra a mensagem (confira o spam), toque no link e crie a sua senha.');
+        authModo = 'entrar'; telaAcesso('', 'Se esse e-mail foi cadastrado pela coordenação, o link já foi enviado. Abra a mensagem (confira o spam), toque no link e crie a sua senha.'); $('#tab_entrar').focus(); return;
       }
-      if (authModo === 'esqueci') { await api.esqueci(email); authModo = 'entrar'; return telaAcesso('', 'Se esse e-mail tem acesso, a mensagem com o link já foi enviada. Confira também a caixa de spam.'); }
+      if (authModo === 'esqueci') { await api.esqueci(email); authModo = 'entrar'; telaAcesso('', 'Se esse e-mail tem acesso, a mensagem com o link já foi enviada. Confira também a caixa de spam.'); $('#tab_entrar').focus(); return; }
       if (authModo === 'nova') { await api.trocarSenha(pw); authModo = 'entrar'; try { history.replaceState(null, '', location.pathname); } catch (x) {} eu = await api.eu(true); if (eu) return await aposEntrar(); await api.sair(); return telaAcesso('Este e-mail não tem acesso ativo ao sistema. Fale com a coordenação.'); }
-    } catch (e) { er(e.message); b.disabled = false; b.textContent = rot; }
+    } catch (e) {
+      // erro do servidor (e-mail ou senha incorretos, sem conexão): mensagem com ícone e texto, ligada ao campo, e o foco volta para ele
+      b.disabled = false; b.removeAttribute('aria-busy'); b.querySelector('span').textContent = rot;
+      const a = $('#aerr'); a.innerHTML = IC_ERRO + '<span>' + esc(e.message) + '</span>'; a.hidden = false;
+      const alvo = $('#a_senha') || $('#a_email'); if (alvo) { alvo.setAttribute('aria-invalid', 'true'); alvo.setAttribute('aria-describedby', 'aerr'); alvo.focus(); if (alvo.select) alvo.select(); }
+    }
   }
   async function aposEntrar() {
     $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando-txt').textContent = 'Carregando os dados…';
@@ -1428,7 +1463,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* ---------- cliques ---------- */
   async function aoClicar(ev) {
     const t = ev.target.closest('button,label'); if (!t) return; const d = t.dataset;
-    if (d.auth) { authModo = d.auth; telaAcesso(''); }
+    if (d.auth) trocarModo(d.auth, true);
+    else if (d.olho) { const c = $('#' + d.olho), mostrar = c.type === 'password'; c.type = mostrar ? 'text' : 'password'; t.setAttribute('aria-pressed', mostrar); t.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha'); }
     else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
     else if (d.tab) { tab = d.tab; try { localStorage.setItem('sqc-aba', tab); } catch (e) {} render(); window.scrollTo(0, 0); }
     else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.classList.add('conf'); toast(`Há ${pend.length} lançamento(s) guardado(s) neste aparelho ainda não enviado(s). Eles ficam guardados e sobem na sua próxima entrada com internet. Toque em sair de novo para confirmar.`); return; } delete d.ok; t.classList.remove('conf'); sair(''); }
@@ -1476,6 +1512,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
     document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
+    // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
+    document.addEventListener('keydown', ev => { const t = ev.target; if (!t.matches || !t.matches('.sg [role="tab"]')) return; const ordem = ['entrar', 'primeiro'], i = ordem.indexOf(authModo);
+      const n = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? (i + 1) % 2 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? (i + 1) % 2 : ev.key === 'Home' ? 0 : ev.key === 'End' ? 1 : -1; if (n < 0) return; ev.preventDefault(); if (n !== i) trocarModo(ordem[n], true); });
+    // ao digitar num campo com erro, o erro daquele campo sai
+    document.addEventListener('input', ev => { const c = ev.target.closest && ev.target.closest('#fauth .cp.erro'); if (!c) return; c.classList.remove('erro'); const e = c.querySelector('.cp-e'); e.hidden = true; e.textContent = ''; ev.target.removeAttribute('aria-invalid'); ev.target.removeAttribute('aria-describedby'); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
     let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
