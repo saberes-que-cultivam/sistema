@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+*.log
+/copia-*.json
+/saberes-que-cultivam-*.json

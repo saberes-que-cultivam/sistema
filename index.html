@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Política de conteúdo: só roda código deste endereço e só conversa com o Supabase e as fontes (segunda barreira contra código injetado). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="robots" content="noindex">
+<title>Saberes que Cultivam</title>
+<meta name="theme-color" content="#27663A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+<!-- Fontes do Google sem travar a abertura: se não responderem, a tela abre com as fontes do aparelho. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<section id="auth" hidden><div class="authbox panel">
+  <div><h1>Saberes que Cultivam</h1><div class="sub">Sistema de acompanhamento das unidades de produção de bioinsumos</div></div>
+  <div id="authcorpo"></div>
+</div></section>
+<div id="app" hidden>
+<header class="top"><div class="wrap">
+  <div><h1>Saberes que Cultivam</h1>
+  <div class="sub">Bioinsumos, agroecologia e agricultura familiar · TED MDA/IFRN · Plano de Ação 30879420260055-006262</div></div>
+  <div class="who"><span id="net" class="chip f" hidden>sem internet · guardando neste aparelho</span><span id="quem"></span><button class="b s" data-sair>Sair</button></div>
+</div></header>
+<nav><div class="wrap" id="tabs" role="tablist"></div></nav>
+<main><div class="wrap" id="view"></div></main>
+</div>
+<p class="carregando" id="carregando" role="status">Abrindo o sistema…</p>
+<dialog id="dlg"><form id="frm" novalidate></form></dialog>
+<noscript><p class="carregando">Este sistema precisa de JavaScript ligado no navegador.</p></noscript>
+<script src="js/config.js"></script>
+<!-- todo o sistema num arquivo só (montado por ferramentas/montar.js) -->
+<script src="js/tudo.js"></script>
+</body>
+</html>

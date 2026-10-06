@@ -1,0 +1,106 @@
+const test = require('node:test'); const assert = require('node:assert');
+const { carregar } = require('./ambiente');
+const SQC = carregar(), R = SQC.regras;
+const HOJE = new Date(2026, 9, 6);   // 06/10/2026
+const base = () => ({ pessoas: [], unidades: [{ id: 'u1', nome: 'Polo A', sigla: 'PA', conta: 'Sim' }, { id: 'u2', nome: 'Apoio', sigla: 'AP', conta: 'Não', funcionando: true }], itens: [],
+  lotes: [{ id: 'l1', codigo: 'PA-HUM-001', unidade: 'u1', tipo: 'Húmus de minhoca', inicio: '2026-08-01', dias: 60, qtd: 100, med: 'kg', status: 'Pronto' },
+    { id: 'l2', codigo: 'PA-BIO-001', unidade: 'u1', tipo: 'Biofertilizante líquido', inicio: '2026-08-01', dias: 30, qtd: 50, med: 'L', status: 'Maturando' }],
+  agricultores: [{ id: 'a1', nome: 'A', diag: '2026-08-10', gasto0: 200 }, { id: 'a2', nome: 'B', diag: '', gasto0: 0 }],
+  distribuicoes: [{ id: 'd1', data: '2026-08-20', lote: 'l1', agricultor: 'a1', qtd: 30 }], visitas: [], eventos: [], entregas: [], despesas: [] });
+
+test('saldo do lote desconta o distribuído', () => { const db = base(); assert.strictEqual(R.saldo(db, db.lotes[0]), 70); });
+test('distribuição: não passa do saldo, e editar a própria entrega não conta ela duas vezes', () => {
+  const db = base();
+  assert.match(R.validar(db, 'distribuicoes', { id: 'n', data: '2026-09-01', lote: 'l1', agricultor: 'a1', qtd: 71 }), /só tem 70 kg/);
+  assert.strictEqual(R.validar(db, 'distribuicoes', { id: 'n', data: '2026-09-01', lote: 'l1', agricultor: 'a1', qtd: 70 }), '');
+  assert.strictEqual(R.validar(db, 'distribuicoes', { id: 'd1', data: '2026-08-20', lote: 'l1', agricultor: 'a1', qtd: 100 }), '');
+});
+test('distribuição: só de lote pronto e nunca antes do início do preparo', () => {
+  const db = base();
+  assert.match(R.validar(db, 'distribuicoes', { id: 'n', data: '2026-09-01', lote: 'l2', agricultor: 'a1', qtd: 1 }), /não está marcado como pronto/);
+  assert.match(R.validar(db, 'distribuicoes', { id: 'n', data: '2026-07-01', lote: 'l1', agricultor: 'a1', qtd: 1 }), /anterior ao início/);
+});
+test('lote: quantidade não fica menor que o distribuído; distribuído não deixa de estar pronto', () => {
+  const db = base(), l = db.lotes[0];
+  assert.match(R.validar(db, 'lotes', { ...l, qtd: 20 }, l), /menor do que o já distribuído/);
+  assert.match(R.validar(db, 'lotes', { ...l, status: 'Maturando' }, l), /não pode deixar de estar pronto/);
+});
+test('código do lote: sigla + tipo + sequência, sem repetir depois de exclusão', () => {
+  const db = base();
+  assert.strictEqual(R.codigoLote(db, { id: 'n', unidade: 'u1', tipo: 'Húmus de minhoca' }), 'PA-HUM-002');
+  db.lotes.push({ id: 'l9', codigo: 'PA-HUM-007', unidade: 'u1', tipo: 'Húmus de minhoca' });
+  assert.strictEqual(R.codigoLote(db, { id: 'n', unidade: 'u1', tipo: 'Húmus de minhoca' }), 'PA-HUM-008');
+  assert.strictEqual(R.codigoLote(db, { id: 'n', unidade: 'u1', tipo: 'Bokashi' }), 'PA-BOK-001');
+});
+test('execução física: unidade de apoio não conta na Meta 2; acompanhada exige entrega E visita', () => {
+  const db = base(), e = id => SQC.dados.ETAPAS.find(x => x.id === id);
+  assert.strictEqual(R.feito(db, e('2.1')), 0);
+  db.unidades[0].funcionando = true; assert.strictEqual(R.feito(db, e('2.1')), 1);
+  assert.strictEqual(R.feito(db, e('4.1')), 0);
+  db.visitas.push({ id: 'v1', data: '2026-09-25', agricultor: 'a1', usou: 'Sim', gasto: 150 });
+  assert.strictEqual(R.feito(db, e('4.1')), 1);
+  db.eventos.push({ tipo: 'Capacitação' }, { tipo: 'Reunião' }, { tipo: 'Dia de campo' });
+  assert.strictEqual(R.feito(db, e('3.2')), 1); assert.strictEqual(R.feito(db, e('5.1')), 1);
+  db.entregas.push({ etapa: '6.1' }, { etapa: '6.1' }); assert.strictEqual(R.feito(db, e('6.1')), 2);
+});
+test('financeiro por meta e por rubrica: pago x comprometido, e os totais batem entre si', () => {
+  const db = base();
+  db.despesas.push({ data: '2026-09-01', etapa: '3.1', rubrica: 'servicos_pj', valor: 1800, status: 'Pago' }, { data: '2026-09-10', etapa: '6.1', rubrica: 'consumo', valor: 2400, status: 'Em compras na FUNCERN' }, { data: '2026-10-01', etapa: '6.3', rubrica: 'doa', valor: 40000, status: 'Solicitado' });
+  const F = R.fin(db), FR = R.finRubrica(db);
+  assert.strictEqual(F[2].pago, 1800); assert.strictEqual(F[5].comp, 42400); assert.strictEqual(F[5].saldo, 60000 - 42400);
+  assert.strictEqual(R.soma(F, 'pago') + R.soma(F, 'comp'), R.soma(FR, 'pago') + R.soma(FR, 'comp'));
+  assert.strictEqual(R.soma(FR, 'prev'), 400000);
+  assert.strictEqual(FR.find(r => r.id === 'doa').saldo, 0);
+  assert.strictEqual(R.soma(R.fin(db, '2026-09-05'), 'pago') + R.soma(R.fin(db, '2026-09-05'), 'comp'), 1800);
+});
+test('alertas: rubrica estourada, despesa sem rubrica, gasto acima do recebido, linha de base faltando', () => {
+  const db = base();
+  db.despesas.push({ data: '2026-09-01', etapa: '2.1', rubrica: 'equipamentos', valor: 9301, status: 'Pago' }, { data: '2026-09-01', etapa: '2.1', rubrica: '', valor: 10, status: 'Pago' });
+  let txt = R.alertas(db, HOJE).map(a => a[1] + ': ' + a[2]).join('\n');
+  assert.match(txt, /Máquinas e equipamentos: R\$ 1,00 acima/); assert.match(txt, /sem rubrica/); assert.match(txt, /1 unidade\(s\) produtiva\(s\) sem diagnóstico/);
+  assert.doesNotMatch(txt, /acima do que já foi recebido/);
+  db.despesas.push({ data: '2026-09-01', etapa: '2.1', rubrica: 'servicos_pj', valor: 195000, status: 'Solicitado' });
+  txt = R.alertas(db, HOJE).map(a => a[2]).join('\n'); assert.match(txt, /acima do que já foi recebido/);
+});
+test('alertas: entrega sem visita há mais de 30 dias; lote que passou da previsão; etapa vencida', () => {
+  const db = base(); const txt = d => R.alertas(db, d).map(a => a[2]).join('\n');
+  assert.match(txt(HOJE), /A: recebeu bioinsumo em 20\/08\/2026 e não teve visita depois/);
+  assert.match(txt(HOJE), /PA-BIO-001: passou da previsão \(31\/08\/2026\)/);
+  db.visitas.push({ id: 'v', data: '2026-09-30', agricultor: 'a1', usou: 'Sim' });
+  assert.doesNotMatch(txt(HOJE), /não teve visita depois/);
+  assert.doesNotMatch(txt(HOJE), /Etapa 2\.1 venceu/);
+  assert.match(txt(new Date(2027, 1, 1)), /Etapa 2\.1 venceu em 01\/2027 com 0 de 2/);
+});
+test('indicadores da Meta 5: só compara quem tem linha de base e visita com gasto', () => {
+  const db = base();
+  assert.strictEqual(R.indicadores(db).variacao, null);
+  db.visitas.push({ id: 'v', data: '2026-09-30', agricultor: 'a1', usou: 'Sim', gasto: 150 }, { id: 'w', data: '2026-09-30', agricultor: 'a2', usou: 'Não', gasto: 90 });
+  const I = R.indicadores(db); assert.strictEqual(I.pares, 1); assert.strictEqual(I.variacao, -25); assert.strictEqual(I.usou, 1); assert.strictEqual(I.visitas, 2);
+});
+test('validações de cadastro: sigla, mulheres, kit, despesa, e-mail e última coordenação', () => {
+  const db = base();
+  assert.match(R.validar(db, 'unidades', { id: 'n', sigla: 'A1' }), /2 a 4 letras/);
+  assert.match(R.validar(db, 'unidades', { id: 'n', sigla: 'pa' }), /Já existe/);
+  assert.match(R.validar(db, 'eventos', { part: 5, mulheres: 6 }), /mulheres/);
+  assert.match(R.validar(db, 'agricultores', { kit: true, kitdata: '' }), /data da entrega do kit/);
+  assert.match(R.validar(db, 'despesas', { valor: 10, etapa: '3.1', rubrica: '' }), /rubrica/);
+  assert.match(R.validar(db, 'despesas', { valor: 0, etapa: '3.1', rubrica: 'consumo' }), /valor/);
+  db.pessoas.push({ id: 'p1', email: 'c@x.br', perfil: 'Coordenação', ativo: true });
+  assert.match(R.validar(db, 'pessoas', { id: 'p2', email: 'C@X.br', perfil: 'Equipe' }), /Já existe/);
+  assert.match(R.validar(db, 'pessoas', { id: 'p1', email: 'c@x.br', perfil: 'Coordenação', ativo: false }, db.pessoas[0]), /pelo menos um acesso de coordenação/);
+});
+test('permissões: equipe não grava despesa nem acesso e só exclui o que lançou; pessoa inativa não faz nada', () => {
+  const c = { id: 'c', perfil: 'Coordenação' }, e = { id: 'e', perfil: 'Equipe' }, x = { id: 'x', perfil: 'Coordenação', ativo: false };
+  assert.ok(R.podeGravar(c, 'despesas')); assert.ok(!R.podeGravar(e, 'despesas')); assert.ok(!R.podeGravar(e, 'pessoas')); assert.ok(R.podeGravar(e, 'visitas'));
+  assert.ok(!R.podeGravar(x, 'visitas')); assert.ok(!R.podeGravar(null, 'visitas'));
+  assert.ok(R.podeExcluir(c, 'visitas', { criado_por: 'e' })); assert.ok(R.podeExcluir(e, 'visitas', { criado_por: 'e' })); assert.ok(!R.podeExcluir(e, 'visitas', { criado_por: 'c' }));
+  assert.ok(!R.podeExcluir(e, 'despesas', { criado_por: 'e' })); assert.ok(!R.podeExcluir(c, 'pessoas', {}));
+});
+test('registro em uso não é excluído', () => {
+  const db = base(); assert.deepStrictEqual(R.emUso(db, 'lotes', 'l1'), ['distribuicoes']); assert.deepStrictEqual(R.emUso(db, 'lotes', 'l2'), []); assert.deepStrictEqual(R.emUso(db, 'unidades', 'u1'), ['lotes']);
+});
+test('mensagens do servidor viram português claro', () => {
+  assert.match(R.mensagemErro({ message: 'Invalid login credentials' }), /E-mail ou senha incorretos/);
+  assert.match(R.mensagemErro({ code: '42501', message: 'new row violates row-level security policy' }), /não tem permissão/);
+  assert.strictEqual(R.mensagemErro({ code: 'P0001', message: 'O lote X só tem 3 kg de saldo.' }), 'O lote X só tem 3 kg de saldo.');
+});
