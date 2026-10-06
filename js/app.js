@@ -15,6 +15,7 @@
   const hoje = () => new Date();
   const by = (t, id) => db[t].find(r => r.id === id);
   const coord = () => !!eu && eu.perfil === 'Coordenação';
+  const fora = () => !!eu && eu.perfil === 'Acompanhamento';   // SEAB/MDA: só leitura, sem dado pessoal
   const demo = () => api.modo === 'demo';
   const mesAno = s => String(s).split('-').reverse().join('/');
   const exChip = r => (r.ex ? ' <span class="chip ex">exemplo</span>' : '') + (r._erro ? ' <span class="chip bad">não enviado</span>' : r._pendente ? ' <span class="chip pend">aguardando envio</span>' : '');
@@ -101,21 +102,27 @@
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
-    pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
-      campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, opt(['Equipe', 'Coordenação'])], ['ativo', 'Acesso ativo', 'check']],
-      cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : ''}">${esc(u.perfil)}</span>`],
+    pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
+      campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, [['Equipe', 'Equipe (registra o trabalho do projeto)'], ['Coordenação', 'Coordenação (faz tudo)'], ['Acompanhamento', 'Acompanhamento (SEAB/MDA: só consulta, sem dados pessoais)']]], ['orgao', 'Órgão ou setor (para quem acompanha)', 'text'], ['ativo', 'Acesso ativo', 'check']],
+      cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : u.perfil === 'Acompanhamento' ? 'f' : ''}">${esc(u.perfil)}</span>${u.orgao ? `<div class="small">${esc(u.orgao)}</div>` : ''}`],
         ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
   };
   const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
   const TABS = [['painel', 'Painel'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['entregas', 'Entregas'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
-  function nav() { $('#tabs').innerHTML = TABS.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join(''); }
+  /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
+  const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados'];
+  const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS;
+  function nav() { $('#tabs').innerHTML = abas().map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join(''); }
+  /* listas longas aparecem de 100 em 100 (as mais recentes primeiro): desenhar milhares de linhas trava celular simples */
+  const PAGINA = 100, mostrando = {};
   function tabela(m) {
-    const M = MOD[m], pode = R.podeGravar(eu, m), rows = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `${pode ? `<button class="b s" data-edit="${m}:${esc(r.id)}">Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? ` <button class="b s d" data-del="${m}:${esc(r.id)}">Excluir</button>` : ''}`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
- <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>`;
+ <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
   }
   const finTabela = (F, titulo) => `<table><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td>${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td><td class="n">${brl(r.prev)}</td><td class="n">${brl(r.comp)}</td><td class="n">${brl(r.pago)}</td><td class="n">${brl(r.saldo)}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="n">${brl(R.soma(F, 'prev'))}</td><td class="n">${brl(R.soma(F, 'comp'))}</td><td class="n">${brl(R.soma(F, 'pago'))}</td><td class="n">${brl(R.soma(F, 'saldo'))}</td></tr></tbody></table>`;
   const parcelasTxt = () => D.PARCELAS.map((p, i) => p.recebida ? `<dt>${i + 1}ª parcela, liquidada à FUNCERN em ${dt(p.data)}</dt><dd>${brl(p.valor)}</dd>` : `<dt>${i + 1}ª parcela, prevista para ${mesAno(p.previsao)}</dt><dd>${brl(p.valor)}</dd>`).join('');
@@ -144,13 +151,13 @@
     const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
       if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span>Meta ${mm} · ${D.METAS[mm]}</span><span></span><span></span></div>`; }
-      const a = pos(pd(e.ini)), b = pos(new Date(R.fimMes(e.fim).getTime() + 864e5)), f = feito(e), late = R.fimMes(e.fim) < hoje() && f < e.q;
+      const a = pos(pd(e.ini)), b = pos(new Date(R.fimMes(e.fim).getTime() + 864e5)), f = feito(e), late = R.venceu(e, hoje()) && f < e.q;
       g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${late ? 'late' : ''}" style="left:${a}%;width:${b - a}%"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div><div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n">${f}/${e.q}</div></div>`;
     });
     const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
-    return `${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+    return `${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas.</span></div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
    <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
@@ -164,7 +171,7 @@
   ${A.length ? `<div class="at-col" aria-hidden="true"><span>Problema</span><span>Prazo</span><span></span></div>
   <ul class="at-lista">${A.map(a => `<li class="at-item ${a[0]}"><div class="at-txt"><span class="at-tag">${a[0] === 'bad' ? 'Urgente' : 'Atenção'} · ${esc(a[1])}</span><b>${esc(a[3])}</b><span class="small">${esc(a[4])}</span></div>
    <div class="at-prazo">${a[5] ? `${dt(a[5])}<small>${prazoTxt(a[5])}</small>` : '—'}</div>
-   <div class="at-acao">${a[6] ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
+   <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>
  <div class="two">
   <div class="panel box"><h3>Recursos do TED</h3><dl class="kv"><dt>Valor total</dt><dd>${brl(D.TOTAL)}</dd>${parcelasTxt()}<dt>Pago</dt><dd>${brl(R.soma(F, 'pago'))}</dd><dt>Comprometido (solicitado ou em compras)</dt><dd>${brl(R.soma(F, 'comp'))}</dd><dt>Disponível do que já foi recebido</dt><dd>${brl(rec - usado)}</dd></dl>
@@ -333,6 +340,12 @@
     return `<div class="scroll"><table class="hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.map(h => `<tr><td>${new Date(h.em).toLocaleString('pt-BR')}</td><td>${esc(nomeDe(h.por))}</td><td>${NOME_ACAO[h.acao] || esc(h.acao)} em ${esc((MOD[h.tabela] || {}).nome || h.tabela)}<div class="small">${esc(resumo(h))}</div></td><td>${mudou(h) ? `<details><summary>ver o que mudou</summary><pre>${esc(mudou(h))}</pre></details>` : ''}</td></tr>`).join('')}</tbody></table></div><div class="small">Últimas ${hist.length} alterações.</div>`;
   }
   function dados() {
+    if (fora()) return `<div class="head"><div><h2>Dados</h2><p>O seu acesso é de acompanhamento: consulta em tempo real, sem alterar nada.</p></div></div>
+ <div class="panel box"><h3>O que este acesso mostra</h3><ul class="al"><li><span class="chip ok">Mostra</span><span>Painel de execução, biofábricas e aquisições, lotes produzidos e distribuídos, capacitações e dias de campo, entregas do plano, despesas por meta e por rubrica, e o relatório de execução por período (aba Relatórios, com opção de imprimir).</span></li>
+  <li><span class="chip">Não mostra</span><span>Nome, comunidade e demais dados pessoais de agricultoras e agricultores (Lei Geral de Proteção de Dados); anotações livres das visitas; e-mails da equipe; histórico interno de alterações.</span></li>
+  <li><span class="chip f">Atenção</span><span>Os valores financeiros são os lançados pela equipe neste sistema. O registro oficial é o da FUNCERN e o do TransfereGov.</span></li></ul></div>
+ <div class="panel box"><h3>Planilhas (.csv)</h3><div class="acts">${['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div></div>
+ <div class="panel box"><h3>Minha senha</h3>${demo() ? '<div class="small">A demonstração não usa senha.</div>' : '<div class="acts"><button class="b" data-senha>Trocar a minha senha</button></div>'}</div>`;
     return `<div class="head"><div><h2>Dados</h2><p>${demo() ? 'Modo demonstração: os registros ficam guardados somente neste navegador.' : 'Os registros ficam no banco do projeto (Supabase) e aparecem em qualquer aparelho de quem tem acesso.'}</p></div></div>
  <div class="panel box"><h3>Planilhas para a prestação de contas (.csv)</h3><div class="acts">${Object.keys(MOD).filter(m => m !== 'pessoas').map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div>
  <div class="small">Abre no Excel e no LibreOffice. A planilha de unidades produtivas tem dados pessoais: guarde em pasta do projeto, não envie por aplicativo de mensagem.</div></div>
@@ -345,7 +358,8 @@
     if (!eu || !db) return;
     nav(); const v = $('#view');
     v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
-    $('#quem').textContent = demo() ? eu.perfil + ' · demonstração' : eu.nome + ' · ' + eu.perfil;
+    if (!abas().some(t => t[0] === tab)) tab = 'painel';
+    $('#quem').textContent = demo() ? eu.perfil + ' · demonstração' : eu.nome + ' · ' + eu.perfil + (eu.orgao ? ' · ' + eu.orgao : '');
     $('#net').hidden = navigator.onLine !== false && !(api.offline);
   }
 
@@ -376,8 +390,10 @@
     $('#dlg').showModal();
   }
   /* guarda no aparelho quando não há internet (só o que a equipe lança em campo; despesas e acessos exigem conexão) */
-  async function enfileirar(m, r) {
-    const it = { id: SQC.fila.chave(m, r.id), tabela: m, dados: r, dono: eu.id, erro: '', reenviar: true };
+  async function enfileirar(m, r, op) {
+    // se o registro já estava na fila, vale a origem da primeira vez (continua sendo inclusão, ou edição sobre a mesma versão lida)
+    const ja = pend.find(p => p.id === SQC.fila.chave(m, r.id));
+    const it = { id: SQC.fila.chave(m, r.id), tabela: m, dados: r, op: ja && ja.op ? ja.op : op, dono: eu.id, erro: '', reenviar: true };
     await SQC.fila.salvar(it); pend = await SQC.fila.listar(eu.id); aplicarFila();
   }
   function aplicarFila() {
@@ -386,14 +402,17 @@
   async function gravarRegistro(m, r, ant) {
     const limpo = Object.assign({}, r); delete limpo._pendente; delete limpo._erro;
     try {
-      const salvo = await api.salvar(m, limpo);
+      const naFila = pend.find(p => p.id === SQC.fila.chave(m, r.id));
+      const op = naFila && naFila.op ? naFila.op : { novo: !ant, base: ant ? ant.atualizado_em || null : null };
+      const salvo = await api.salvar(m, limpo, op);
       const i = db[m].findIndex(x => x.id === salvo.id); if (i >= 0) db[m][i] = salvo; else db[m].push(salvo);
       await SQC.fila.remover(SQC.fila.chave(m, salvo.id)); pend = pend.filter(p => p.id !== SQC.fila.chave(m, salvo.id));
       if (eu && salvo.id === eu.id) eu = salvo;
       if (api.guardarCopia) api.guardarCopia(db);
       return { ok: true };
     } catch (e) {
-      if (e.semRede && !demo() && !R.RESTRITAS.includes(m)) { await enfileirar(m, limpo); return { ok: true, fila: true }; }
+      if (e.semRede && !demo() && !R.RESTRITAS.includes(m)) { await enfileirar(m, limpo, { novo: !ant, base: ant ? ant.atualizado_em || null : null }); return { ok: true, fila: true }; }
+      if (e.message === R.MSG_CONFLITO || e.message === R.MSG_EXCLUIDO) atualizarPorBaixo();   // busca como ficou, para a pessoa conferir ao fechar
       return { ok: false, msg: e.message };
     }
   }
@@ -441,36 +460,35 @@
     const f = (id, l, t, ac) => `<div class="fld"><label for="${id}">${l}</label><input id="${id}" type="${t}" autocomplete="${ac}" required></div>`;
     const aviso = `<div class="err" id="aerr" role="alert">${esc(msg || '')}</div><div class="ok-msg" id="aok" role="status">${esc(ok || '')}</div>`;
     if (demo()) {
-      $('#authcorpo').innerHTML = `<p class="small">Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios. Escolha com qual perfil quer ver o sistema.</p><div class="acts"><button class="b p" data-demo="Coordenação">Entrar como Coordenação</button><button class="b" data-demo="Equipe">Entrar como Equipe</button></div>${aviso}`;
+      $('#authcorpo').innerHTML = `<p class="small">Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios. Escolha com qual perfil quer ver o sistema.</p><div class="acts"><button class="b p" data-demo="Coordenação">Entrar como Coordenação</button><button class="b" data-demo="Equipe">Entrar como Equipe</button><button class="b" data-demo="Acompanhamento">Entrar como SEAB/MDA</button></div>${aviso}`;
       return;
     }
     if (authModo === 'nova') {
-      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="small">Crie a sua senha nova.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p">Guardar a senha e entrar</button></form>`;
+      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="small">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${f('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}${aviso}<button class="b p">Guardar a senha e entrar</button></form>`;
       return;
     }
     const abas = [['entrar', 'Entrar'], ['primeiro', 'Primeiro acesso'], ['esqueci', 'Esqueci a senha']];
-    const corpo = authModo === 'primeiro' ? `<p class="small">Para quem a coordenação já cadastrou e ainda não tem senha. Você recebe um e-mail para confirmar; depois é só entrar.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}${f('a_senha', 'Crie uma senha (mínimo 8 caracteres)', 'password', 'new-password')}${f('a_senha2', 'Repita a senha', 'password', 'new-password')}`
+    const corpo = authModo === 'primeiro' ? `<p class="small">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>${f('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username')}`
       : authModo === 'esqueci' ? `<p class="small">Você recebe um e-mail com um link para criar outra senha.</p>${f('a_email', 'Seu e-mail', 'email', 'username')}`
         : `${f('a_email', 'E-mail', 'email', 'username')}${f('a_senha', 'Senha', 'password', 'current-password')}`;
     $('#authcorpo').innerHTML = `<div class="authtabs" role="tablist">${abas.map(a => `<button type="button" role="tab" aria-selected="${a[0] === authModo}" data-auth="${a[0]}">${a[1]}</button>`).join('')}</div>
- <form id="fauth" novalidate style="margin-top:14px">${corpo}${aviso}<button class="b p" id="abotao">${authModo === 'primeiro' ? 'Criar a senha' : authModo === 'esqueci' ? 'Enviar o e-mail' : 'Entrar'}</button></form>`;
+ <form id="fauth" novalidate style="margin-top:14px">${corpo}${aviso}<button class="b p" id="abotao">${authModo === 'primeiro' ? 'Enviar o link' : authModo === 'esqueci' ? 'Enviar o e-mail' : 'Entrar'}</button></form>`;
   }
   async function aoEntrar(ev) {
     ev.preventDefault(); const g = id => ($('#' + id) || { value: '' }).value, er = t => { $('#aerr').textContent = t; $('#aok').textContent = ''; };
     const email = g('a_email').trim().toLowerCase(), pw = g('a_senha'), b = ev.target.querySelector('button.b.p'), rot = b.textContent;
     if (authModo !== 'nova' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return er('Informe o seu e-mail.');
-    if (authModo === 'primeiro' || authModo === 'nova') { if (pw.length < 8) return er('A senha precisa de pelo menos 8 caracteres.'); if (pw !== g('a_senha2')) return er('As duas senhas não são iguais.'); }
+    if (authModo === 'nova') { if (pw.length < 8) return er('A senha precisa de pelo menos 8 caracteres.'); if (pw !== g('a_senha2')) return er('As duas senhas não são iguais.'); }
     if (authModo === 'entrar' && !pw) return er('Informe a senha.');
     b.disabled = true; b.textContent = 'Aguarde…';
     try {
       if (authModo === 'entrar') { eu = await api.entrar(email, pw); return await aposEntrar(); }
       if (authModo === 'primeiro') {
-        const r = await api.criarSenha(email, pw);
-        if (r.entrou && r.eu) { eu = r.eu; return await aposEntrar(); }
-        authModo = 'entrar'; return telaAcesso('', 'Senha criada. Abra o e-mail que acabamos de enviar, toque no link de confirmação e depois entre aqui.');
+        await api.primeiroAcesso(email);
+        authModo = 'entrar'; return telaAcesso('', 'Se esse e-mail foi cadastrado pela coordenação, o link já foi enviado. Abra a mensagem (confira o spam), toque no link e crie a sua senha.');
       }
       if (authModo === 'esqueci') { await api.esqueci(email); authModo = 'entrar'; return telaAcesso('', 'Se esse e-mail tem acesso, a mensagem com o link já foi enviada. Confira também a caixa de spam.'); }
-      if (authModo === 'nova') { await api.trocarSenha(pw); authModo = 'entrar'; eu = await api.eu(true); if (eu) return await aposEntrar(); return telaAcesso('', 'Senha guardada. Entre com ela.'); }
+      if (authModo === 'nova') { await api.trocarSenha(pw); authModo = 'entrar'; try { history.replaceState(null, '', location.pathname); } catch (x) {} eu = await api.eu(true); if (eu) return await aposEntrar(); await api.sair(); return telaAcesso('Este e-mail não tem acesso ativo ao sistema. Fale com a coordenação.'); }
     } catch (e) { er(e.message); b.disabled = false; b.textContent = rot; }
   }
   async function aposEntrar() {
@@ -480,9 +498,9 @@
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = []; });
     pend = demo() ? [] : await SQC.fila.listar(eu.id); aplicarFila(); hist = null;
     $('#carregando').hidden = true; $('#app').hidden = false;
-    if (!TABS.some(t => t[0] === tab)) tab = 'painel';
+    if (!abas().some(t => t[0] === tab)) tab = 'painel';
     render();
-    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => sair(EXP), temConexao: async () => navigator.onLine !== false }); sincronizar(); }
+    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => sair(EXP), temConexao: () => api.temConexao() }); sincronizar(); }
   }
   async function sair(msg) {
     if ($('#dlg').open) $('#dlg').close();
@@ -491,14 +509,17 @@
     eu = null; db = null; hist = null; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
-  let sincronizando = false;
+  let sincronizando = false, espera = null;
+  async function atualizarPorBaixo() { try { espera = { db: await api.carregar(), pend: demo() ? [] : await SQC.fila.listar(eu.id) }; } catch (e) { /* fica como está */ } }
+  function aplicarEspera() { if (!espera || !eu) return; db = espera.db; pend = espera.pend; espera = null; aplicarFila(); render(); }
   async function sincronizar(avisar) {
     if (!eu || demo() || sincronizando || navigator.onLine === false) { if (avisar) toast('Ainda sem internet.'); return; }
     sincronizando = true;
     try {
       const r = await SQC.fila.sincronizar(api, eu.id);
-      const novo = await api.carregar(); if ($('#dlg').open) return;   // não troca os dados por baixo de um formulário aberto
-      db = novo; pend = await SQC.fila.listar(eu.id); aplicarFila(); render();
+      const novo = await api.carregar(); const fila = await SQC.fila.listar(eu.id);
+      if ($('#dlg').open) { espera = { db: novo, pend: fila }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
+      else { db = novo; pend = fila; aplicarFila(); render(); }
       if (r.enviados) toast(r.enviados + ' lançamento(s) enviado(s).');
       else if (avisar) toast(r.erros ? 'Há lançamento que o servidor não aceitou. Corrija ou descarte.' : 'Nada para enviar.');
     } catch (e) { if (avisar) toast(e.message); }
@@ -512,7 +533,7 @@
     if (d.auth) { authModo = d.auth; telaAcesso(''); }
     else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
     else if (d.tab) { tab = d.tab; try { localStorage.setItem('sqc-aba', tab); } catch (e) {} render(); window.scrollTo(0, 0); }
-    else if (d.sair !== undefined) sair('');
+    else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.textContent = `Sair mesmo com ${pend.length} lançamento(s) por enviar?`; toast('Há lançamento guardado neste aparelho que ainda não foi enviado. Ele fica guardado e sobe na sua próxima entrada com internet.'); return; } delete d.ok; t.textContent = 'Sair'; sair(''); }
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);
@@ -520,6 +541,7 @@
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
+    else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
     else if (d.abrirRub !== undefined) { const todos = [...document.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); db = await api.carregar(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
@@ -534,7 +556,7 @@
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); db = await api.carregar(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); db = await api.carregar(); render(); }
-    else if (d.exp) { if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+    else if (d.exp) { if (fora() && !['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].includes(d.exp)) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
     else if (d.senha !== undefined) {
       ed = null; $('#frm').className = ''; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
@@ -551,7 +573,7 @@
     document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
     document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
-    $('#dlg').addEventListener('close', () => { ed = null; });
+    $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
     try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
@@ -559,6 +581,7 @@
     try {
       eu = await api.iniciar();
       if (api.recuperando) return pedirSenhaNova();
+      if (api.linkVencido && !eu) { try { history.replaceState(null, '', location.pathname); } catch (x) {} return telaAcesso('O link que você abriu já foi usado ou venceu. Peça outro em “Primeiro acesso” ou “Esqueci a senha”.'); }
       // ficou mais de 15 minutos sem usar e fechou a página: pede a senha de novo
       if (eu && !demo() && navigator.onLine !== false && SQC.sessao.venceu(SQC.sessao.ultimo())) return sair(EXP);
       if (eu) await aposEntrar(); else telaAcesso('');

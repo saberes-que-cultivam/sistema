@@ -43,6 +43,15 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.waitForFunction(() => document.querySelector('#ferr').textContent.length > 0); ok(/Rubrica/.test(await p.textContent('#ferr')), 'despesa sem rubrica é recusada');
   await p.selectOption('#f_rubrica', 'equipamentos'); await p.click('#fsalvar'); await p.waitForSelector('#dlg:not([open])', { state: 'attached' });
   await p.click('[data-tab="painel"]'); ok(/Máquinas e equipamentos: R\$ 100,00 acima/.test(await p.textContent('#view')), 'painel avisa rubrica estourada');
+  // acompanhamento (SEAB/MDA): vê o andamento, não vê pessoa, não grava
+  await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Acompanhamento'));
+  ok(!(await p.$('[data-tab="agricultores"]')) && !(await p.$('[data-tab="visitas"]')), 'SEAB/MDA não tem as abas de unidades produtivas nem de monitoramento');
+  ok(/Acesso de acompanhamento/.test(await p.textContent('#view')) && /\d+%/.test(await p.textContent('.dx-exec-num')), 'SEAB/MDA vê o painel de execução');
+  let viu = '';
+  for (const t of ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados']) { await p.click(`[data-tab="${t}"]`); viu += await p.textContent('#view'); ok(!(await p.$('[data-new], [data-edit], [data-del]')), 'SEAB/MDA sem botão de gravar na aba ' + t); if (FOTOS && t === 'painel') await p.screenshot({ path: `${FOTOS}/mda-painel.png`, fullPage: true }); }
+  ok(!/Maria das Dores|José Raimundo|Francisca Lima|Assentamento|Canteiros com melhor/.test(viu) && /Unidade produtiva 0\d/.test(viu), 'SEAB/MDA não vê nome de agricultor nem texto de visita (só "Unidade produtiva NN")');
+  ok(!(await p.evaluate(() => JSON.stringify(SQC.app._estado().db).includes('Maria das Dores'))), 'o nome não chega nem aos dados carregados no navegador');
+  await p.click('[data-sair]'); await p.click('[data-demo="Coordenação"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Coordenação')); await p.click('[data-tab="painel"]');
   if (FOTOS) { await p.screenshot({ path: `${FOTOS}/painel-final.png`, fullPage: true }); await p.setViewportSize({ width: 1280, height: 900 }); await p.screenshot({ path: `${FOTOS}/painel-largo.png`, fullPage: true }); await p.setViewportSize({ width: 390, height: 844 }); }
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'sem rolagem lateral no celular');
   ok(!erros.length, 'sem erro no console' + (erros.length ? ': ' + erros.join(' | ').slice(0, 600) : ''));

@@ -315,3 +315,5 @@ dialog form.fm{padding:0;gap:0;max-height:90vh;max-height:90dvh}
 }
 .fm input:not([type=checkbox]),.fm select{min-height:50px}
 .fm .fld>fieldset{min-height:50px;align-content:center}
+
+.banner.fora{background:var(--accent-soft);border-color:var(--accent)}
