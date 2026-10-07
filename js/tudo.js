@@ -71,22 +71,23 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* Plano de desembolso (planilha "Plano de desembolso - Saberes que Cultivam", atualização de 05/10/2026):
      quanto cada item do orçamento prevê gastar em cada mês, de ago/2026 a jul/2027. É a linha "previsto" do gráfico de ritmo do gasto.
      Mudou a planilha? Mude aqui: os testes conferem que cada rubrica e o total continuam batendo com o plano. */
+  /* id do item: é o que a despesa guarda no campo "item". Não reaproveite nem troque um id já usado; item novo recebe o próximo número. */
   const DESEMBOLSO = { inicio: '2026-08', itens: [
-    { rubrica: 'bolsa_pesquisador', nome: 'Bolsa - coordenador do projeto', m: [0, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.8] },
-    { rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 0, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600] },
-    { rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400] },
-    { rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 800, 800, 800, 800, 800, 800, 800, 800, 400, 400] },
-    { rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1200, 1200] },
-    { rubrica: 'passagens', nome: 'Passagens', m: [0, 0, 3500, 3500, 3500, 0, 0, 3500, 3500, 0, 3500, 0] },
-    { rubrica: 'passagens', nome: 'Locação de veículos', m: [0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },
-    { rubrica: 'servicos_pj', nome: 'Serviços gráficos e comunicação visual', m: [0, 0, 0, 0, 0, 0, 0, 2000, 2000, 2000, 2000, 2000] },
-    { rubrica: 'servicos_pj', nome: 'Produção de material didático', m: [0, 0, 0, 0, 0, 0, 0, 4000, 3000, 3000, 0, 0] },
-    { rubrica: 'servicos_pj', nome: 'Implantação das Unidades de Produção de Bioinsumos', m: [0, 0, 75000, 0, 0, 0, 0, 75000, 0, 0, 0, 0] },
-    { rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 810, 810, 810, 810, 810, 810, 810, 810, 810, 810] },
-    { rubrica: 'consumo', nome: 'Kits para produção de bioinsumos', m: [0, 0, 15000, 0, 0, 0, 0, 15000, 0, 0, 0, 0] },
-    { rubrica: 'consumo', nome: 'Insumos para produção de bioinsumos', m: [0, 0, 11000, 0, 0, 0, 0, 11000, 0, 0, 0, 0] },
-    { rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 9300, 0, 0, 0, 0] },
-    { rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] }
+    { id: 'i01', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - coordenador do projeto', m: [0, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.8] },
+    { id: 'i02', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 0, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600] },
+    { id: 'i03', rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400] },
+    { id: 'i04', rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 800, 800, 800, 800, 800, 800, 800, 800, 400, 400] },
+    { id: 'i05', rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1200, 1200] },
+    { id: 'i06', rubrica: 'passagens', nome: 'Passagens', m: [0, 0, 3500, 3500, 3500, 0, 0, 3500, 3500, 0, 3500, 0] },
+    { id: 'i07', rubrica: 'passagens', nome: 'Locação de veículos', m: [0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },
+    { id: 'i08', rubrica: 'servicos_pj', nome: 'Serviços gráficos e comunicação visual', m: [0, 0, 0, 0, 0, 0, 0, 2000, 2000, 2000, 2000, 2000] },
+    { id: 'i09', rubrica: 'servicos_pj', nome: 'Produção de material didático', m: [0, 0, 0, 0, 0, 0, 0, 4000, 3000, 3000, 0, 0] },
+    { id: 'i10', rubrica: 'servicos_pj', nome: 'Implantação das Unidades de Produção de Bioinsumos', m: [0, 0, 75000, 0, 0, 0, 0, 75000, 0, 0, 0, 0] },
+    { id: 'i11', rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 810, 810, 810, 810, 810, 810, 810, 810, 810, 810] },
+    { id: 'i12', rubrica: 'consumo', nome: 'Kits para produção de bioinsumos', m: [0, 0, 15000, 0, 0, 0, 0, 15000, 0, 0, 0, 0] },
+    { id: 'i13', rubrica: 'consumo', nome: 'Insumos para produção de bioinsumos', m: [0, 0, 11000, 0, 0, 0, 0, 11000, 0, 0, 0, 0] },
+    { id: 'i14', rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 9300, 0, 0, 0, 0] },
+    { id: 'i15', rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] }
   ] };
 
   SQC.dados = {
@@ -195,6 +196,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const prev = previstoMeta(m); const ds = ate(db, lim).filter(d => String(d.etapa)[0] === String(m));
       const pago = somaDesp(ds, true), comp = somaDesp(ds, false);
       return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
+    });
+  }
+  /* por item do plano (dentro da rubrica): previsto, pago, comprometido e saldo. Só entra a despesa que indica o item;
+     "composicao" descreve como o previsto se distribui (meses e valor por mês, quando é sempre o mesmo). */
+  function finItens(db, lim) {
+    const ds = ate(db, lim);
+    return D.DESEMBOLSO.itens.map(i => {
+      const x = ds.filter(d => d.item === i.id && d.rubrica === i.rubrica), pago = somaDesp(x, true), comp = somaDesp(x, false);
+      const prev = Math.round(i.m.reduce((a, b) => a + b, 0) * 100) / 100, ms = i.m.map((v, k) => v ? k : -1).filter(k => k >= 0), vs = ms.map(k => i.m[k]);
+      const igual = vs.every(v => Math.abs(v - vs[0]) < 0.05);
+      return { id: i.id, rubrica: i.rubrica, nome: i.nome, prev, pago, comp, saldo: prev - pago - comp, meses: ms, mensal: igual && vs.length > 1 ? vs[0] : null, despesas: x };
     });
   }
   /* por rubrica do plano universal (FUNCERN); despesa sem rubrica aparece numa linha própria, para ser corrigida */
@@ -314,6 +326,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
       if (!D.RUBRICAS.some(x => x.id === r.rubrica)) return 'Escolha a rubrica.';
       if (!D.ETAPAS.some(x => x.id === r.etapa)) return 'Escolha a etapa do plano.';
+      if (r.item) { const it = D.DESEMBOLSO.itens.find(i => i.id === r.item); if (!it) return 'Item do plano desconhecido. Escolha outro ou deixe sem item.';
+        if (it.rubrica !== r.rubrica) return `O item “${it.nome}” é de outra rubrica. Escolha um item da rubrica desta despesa ou deixe sem item.`; }
     }
     if (tabela === 'pessoas') {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(r.email || ''))) return 'Informe um e-mail válido.';
@@ -358,7 +372,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
 /* ===== fila.js ===== */
@@ -475,7 +489,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         { id: 'e1', tipo: 'Articulação', data: '2026-09-03', tema: 'Encontro da Rede BioAF (SEAB/MDA) na Expointer', lugar: 'Parque de Exposições Assis Brasil', municipio: 'Esteio/RS', part: '', mulheres: '', link: '', obs: 'Participação da coordenação, 03 e 04/09/2026.' },
         { id: 'e2', tipo: 'Reunião', data: '2026-09-08', tema: 'Informes da Rede BioAF e planejamento das unidades de produção', lugar: 'Google Meet', municipio: '', part: 2, mulheres: 0, link: '', obs: 'Ata 22/2026 - DG/AP/RE/IFRN.' }],
       despesas: [
-        { id: 'x1', ex: 1, data: atras(25), etapa: '3.1', rubrica: 'servicos_pj', descricao: 'Impressão de cartilhas (exemplo)', favorecido: 'Gráfica', doc: 'NF 0000', valor: 1800, status: 'Pago' },
+        { id: 'x1', ex: 1, data: atras(25), etapa: '3.1', rubrica: 'servicos_pj', item: 'i09', descricao: 'Impressão de cartilhas (exemplo)', favorecido: 'Gráfica', doc: 'NF 0000', valor: 1800, status: 'Pago' },
         { id: 'x2', ex: 1, data: atras(10), etapa: '6.1', rubrica: 'consumo', descricao: 'Material para feira e oficinas (exemplo)', favorecido: '', doc: '', valor: 2400, status: 'Em compras na FUNCERN' }],
       entregas: [
         { id: 'g1', etapa: '6.3', titulo: 'Contrato 220/2026 com a FUNCERN; 1ª parcela de R$ 200.000,00 liquidada (2026NS001323)', data: '2026-09-22', link: '', obs: 'Contrato assinado em 20/08/2026.' }]
@@ -552,7 +566,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 (function () {
   const SQC = (window.SQC = window.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  let sb = null, euCache = null;
+  let sb = null, euCache = null, semItem = false;   // semItem: o banco ainda não tem a coluna "item" em despesas (falta rodar o script 06)
   const CHAVE_EU = 'sqc-eu', CHAVE_DADOS = 'sqc-dados', CHAVE_QUANDO = 'sqc-dados-em';
   const PRAZO_OFFLINE = 72 * 3600 * 1000;   // sem falar com o servidor há mais de 72 h, o aparelho não abre os dados guardados
   const copiaValida = () => { const t = +ler(CHAVE_QUANDO) || 0; return t > 0 && Date.now() - t < PRAZO_OFFLINE; };
@@ -577,13 +591,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    despesas: ['data', 'etapa', 'rubrica', 'descricao', 'favorecido', 'doc', 'valor', 'status']
+    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
   const BOOL = ['ativo', 'kit'].concat(D.CHECK.map(c => c[0]));
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
-    COLUNAS[tabela].forEach(k => { if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
+    COLUNAS[tabela].forEach(k => { if (k === 'item' && semItem) return; if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
     return r;
   }
   /* o Supabase devolve no máximo 1.000 linhas por pedido: busca em partes até acabar */
@@ -675,6 +689,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
        Edição só grava se o registro ainda está nessa versão: o que um colega mudou depois não é desfeito,
        e registro excluído por outra pessoa não volta a existir. */
     async salvar(tabela, reg, op) {
+      try { return await this._salvar(tabela, reg, op); }
+      catch (e) {
+        // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
+        const o = e.original || {}; if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
+        if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
+        semItem = true; return await this._salvar(tabela, reg, op);
+      }
+    },
+    async _salvar(tabela, reg, op) {
       op = op || {}; const r = limpar(tabela, reg); const { id, ...campos } = r;
       if (op.novo) {
         const ins = await sb.from(tabela).insert(r).select().single();
@@ -893,8 +916,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
         ['Evidência', g => link(g.link)]] },
-    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
+    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
       campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
+        ['item', 'Item do plano', 'select', 0, () => [['', 'Sem item indicado']].concat(D.DESEMBOLSO.itens.map(i => [i.id, `${nomeRubrica(i.rubrica)} · ${i.nome}`]))],
         ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor (R$)', 'number', 1],
         ['status', 'Situação', 'select', 1, opt(['Solicitado', 'Em compras na FUNCERN', 'Pago'])], ['favorecido', 'Favorecido', 'text'], ['doc', 'Documento (nota fiscal, solicitação)', 'text']],
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
@@ -1168,16 +1192,21 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
        <span class="ur-b"><i class="exec" style="width:${Math.min(100, a)}%"></i><i class="comp" style="left:${Math.min(100, a)}%;width:${Math.max(0, Math.min(100 - Math.min(100, a), b))}%"></i><b style="left:${t}%"></b></span></button>`; }).join('')}</div>
    <p class="small">O traço marca quanto da vigência já passou. Barra muito à frente do traço: a rubrica acaba antes do projeto. Muito atrás: há recurso parado.</p></div>`;
   }
-  function tabelaRubricas(FR) {
+  function tabelaRubricas(FR, lim) {
+    const FI = R.finItens(db, lim);
     const rm = k => ritmoAtual ? ritmoAtual.pontos[k].rotulo : k + 1;
     const linha = r => { const u = r.prev ? (r.pago + r.comp) / r.prev * 100 : 0, itens = D.DESEMBOLSO.itens.filter(i => i.rubrica === r.id), ds = db.despesas.filter(d => r.semRubrica ? !D.RUBRICAS.some(x => x.id === d.rubrica) : d.rubrica === r.id).sort((a, b) => a.data < b.data ? 1 : -1);
       const v = (x, forte) => x ? (forte ? `<b>${brl(x)}</b>` : brl(x)) : '—';
       return `<details class="rb" id="rb-${r.id || 'sem'}"><summary><span class="rb-n"><i class="rb-s" aria-hidden="true"></i><span>${esc(r.nome)}</span><span class="chip">${itens.length ? itens.length + (itens.length === 1 ? ' item' : ' itens') : ds.length + ' despesa(s)'}</span></span>
      <span class="rb-v" data-r="Previsto">${v(r.prev)}</span><span class="rb-v" data-r="Pago">${v(r.pago)}</span><span class="rb-v" data-r="Comprometido">${v(r.comp)}</span><span class="rb-v${r.saldo < 0 ? ' neg' : ''}" data-r="Saldo"><b>${brl(r.saldo)}</b></span>
      <span class="rb-e"><span class="medidor fino"><i class="${u > 100 ? 'bad' : ''}" style="width:${Math.min(100, u)}%"></i></span><b>${pct(u)}%</b></span></summary>
-    <div class="rb-c">${itens.map(i => { const tot = i.m.reduce((a, b) => a + b, 0), ms = i.m.map((x, k) => x ? k : -1).filter(k => k >= 0);
-        return `<div class="rb-i"><span class="rb-in"><span>${esc(i.nome)}</span><small>${ms.length === 12 ? 'desembolso previsto em todos os meses' : 'desembolso previsto ' + (ms.length > 2 && ms[ms.length - 1] - ms[0] === ms.length - 1 ? `de ${rm(ms[0])} a ${rm(ms[ms.length - 1])}` : 'em ' + ms.map(rm).join(', '))}</small></span><span class="rb-v" data-r="Previsto">${brl(tot)}</span></div>`; }).join('')}
-     <div class="rb-d"><h3>Despesas lançadas nesta rubrica</h3>${ds.length ? `<div class="scroll"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}${d.favorecido ? `<div class="small">${esc(d.favorecido)}</div>` : ''}</td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
+    <div class="rb-c">${itens.map(i => { const x = FI.find(y => y.id === i.id), ui = x.prev ? (x.pago + x.comp) / x.prev * 100 : 0, ms = x.meses;
+        const comp_ = x.mensal ? `${ms.length} meses · ${brl(x.mensal)}/mês` : ms.length === 1 ? `1 desembolso, em ${rm(ms[0])}` : `${ms.length} desembolsos, de ${rm(ms[0])} a ${rm(ms[ms.length - 1])}`;
+        return `<details class="rb-i"><summary><span class="rb-in">${esc(i.nome)}</span><span class="rb-v" data-r="Previsto">${brl(x.prev)}</span><span class="rb-v" data-r="Pago">${v(x.pago)}</span><span class="rb-v" data-r="Comprometido">${v(x.comp)}</span><span class="rb-v${x.saldo < 0 ? ' neg' : ''}" data-r="Saldo">${brl(x.saldo)}</span>
+          <span class="rb-e"><span class="medidor fino"><i class="${ui > 100 ? 'bad' : ''}" style="width:${Math.min(100, ui)}%"></i></span><b>${pct(ui)}%</b></span></summary>
+          <dl class="rb-x"><div><dt>Composição</dt><dd>${comp_}</dd></div><div><dt>Previsto</dt><dd>${brl(x.prev)}</dd></div><div><dt>Pago</dt><dd>${brl(x.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(x.comp)}</dd></div><div><dt>Saldo</dt><dd class="${x.saldo < 0 ? 'neg' : ''}"><b>${brl(x.saldo)}</b></dd></div><div><dt>Despesas com este item</dt><dd>${x.despesas.length}</dd></div></dl></details>`; }).join('')}
+      ${itens.length && ds.some(d => !d.item) ? `<p class="rb-si">${ds.filter(d => !d.item).length} despesa(s) desta rubrica sem item indicado (${brl(ds.filter(d => !d.item).reduce((t, d) => t + (+d.valor || 0), 0))}): entram no total da rubrica, mas não em nenhum item. Para corrigir, edite a despesa em Lançamentos e escolha o item.</p>` : ''}
+     <div class="rb-d"><h3>Despesas lançadas nesta rubrica</h3>${ds.length ? `<div class="scroll"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}<div class="small">${esc((D.DESEMBOLSO.itens.find(i => i.id === d.item) || { nome: 'sem item indicado' }).nome)}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}</div></td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
     return `<div><div class="head"><div><h2>Por rubrica</h2><p>Toque na rubrica para ver os itens do plano e as despesas lançadas nela.</p></div><div class="acts"><button class="b" data-abrir-rub>Abrir todas</button></div></div>
    <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(linha).join('')}
     <div class="rb-tot"><span>Total</span><span>${brl(R.soma(FR, 'prev'))}</span><span>${brl(R.soma(FR, 'pago'))}</span><span>${brl(R.soma(FR, 'comp'))}</span><span><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
