@@ -731,3 +731,9 @@ button.dx-kpi:hover{background:color-mix(in srgb,var(--kc) 6%,var(--surface))}
 }
 @media (prefers-reduced-motion:reduce){.rb summary{transition:none}}
 .rb-e .medidor.fino{background:color-mix(in srgb,var(--c-exec) 18%,var(--surface));margin-top:0}
+
+/* ---------- visão geral: metas e próximos marcos lado a lado (v29); em tela estreita, um embaixo do outro ---------- */
+.mm{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:24px;align-items:start}
+@media (min-width:1101px){.mm .mts{padding:28px}.mm .mt summary{gap:16px;padding:20px 4px}.mm .mt-n{width:48px;height:48px}.mm .mt-t b{font-size:var(--t-lg)}.mm .mt-p{font-size:var(--t-md)}.mm .mt-e{padding-left:68px}.mm .mc li{gap:16px}.mm .mc li>div>b{font-size:var(--t-base)}}
+@media (max-width:1100px){.mm{grid-template-columns:minmax(0,1fr)}}
+.mc time span{white-space:nowrap} .mc-m{border-radius:12px}
