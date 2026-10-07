@@ -179,6 +179,13 @@
       if (error) throw erro(error);
       return data || [];
     },
+    /* último acesso de cada pessoa cadastrada (só a coordenação recebe). null = o banco ainda não tem a função (falta rodar o script 09) */
+    async acessos() {
+      const { data, error } = await sb.rpc('ultimos_acessos');
+      if (error && (error.code === 'PGRST202' || error.code === '42883')) return null;
+      if (error) throw erro(error);
+      return data || [];
+    },
     guardarCopia(db) { guardar(CHAVE_DADOS, db); },
     COLUNAS, limpar
   };

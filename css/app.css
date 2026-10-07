@@ -925,3 +925,7 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 .ab.d{background:none;color:var(--txt-3)} .ab.d:hover{background:var(--bad-soft);color:var(--bad)}
 .ab.d[data-ok],.ab:disabled{width:auto;padding:0 12px;background:var(--bad);color:var(--surface);font-size:var(--t-sm)} .ab.d[data-ok]:hover{background:color-mix(in srgb,var(--bad) 86%,#000);color:var(--surface)}
 .ab:disabled{background:var(--sunken);color:var(--txt-2);cursor:default}
+/* aba Histórico (v50) */
+.hs-r{margin:8px 0;font-size:var(--t-md);color:var(--txt-2)} .hs-r b{color:var(--txt-1)}
+/* menu com 12 abas (v50): espaçamento mais justo para caber sem cortar */
+nav button,nav button:hover,nav button[aria-selected="true"]{padding:9px 6px;font-size:var(--t-md)} .ng{padding:0 10px} .ng-r{padding:0 6px}

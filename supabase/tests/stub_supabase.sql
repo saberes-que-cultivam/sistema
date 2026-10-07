@@ -2,7 +2,7 @@
 create role authenticated nologin;
 create role anon nologin;
 create schema auth;
-create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+create table auth.users (id uuid primary key default gen_random_uuid(), email text, last_sign_in_at timestamptz);
 create function auth.uid() returns uuid language sql stable as
   $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create function auth.jwt() returns jsonb language sql stable as
