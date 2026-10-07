@@ -1212,6 +1212,21 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     <div class="rb-tot"><span>Total</span><span>${brl(R.soma(FR, 'prev'))}</span><span>${brl(R.soma(FR, 'pago'))}</span><span>${brl(R.soma(FR, 'comp'))}</span><span><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
    <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>`;
   }
+  /* o mesmo gasto pelas metas do TED: meta abre as etapas; etapa abre a composição e os valores (mesmo desenho da tabela por rubrica) */
+  function tabelaMetas(F) {
+    const v = x => x ? brl(x) : '—', somaD = (ds, pago) => ds.filter(d => (d.status === 'Pago') === pago).reduce((t, d) => t + (+d.valor || 0), 0);
+    const barra = u => `<span class="rb-e"><span class="medidor fino"><i class="${u > 100 ? 'bad' : ''}" style="width:${Math.min(100, u)}%"></i></span><b>${pct(u)}%</b></span>`;
+    const linha = m => { const u = m.prev ? (m.pago + m.comp) / m.prev * 100 : 0, es = D.ETAPAS.filter(e => e.m === m.m), ds = db.despesas.filter(d => String(d.etapa)[0] === String(m.m)).sort((a, b) => a.data < b.data ? 1 : -1);
+      return `<details class="rb"><summary><span class="rb-n"><i class="rb-s" aria-hidden="true"></i><span>Meta ${m.m} · ${esc(m.nome)}</span><span class="chip">${es.length === 1 ? '1 etapa' : es.length + ' etapas'}</span></span>
+     <span class="rb-v" data-r="Previsto">${v(m.prev)}</span><span class="rb-v" data-r="Pago">${v(m.pago)}</span><span class="rb-v" data-r="Comprometido">${v(m.comp)}</span><span class="rb-v${m.saldo < 0 ? ' neg' : ''}" data-r="Saldo"><b>${brl(m.saldo)}</b></span>${barra(u)}</summary>
+    <div class="rb-c">${es.map(e => { const de = ds.filter(d => d.etapa === e.id), prev = e.q * e.v, pago = somaD(de, true), comp = somaD(de, false), saldo = prev - pago - comp;
+        return `<details class="rb-i"><summary><span class="rb-in"><span class="mono">${e.id}</span> ${esc(e.nome)}</span><span class="rb-v" data-r="Previsto">${brl(prev)}</span><span class="rb-v" data-r="Pago">${v(pago)}</span><span class="rb-v" data-r="Comprometido">${v(comp)}</span><span class="rb-v${saldo < 0 ? ' neg' : ''}" data-r="Saldo">${brl(saldo)}</span>${barra(prev ? (pago + comp) / prev * 100 : 0)}</summary>
+          <dl class="rb-x"><div><dt>Composição</dt><dd>${num(e.q)} × ${brl(e.v)} (${esc(e.un)}) · ${mesAno(e.ini)} a ${mesAno(e.fim)}</dd></div><div><dt>Previsto</dt><dd>${brl(prev)}</dd></div><div><dt>Pago</dt><dd>${brl(pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(comp)}</dd></div><div><dt>Saldo</dt><dd class="${saldo < 0 ? 'neg' : ''}"><b>${brl(saldo)}</b></dd></div><div><dt>Despesas nesta etapa</dt><dd>${de.length}</dd></div></dl></details>`; }).join('')}
+     <div class="rb-d"><h3>Despesas lançadas nesta meta</h3>${ds.length ? `<div class="scroll"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}</div></td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
+    return `<div><div class="head"><div><h2>Por meta do TED</h2><p>O mesmo gasto, visto pelas metas do plano pactuado com o MDA. Toque na meta para ver as etapas e as despesas lançadas nela.</p></div><div class="acts"><button class="b" data-abrir-rub>Abrir todas</button></div></div>
+   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Meta</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${F.map(linha).join('')}
+    <div class="rb-tot"><span>Total</span><span>${brl(R.soma(F, 'prev'))}</span><span>${brl(R.soma(F, 'pago'))}</span><span>${brl(R.soma(F, 'comp'))}</span><span><b>${brl(R.soma(F, 'saldo'))}</b></span><span></span></div></div></div>`;
+  }
   /* dica do gráfico: mês mais próximo do ponteiro, com os três valores */
   function aoMoverGrafico(ev) {
     const g = ev.target.closest && ev.target.closest('[data-rg]'); const dica = document.querySelector('[data-dica]'), cr = document.querySelector('[data-cr]');
@@ -1239,7 +1254,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  </section>
  <div class="two fin-2">${graficoRitmo()}${usoRubricas(FR)}</div>
  ${tabelaRubricas(FR)}
- <div><div class="head"><div><h2>Por meta do TED</h2><p>O mesmo gasto, visto pelas metas do plano pactuado com o MDA.</p></div></div><div class="panel scroll" style="margin-top:10px">${finTabela(F, 'Meta')}</div></div>
+ ${tabelaMetas(F)}
  ${tabela('despesas')}`;
   }
   function relatorio() {
@@ -1537,7 +1552,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
-    else if (d.abrirRub !== undefined) { const todos = [...document.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
+    else if (d.abrirRub !== undefined) { const todos = [...t.closest('.head').parentNode.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); db = await api.carregar(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
