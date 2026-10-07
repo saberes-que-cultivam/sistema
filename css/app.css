@@ -903,3 +903,8 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 .banner.sim{background:var(--accent-soft);border-color:var(--accent);position:sticky;top:96px;z-index:4}
 @media (max-width:980px){.ae-h{display:none}.ae-l{grid-template-columns:minmax(0,1fr);gap:16px;padding:20px 16px}.ae-b{white-space:normal}.banner.sim{position:static}}
 @media (prefers-reduced-motion:reduce){.ae-c,.ae-b{transition:none}}
+/* botão da vaga aberta no tamanho dos demais botões principais (v43) */
+.vg{padding:24px 28px} .vg p{font-size:var(--t-base)}
+.vg-b{flex:0 0 auto;max-width:none;height:48px;padding:0 20px 0 16px;gap:12px;border-radius:12px;font:600 var(--t-md)/1 var(--body);box-shadow:0 1px 2px rgba(24,36,28,.12)}
+.vg-b svg{width:18px;height:18px} .vg-b span{padding-left:12px;line-height:1.8}
+@media (max-width:640px){.vg-b{flex:1 1 100%;height:48px;font-size:var(--t-md);padding:0 16px}}
