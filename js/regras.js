@@ -80,6 +80,17 @@
       return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
     });
   }
+  /* por item do plano (dentro da rubrica): previsto, pago, comprometido e saldo. Só entra a despesa que indica o item;
+     "composicao" descreve como o previsto se distribui (meses e valor por mês, quando é sempre o mesmo). */
+  function finItens(db, lim) {
+    const ds = ate(db, lim);
+    return D.DESEMBOLSO.itens.map(i => {
+      const x = ds.filter(d => d.item === i.id && d.rubrica === i.rubrica), pago = somaDesp(x, true), comp = somaDesp(x, false);
+      const prev = Math.round(i.m.reduce((a, b) => a + b, 0) * 100) / 100, ms = i.m.map((v, k) => v ? k : -1).filter(k => k >= 0), vs = ms.map(k => i.m[k]);
+      const igual = vs.every(v => Math.abs(v - vs[0]) < 0.05);
+      return { id: i.id, rubrica: i.rubrica, nome: i.nome, prev, pago, comp, saldo: prev - pago - comp, meses: ms, mensal: igual && vs.length > 1 ? vs[0] : null, despesas: x };
+    });
+  }
   /* por rubrica do plano universal (FUNCERN); despesa sem rubrica aparece numa linha própria, para ser corrigida */
   function finRubrica(db, lim) {
     const ds = ate(db, lim);
@@ -197,6 +208,8 @@
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
       if (!D.RUBRICAS.some(x => x.id === r.rubrica)) return 'Escolha a rubrica.';
       if (!D.ETAPAS.some(x => x.id === r.etapa)) return 'Escolha a etapa do plano.';
+      if (r.item) { const it = D.DESEMBOLSO.itens.find(i => i.id === r.item); if (!it) return 'Item do plano desconhecido. Escolha outro ou deixe sem item.';
+        if (it.rubrica !== r.rubrica) return `O item “${it.nome}” é de outra rubrica. Escolha um item da rubrica desta despesa ou deixe sem item.`; }
     }
     if (tabela === 'pessoas') {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(r.email || ''))) return 'Informe um e-mail válido.';
@@ -241,5 +254,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

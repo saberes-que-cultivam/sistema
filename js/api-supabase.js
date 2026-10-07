@@ -3,7 +3,7 @@
 (function () {
   const SQC = (window.SQC = window.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  let sb = null, euCache = null;
+  let sb = null, euCache = null, semItem = false;   // semItem: o banco ainda não tem a coluna "item" em despesas (falta rodar o script 06)
   const CHAVE_EU = 'sqc-eu', CHAVE_DADOS = 'sqc-dados', CHAVE_QUANDO = 'sqc-dados-em';
   const PRAZO_OFFLINE = 72 * 3600 * 1000;   // sem falar com o servidor há mais de 72 h, o aparelho não abre os dados guardados
   const copiaValida = () => { const t = +ler(CHAVE_QUANDO) || 0; return t > 0 && Date.now() - t < PRAZO_OFFLINE; };
@@ -28,13 +28,13 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    despesas: ['data', 'etapa', 'rubrica', 'descricao', 'favorecido', 'doc', 'valor', 'status']
+    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
   const BOOL = ['ativo', 'kit'].concat(D.CHECK.map(c => c[0]));
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
-    COLUNAS[tabela].forEach(k => { if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
+    COLUNAS[tabela].forEach(k => { if (k === 'item' && semItem) return; if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
     return r;
   }
   /* o Supabase devolve no máximo 1.000 linhas por pedido: busca em partes até acabar */
@@ -126,6 +126,15 @@
        Edição só grava se o registro ainda está nessa versão: o que um colega mudou depois não é desfeito,
        e registro excluído por outra pessoa não volta a existir. */
     async salvar(tabela, reg, op) {
+      try { return await this._salvar(tabela, reg, op); }
+      catch (e) {
+        // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
+        const o = e.original || {}; if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
+        if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
+        semItem = true; return await this._salvar(tabela, reg, op);
+      }
+    },
+    async _salvar(tabela, reg, op) {
       op = op || {}; const r = limpar(tabela, reg); const { id, ...campos } = r;
       if (op.novo) {
         const ins = await sb.from(tabela).insert(r).select().single();

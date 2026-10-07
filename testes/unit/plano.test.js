@@ -41,3 +41,21 @@ test('ritmo do gasto: acumulados por mês, só até o mês atual para pago e rec
   assert.ok(p[2].atual && !p[3].atual); assert.ok(X.tempo > 0.17 && X.tempo < 0.19);
   assert.strictEqual(R.tempoDecorrido(new Date(2026, 5, 1)), 0); assert.strictEqual(R.tempoDecorrido(new Date(2028, 0, 1)), 1);
 });
+test('itens do plano: id único e estável, e a soma dos itens de cada rubrica é o previsto da rubrica', () => {
+  const ids = D.DESEMBOLSO.itens.map(i => i.id);
+  assert.strictEqual(new Set(ids).size, ids.length); ids.forEach(i => assert.match(i, /^i\d{2}$/));
+  const FI = R.finItens({ despesas: [] });
+  D.RUBRICAS.forEach(r => assert.strictEqual(Math.round(FI.filter(x => x.rubrica === r.id).reduce((s, x) => s + x.prev, 0) * 100) / 100, r.v, r.nome));
+});
+test('execução por item: só conta a despesa que indica o item; pago e comprometido separados', () => {
+  const it = D.DESEMBOLSO.itens[0], base = { data: '2026-10-01', etapa: '6.2', rubrica: it.rubrica, descricao: 'x' };
+  const db = { despesas: [{ ...base, item: it.id, valor: 100, status: 'Pago' }, { ...base, item: it.id, valor: 40, status: 'Solicitado' }, { ...base, valor: 999, status: 'Pago' }] };
+  const x = R.finItens(db).find(y => y.id === it.id);
+  assert.strictEqual(x.pago, 100); assert.strictEqual(x.comp, 40); assert.strictEqual(x.saldo, x.prev - 140); assert.strictEqual(x.despesas.length, 2);
+});
+test('despesa com item de outra rubrica é recusada; sem item é aceita', () => {
+  const it = D.DESEMBOLSO.itens[0], outra = D.RUBRICAS.find(r => r.id !== it.rubrica).id, d = { data: '2026-10-01', etapa: '6.2', descricao: 'x', valor: 10, status: 'Pago' };
+  assert.match(R.validar({ despesas: [] }, 'despesas', { ...d, rubrica: outra, item: it.id }) || '', /outra rubrica/);
+  assert.ok(!R.validar({ despesas: [] }, 'despesas', { ...d, rubrica: it.rubrica, item: it.id }));
+  assert.ok(!R.validar({ despesas: [] }, 'despesas', { ...d, rubrica: outra }));
+});
