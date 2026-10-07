@@ -28,10 +28,10 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    membros: ['funcao', 'nome', 'vinculo', 'email', 'telefone', 'municipio', 'inicio', 'fim', 'motivo', 'obs'],
+    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'inicio', 'fim', 'motivo', 'obs'],
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
-  const BOOL = ['ativo', 'kit'].concat(D.CHECK.map(c => c[0]));
+  const BOOL = ['ativo', 'kit', 'lgpd'].concat(D.CHECK.map(c => c[0]));
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
@@ -131,7 +131,9 @@
       try { return await this._salvar(tabela, reg, op); }
       catch (e) {
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
-        const o = e.original || {}; if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
+        const o = e.original || {};
+        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar o script 08_equipe_dados.sql no Supabase.' });
+        if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
         if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
         semItem = true; return await this._salvar(tabela, reg, op);
       }
