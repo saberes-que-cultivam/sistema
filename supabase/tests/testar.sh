@@ -20,7 +20,7 @@ rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null
 rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null      # rodar duas vezes não pode dar erro
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
-for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 04_endurecimento 05_acompanhamento 06_item_da_despesa; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
+for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
 rodar "$P -f $DIR/00_verificar.sql" >/dev/null
 rodar "$P -f $DIR/test_banco.sql" | tail -3
 # ESTRESSE=1: com o banco de teste ainda de pé, roda as gravações simultâneas e as medidas com volume

@@ -15,6 +15,16 @@
   const hoje = () => new Date();
   const by = (t, id) => db[t].find(r => r.id === id);
   const coord = () => !!eu && eu.perfil === 'Coordenação';
+  /* pré-visualização "ver como o SEAB/MDA vê": a coordenação enxerga o sistema com o perfil de acompanhamento, com os mesmos cortes
+     que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
+  let real = null;
+  function semPessoal(d) {
+    const c = JSON.parse(JSON.stringify(d));
+    c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
+    c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
+    c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; return c;
+  }
+  async function recarregarDb() { const d = await api.carregar(); if (real) { real.db = d; db = semPessoal(d); } else db = d; }
   const fora = () => !!eu && eu.perfil === 'Acompanhamento';   // SEAB/MDA: só leitura, sem dado pessoal
   const demo = () => api.modo === 'demo';
   const mesAno = s => String(s).split('-').reverse().join('/');
@@ -103,6 +113,9 @@
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
+    membros: { um: 'Pessoa da equipe', oque: 'Quem ocupa uma função no projeto. Quando a pessoa sair, preencha o desligamento: o registro fica como histórico e a vaga volta a aparecer aberta.', dicas: { fim: 'Deixe vazio enquanto a pessoa estiver na equipe.', vinculo: 'Exemplo: IFRN Campus Apodi, ou o curso do estudante.', nome: 'Escreva como aparece na planilha da FUNCERN, para o sistema ligar a pessoa às bolsas.' }, nome: 'Equipe', titulo: 'Equipe', desc: '', novo: 'Cadastrar', restrito: 1,
+      campos: [['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente']]], ['nome', 'Nome completo', 'text', 1], ['vinculo', 'Vínculo ou curso', 'text'], ['email', 'E-mail', 'email'], ['telefone', 'Telefone', 'tel'], ['municipio', 'Município/UF', 'text'], ['inicio', 'Início na função', 'date', 1],
+        ['_s2', 'Desligamento', 'sec'], ['fim', 'Data do desligamento', 'date'], ['motivo', 'Motivo', 'text'], ['obs', 'Observações', 'textarea']], cols: [] },
     pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
       campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, [['Equipe', 'Equipe (registra o trabalho do projeto)'], ['Coordenação', 'Coordenação (faz tudo)'], ['Acompanhamento', 'Acompanhamento (SEAB/MDA: só consulta, sem dados pessoais)']]], ['orgao', 'Órgão ou setor (para quem acompanha)', 'text'], ['ativo', 'Acesso ativo', 'check']],
       cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : u.perfil === 'Acompanhamento' ? 'f' : ''}">${esc(u.perfil)}</span>${u.orgao ? `<div class="small">${esc(u.orgao)}</div>` : ''}`],
@@ -439,8 +452,8 @@
         else continue;
         bt.textContent = `Gravando ${++feitas} de ${total}…`;
       }
-      db = await api.carregar(); $('#dlg').close(); imp = null; render(); toast(`Planilha importada: ${P.novas} nova(s), ${P.atualizadas} atualizada(s), ${P.removidas} removida(s).`);
-    } catch (e) { try { db = await api.carregar(); } catch (x) { /* fica com o que tinha */ } render(); desenharImportacao(`Parou depois de ${feitas} de ${total}: ${e.message} O que já foi gravado continua gravado; corrija e confirme de novo.`); }
+      await recarregarDb(); $('#dlg').close(); imp = null; render(); toast(`Planilha importada: ${P.novas} nova(s), ${P.atualizadas} atualizada(s), ${P.removidas} removida(s).`);
+    } catch (e) { try { await recarregarDb(); } catch (x) { /* fica com o que tinha */ } render(); desenharImportacao(`Parou depois de ${feitas} de ${total}: ${e.message} O que já foi gravado continua gravado; corrija e confirme de novo.`); }
   }
   /* o mesmo gasto pelas metas do TED: meta abre as etapas; etapa abre a composição e os valores (mesmo desenho da tabela por rubrica) */
   function tabelaMetas(F) {
@@ -468,17 +481,35 @@
     dica.hidden = false; const gb = g.getBoundingClientRect(), esq = cx / k; dica.style.left = Math.max(0, Math.min(gb.width - dica.offsetWidth, esq > gb.width / 2 ? esq - dica.offsetWidth - 12 : esq + 12)) + 'px';
   }
   /* ---------- equipe: as três funções com bolsa no plano; as pessoas vêm das solicitações importadas da FUNCERN ---------- */
-  const FUNCOES = [['i01', 'Coordenação do projeto', 'Coordena a execução, responde pelo projeto e assina as solicitações à fundação.'], ['i02', 'Auxiliar administrativo', 'Apoia a gestão: solicitações, documentos e prestação de contas.'], ['i03', 'Bolsistas discentes', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo.']];
+  const FUNCOES = [['coordenacao', 'i01', 'Coordenação do projeto', 'coordenação do projeto', 'Uma pessoa · responde pelo projeto e assina as solicitações à fundação · cadastrada pela coordenação', 1],
+    ['auxiliar', 'i02', 'Auxiliar administrativo', 'auxiliar administrativo', 'Uma pessoa · apoia a gestão: solicitações, documentos e prestação de contas', 1],
+    ['discente', 'i03', 'Bolsistas discentes', 'bolsista discente', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo', 0]];
+  const IC_GENTE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.500"/><path d="M2.500 20a6.500 6.500 0 0 1 13 0"/><circle cx="17.500" cy="9" r="2.500"/><path d="M17 14.200a5 5 0 0 1 4.500 5"/></svg>';
   function equipe() {
-    const FI = R.finItens(db), rot = k => ritmoAtual ? ritmoAtual.pontos[k].rotulo : (R.ritmo(db, hoje()).pontos[k] || {}).rotulo || k + 1;
-    const bloco = f => { const x = FI.find(i => i.id === f[0]); if (!x) return ''; const ms = x.meses, gente = {};
-      x.despesas.forEach(d => { const n = (d.favorecido || '').trim() || 'Beneficiário não informado'; const g = gente[n] = gente[n] || { nome: n, n: 0, pago: 0, comp: 0, ult: '' }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; if (d.data > g.ult) g.ult = d.data; });
-      const L = Object.values(gente).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')), u = x.prev ? (x.pago + x.comp) / x.prev * 100 : 0;
-      return `<section class="panel mts eq" aria-label="${f[1]}"><div class="mts-cab eq-cab"><div><h2>${f[1]}</h2><p>${f[2]}</p></div><span class="chip">${esc(nomeRubrica(x.rubrica))}</span></div>
-       <dl class="rb-x eq-x"><div><dt>Bolsa no plano</dt><dd>${x.mensal ? `${ms.length} meses · ${brl(x.mensal)}/mês` : brl(x.prev)}</dd></div><div><dt>Período</dt><dd>${ms.length ? `${rot(ms[0])} a ${rot(ms[ms.length - 1])}` : '—'}</dd></div><div><dt>Previsto</dt><dd>${brl(x.prev)}</dd></div><div><dt>Pago</dt><dd>${brl(x.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(x.comp)}</dd></div><div><dt>Saldo</dt><dd class="${x.saldo < 0 ? 'neg' : ''}"><b>${brl(x.saldo)}</b></dd></div></dl>
-       <div class="eq-b"><span class="medidor fino" role="img" aria-label="${pct(u)}% do previsto pago ou comprometido"><i class="${u > 100 ? 'bad' : ''}" style="width:${Math.min(100, u)}%"></i></span><b>${pct(u)}%</b></div>
-       ${L.length ? `<ul class="eq-l">${L.map(g => `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(g.nome))}</span><div class="pc-t"><div class="pc-n"><b>${esc(g.nome)}</b></div><div class="pc-d"><span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}<span>última em ${dt(g.ult)}</span></div></div></li>`).join('')}</ul>` : `<p class="small eq-v">Ninguém ainda. Os nomes aparecem aqui quando a planilha da FUNCERN trouxer a primeira solicitação de bolsa desta função.</p>`}</section>`; };
-    return `<div class="head"><div><h2>Equipe do projeto</h2><p>As três funções com bolsa no plano de trabalho. Os nomes e os valores vêm da planilha de solicitações da FUNCERN, importada na aba Financeiro.</p></div></div>${FUNCOES.map(bloco).join('')}`;
+    const FI = R.finItens(db), hj = iso(hoje()), pode = R.podeGravar(eu, 'membros'), rot = k => (R.ritmo(db, hoje()).pontos[k] || {}).rotulo || k + 1;
+    const semTabela = api.semMembros ? `<div class="banner"><span>O cadastro da equipe ainda não foi ligado no banco: a coordenação precisa rodar o script <b>07_equipe.sql</b> no Supabase. Até lá, nada do que for cadastrado aqui é gravado.</span></div>` : '';
+    const bloco = f => { const x = FI.find(i => i.id === f[1]), E = R.equipePorFuncao(db, f[0], hj), ms = x ? x.meses : [], bolsas = {};
+      (x ? x.despesas : []).forEach(d => { const k = R.nrm(d.favorecido); if (!k) return; const g = bolsas[k] = bolsas[k] || { nome: d.favorecido, n: 0, pago: 0, comp: 0 }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; });
+      const bolsaDe = m => { const g = bolsas[R.nrm(m.nome)]; if (g) g.visto = 1; return g ? `<span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}` : '<span>nenhuma bolsa na planilha ainda</span>'; };
+      const cartao = m => `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(m.nome))}</span><div class="pc-t"><div class="pc-n"><b>${esc(m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
+        ${pode ? `<button class="b eq-vd" data-edit="membros:${esc(m.id)}">Ver detalhes</button>` : ''}</li>`;
+      const ult = E.antigos[0], vaga = `<div class="vg"><div><span class="chip f vg-c">Vaga aberta</span><p>${ult ? `A pessoa anterior, ${esc(ult.nome)}, foi desligada em ${dt(ult.fim)}.` : 'Ninguém foi cadastrado nesta função ainda.'}</p></div>${pode ? `<button class="vg-b" data-new="membros" data-pre="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button>` : ''}</div>`;
+      const corpo = (E.ativos.length ? `<ul class="eq-l">${E.ativos.map(cartao).join('')}</ul>` : '') + (!E.ativos.length ? vaga : !f[5] && pode ? `<div class="acts"><button class="b p" data-new="membros" data-pre="${f[0]}">Cadastrar ${f[3]}</button></div>` : '');
+      const fora_ = Object.values(bolsas).filter(g => !g.visto && !E.antigos.some(m => R.nrm(m.nome) === R.nrm(g.nome)));
+      return `<section class="eq" aria-label="${f[2]}"><div class="eq-cab"><div><h2>${f[2]}</h2><p>${f[4]}</p></div>${f[5] ? '' : `<span class="chip">${E.ativos.length} na equipe</span>`}</div>
+       ${corpo}
+       ${fora_.length ? `<p class="note eq-n">Na planilha da FUNCERN há bolsa desta função para ${fora_.map(g => esc(g.nome)).join(', ')}, que não ${fora_.length === 1 ? 'está' : 'estão'} no cadastro. Cadastre com o mesmo nome para ligar a pessoa às bolsas.</p>` : ''}
+       ${x ? `<dl class="rb-x eq-x"><div><dt>Bolsa no plano</dt><dd>${x.mensal ? `${ms.length} meses · ${brl(x.mensal)}/mês` : brl(x.prev)}</dd></div><div><dt>Período</dt><dd>${ms.length ? `${rot(ms[0])} a ${rot(ms[ms.length - 1])}` : '—'}</dd></div><div><dt>Previsto</dt><dd>${brl(x.prev)}</dd></div><div><dt>Pago</dt><dd>${brl(x.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(x.comp)}</dd></div><div><dt>Saldo</dt><dd class="${x.saldo < 0 ? 'neg' : ''}"><b>${brl(x.saldo)}</b></dd></div></dl>` : ''}
+       ${E.antigos.length ? `<details class="dx-como eq-h"><summary>Quem já passou por esta função (${E.antigos.length})</summary><ul class="eq-a">${E.antigos.map(m => `<li><span><b>${esc(m.nome)}</b>${exChip(m)}<small>${m.vinculo ? esc(m.vinculo) + ' · ' : ''}${dt(m.inicio)} a ${dt(m.fim)}${m.motivo ? ' · ' + esc(m.motivo) : ''}</small></span>${pode ? `<span class="ac"><button class="ab" data-edit="membros:${esc(m.id)}">${IC_LAPIS}Editar</button>${R.podeExcluir(eu, 'membros', m) ? `<button class="ab d" data-del="membros:${esc(m.id)}">${IC_LIXO}Excluir</button>` : ''}</span>` : ''}</li>`).join('')}</ul></details>` : ''}</section>`; };
+    const IC_MAIS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.500"/><path d="M3.500 20a6.500 6.500 0 0 1 11-4.700M18 14v6M15 17h6"/></svg>';
+    const ext = () => { if (!coord()) return ''; const P = db.pessoas.filter(p => p.perfil === 'Acompanhamento'), org = {}; P.forEach(p => { const o = (p.orgao || '').trim() || 'Órgão não informado'; (org[o] = org[o] || []).push(p); }); if (!P.length) org['SEAB/MDA'] = [];
+      const sit = p => p.ativo === false ? ['', 'Desativado'] : demo() || p.auth_id ? ['ok', 'Com acesso'] : ['f', 'Aguardando primeiro acesso'];
+      return `<section class="eq" aria-label="Acompanhamento externo"><div class="eq-cab"><div><h2>Acompanhamento externo (SEAB/MDA)</h2><p>Área própria, só de leitura · não vê nome nem dado pessoal de agricultoras e agricultores, nem a equipe · só a coordenação cadastra</p></div></div>
+       <div class="panel ae"><div class="ae-h" aria-hidden="true"><span>Órgão</span><span>Quem acompanha</span><span></span></div>${Object.keys(org).sort().map(o => { const L = org[o], at = L.filter(p => p.ativo !== false).length;
+        return `<div class="ae-l"><div class="ae-o"><span class="mt-n" aria-hidden="true">${esc(o.replace(/[^A-Za-zÀ-ú/ ]/g, '').split(/[\s/]+/).filter(Boolean).slice(-1)[0].slice(0, 4).toUpperCase())}</span><div><b>${esc(o)}</b><small>${at} pessoa${at === 1 ? '' : 's'} com acesso</small></div></div>
+         <div class="ae-p">${L.length ? L.map(p => { const st = sit(p); return `<button class="ae-c${p.ativo === false ? ' off' : ''}" data-edit="pessoas:${esc(p.id)}" title="Abrir o cadastro de ${esc(p.nome)}"><span class="pc-av" aria-hidden="true">${esc(iniciais(p.nome))}</span><span class="ae-t"><b>${esc(p.nome)}</b><span class="chip ${st[0]} vg-c">${st[1]}</span></span></button>`; }).join('') : '<p class="small">Ninguém cadastrado ainda.</p>'}</div>
+         <div class="ae-a"><button class="ae-b" data-new="pessoas" data-pre="${esc(o === 'Órgão não informado' ? '-' : o)}">${IC_MAIS}<span>Adicionar pessoa</span></button><button class="ae-b" data-vercomo="${esc(o === 'Órgão não informado' ? '' : o)}">${IC_OLHO.split('<svg class="o2"')[0].replace('class="o1" ', '').replace('width="22" height="22"', 'width="20" height="20"')}<span>Ver como ${esc(o === 'Órgão não informado' ? 'quem acompanha' : o)} vê</span></button></div></div>`; }).join('')}</div></section>`; };
+    return `<div class="head"><div><h2>Equipe do projeto</h2><p>Quem ocupa cada função com bolsa no plano de trabalho. O cadastro é da coordenação; os valores de bolsa vêm da planilha da FUNCERN, importada na aba Financeiro.</p></div></div>${semTabela}${FUNCOES.map(bloco).join('')}${ext()}`;
   }
   function financeiro() {
     const F = R.fin(db), FR = R.finRubrica(db), pago = R.soma(F, 'pago'), comp = R.soma(F, 'comp'), usado = pago + comp, rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
@@ -563,7 +594,7 @@
   function render() {
     if (!eu || !db) return;
     nav(); const v = $('#view');
-    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     tituloDaTela(v); escalaDesenhos();
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
@@ -574,7 +605,7 @@
 
   /* ---------- formulário ---------- */
   function abrir(m, id, pre) {
-    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? { ativo: true } : pre ? (m === 'entregas' ? { etapa: pre } : { agricultor: pre }) : {}); ed = { m, id };
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? { funcao: pre, inicio: iso(hoje()) } : { agricultor: pre }) : {}); ed = { m, id };
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
@@ -740,7 +771,7 @@
   }
   async function aposEntrar() {
     $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando-txt').textContent = 'Carregando os dados…';
-    try { db = await api.carregar(); }
+    try { await recarregarDb(); }
     catch (e) { $('#carregando').hidden = true; eu = null; return telaAcesso(e.message); }
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = []; });
     pend = demo() ? [] : await SQC.fila.listar(eu.id); aplicarFila(); hist = null;
@@ -753,7 +784,7 @@
     if ($('#dlg').open) $('#dlg').close();
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
-    eu = null; db = null; hist = null; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
+    eu = null; db = null; real = null; hist = null; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
@@ -790,14 +821,16 @@
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
-    else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
+    else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); if (d.deslig !== undefined && $('#f_fim')) { if (!$('#f_fim').value) $('#f_fim').value = iso(hoje()); $('#f_fim').focus(); } }
+    else if (d.vercomo !== undefined) { if (coord() && !real) { real = { eu, db, tab }; db = semPessoal(db); eu = Object.assign({}, eu, { perfil: 'Acompanhamento', orgao: d.vercomo || 'SEAB/MDA' }); tab = 'painel'; nav(); render(); scrollTo(0, 0); } }
+    else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
     else if (d.abrirRub !== undefined) { const todos = [...t.closest('.head').parentNode.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
-    else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); db = await api.carregar(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
+    else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); await recarregarDb(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
       const uso = R.emUso(db, m, id).map(c => MOD[c].nome.toLowerCase());
@@ -807,8 +840,8 @@
       try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render(); }
       catch (e) { t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
     }
-    else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); db = await api.carregar(); render(); }
-    else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); db = await api.carregar(); render(); }
+    else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
+    else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
     else if (d.exp) { if (fora() && !['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].includes(d.exp)) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
     else if (d.senha !== undefined) {
