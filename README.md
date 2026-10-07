@@ -43,6 +43,7 @@ supabase/04_endurecimento.sql        correções da auditoria de 06/10/2026 (obr
 supabase/05_acompanhamento.sql       perfil de acompanhamento para a SEAB/MDA (obrigatório)
 supabase/06_item_da_despesa.sql      item do plano na despesa, para a execução por item no Financeiro (obrigatório)
 supabase/07_equipe.sql               cadastro da equipe do projeto, para a aba Equipe (obrigatório)
+supabase/09_ultimos_acessos.sql       último acesso de cada pessoa, para a aba Histórico (obrigatório)
 supabase/08_equipe_dados.sql         mais dados no cadastro da equipe: nome social, SIAPE, outra bolsa, Arlo, LGPD (obrigatório)
 supabase/tests/                      testes do banco e de estresse num Postgres local
 testes/desempenho/                   desempenho das contas com volume (1x, 10x e 50x)

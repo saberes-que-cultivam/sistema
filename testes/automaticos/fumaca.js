@@ -17,7 +17,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-tab="financeiro"]'); ok(!(await p.$('[data-new="despesas"]')), 'Equipe não vê o botão de lançar despesa');
   await p.click('[data-tab="dados"]'); ok(!(await p.$('[data-new="pessoas"]')), 'Equipe não vê o cadastro de acessos');
   await p.click('[data-sair]'); await p.click('[data-demo="Coordenação"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Coordenação'));
-  for (const t of ['equipe', 'unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'financeiro', 'relatorios', 'dados', 'painel']) {
+  for (const t of ['equipe', 'historico', 'unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'financeiro', 'relatorios', 'dados', 'painel']) {
     await p.click(`[data-tab="${t}"]`); ok((await p.textContent('#view')).length > 80, 'aba ' + t + ' abre');
     if (FOTOS) await p.screenshot({ path: `${FOTOS}/${t}.png`, fullPage: true });
   }

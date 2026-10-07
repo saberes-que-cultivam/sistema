@@ -699,6 +699,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    async acessos() { if (!db) carregarLocal(); return eu && eu.perfil === 'Coordenação' ? db.pessoas.map((p, i) => ({ id: p.id, nome: p.nome, perfil: p.perfil, orgao: p.orgao, ativo: p.ativo !== false, ultimo: p.id === eu.id ? new Date().toISOString() : i === 1 ? new Date(Date.now() - 12 * 864e5).toISOString() : null })) : []; },
     /* só na demonstração */
     async apagarExemplos() {
       ['distribuicoes', 'visitas', 'lotes', 'agricultores', 'eventos', 'entregas', 'itens', 'despesas', 'membros'].forEach(t => { db[t] = db[t].filter(r => !r.ex); });
@@ -889,6 +890,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     /* histórico (só a coordenação enxerga; para os outros o banco devolve lista vazia) */
     async auditoria(limite) {
       const { data, error } = await sb.from('auditoria').select('*').order('em', { ascending: false }).limit(limite || 200);
+      if (error) throw erro(error);
+      return data || [];
+    },
+    /* último acesso de cada pessoa cadastrada (só a coordenação recebe). null = o banco ainda não tem a função (falta rodar o script 09) */
+    async acessos() {
+      const { data, error } = await sb.rpc('ultimos_acessos');
+      if (error && (error.code === 'PGRST202' || error.code === '42883')) return null;
       if (error) throw erro(error);
       return data || [];
     },
@@ -1103,12 +1111,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
-  const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
+  const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['historico', 'Histórico'], ['dados', 'Dados']];
   /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
   const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'financeiro', 'relatorios', 'dados'];
-  const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS;
+  const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS.filter(t => t[0] !== 'historico' || coord());
   /* menu superior em grupos (rótulo em cima, abas embaixo); grupo sem nenhuma aba para o perfil não aparece */
-  const GRUPOS = [['Gestão', ['painel', 'equipe', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'dados']]];
+  const GRUPOS = [['Gestão', ['painel', 'equipe', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'historico', 'dados']]];
   function nav() {
     const tem = abas();
     $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
@@ -1252,11 +1260,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
-  const AJUDA = { equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
+  const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
     distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados.',
     eventos: 'Capacitações, dias de campo, reuniões e articulações.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
-    financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso e o histórico de alterações.' };
+    financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso.' };
   function abrirAjuda() {
     ed = null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como usar o sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
@@ -1538,6 +1546,20 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  <section><h4>10. Despesas do período</h4>${tl(['Data', 'Etapa', 'Rubrica', 'Descrição', 'Situação', 'Valor'], de.map(d => [dt(d.data), `<span class="mono">${esc(d.etapa)}</span>`, esc(nomeRubrica(d.rubrica)), esc(d.descricao), esc(d.status), brl(d.valor)]))}</section>
  </div>`;
   }
+  /* ---------- aba Histórico (só a coordenação): últimos acessos e alterações ---------- */
+  let acessos;   // undefined = ainda não carregou; null = falta o script 09; lista = carregado
+  function telaHistorico() {
+    if (!coord()) return '<div class="panel empty">O histórico é só da coordenação.</div>';
+    const ha = d => { const n = Math.floor((hoje() - new Date(d)) / 864e5); return n <= 0 ? 'hoje' : n === 1 ? 'ontem' : `há ${n} dias`; };
+    const quadroA = acessos === undefined ? '<div class="panel box"><div class="acts"><button class="b" data-acessos>Carregar os últimos acessos</button></div></div>'
+      : acessos === null ? '<div class="banner"><span>Para ver os últimos acessos, a coordenação precisa rodar o script <b>09_ultimos_acessos.sql</b> no Supabase.</span></div>'
+      : (() => { const at = acessos.filter(a => a.ativo), sem = at.filter(a => a.ultimo && hoje() - new Date(a.ultimo) < 7 * 864e5).length;
+        return `<p class="hs-r"><b>${sem}</b> de ${at.length} pessoa(s) com acesso ativo entraram nos últimos 7 dias.</p>
+         <div class="panel scroll"><table><thead><tr><th>Pessoa</th><th>Perfil</th><th>Último acesso</th><th>Situação</th></tr></thead><tbody>${acessos.map(a => `<tr><td><b>${esc(a.nome)}</b></td><td>${esc(a.perfil)}${a.orgao ? `<div class="small">${esc(a.orgao)}</div>` : ''}</td><td>${a.ultimo ? `${new Date(a.ultimo).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}<div class="small">${ha(a.ultimo)}</div>` : '—'}</td><td>${!a.ativo ? '<span class="chip">Desativado</span>' : !a.ultimo ? '<span class="chip f">Nunca entrou</span>' : hoje() - new Date(a.ultimo) > 30 * 864e5 ? '<span class="chip f">Sem entrar há mais de 30 dias</span>' : '<span class="chip ok">Em uso</span>'}</td></tr>`).join('')}</tbody></table></div>`; })();
+    return `<div class="head"><div><h2>Histórico</h2><p>Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Serve para a prestação de contas. Só a coordenação vê.</p></div></div>
+     <div><div class="head"><div><h2>Últimos acessos</h2><p>Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.</p></div>${Array.isArray(acessos) ? '<div class="acts"><button class="b" data-acessos>Atualizar</button></div>' : ''}</div>${quadroA}</div>
+     <div><div class="head"><div><h2>Alterações</h2><p>As 200 mais recentes: inclusões, alterações e exclusões em qualquer cadastro.</p></div>${hist ? '<div class="acts"><button class="b" data-hist>Atualizar</button></div>' : ''}</div><div class="panel box" style="margin-top:10px">${demo() ? '<div class="small">A demonstração não guarda histórico de alterações.</div>' : historico()}</div></div>`;
+  }
   const NOME_ACAO = { INSERT: 'incluiu', UPDATE: 'alterou', DELETE: 'excluiu' };
   function historico() {
     if (!hist) return '<div class="acts"><button class="b" data-hist>Carregar o histórico</button></div>';
@@ -1559,12 +1581,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  <div class="small">Abre no Excel e no LibreOffice. A planilha de unidades produtivas tem dados pessoais: guarde em pasta do projeto, não envie por aplicativo de mensagem.</div></div>
  <div class="panel box"><h3>Cópia de segurança</h3><div class="acts"><button class="b" data-exp="json">Baixar cópia completa (.json)</button></div><div id="msg" class="small"></div></div>
  <div class="panel box"><h3>Minha senha</h3>${demo() ? '<div class="small">A demonstração não usa senha.</div>' : '<div class="acts"><button class="b" data-senha>Trocar a minha senha</button></div>'}</div>
- ${coord() ? tabela('pessoas') + (demo() ? `<div class="panel box"><h3>Recomeçar a demonstração</h3><div class="acts"><button class="b d" data-zerar>Apagar tudo e voltar aos exemplos</button></div></div>`
-      : `<div><div class="head"><div><h2>Histórico de alterações</h2><p>Tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.</p></div></div><div class="panel box" style="margin-top:10px">${historico()}</div></div>`) : ''}`;
+ ${coord() ? tabela('pessoas') + (demo() ? `<div class="panel box"><h3>Recomeçar a demonstração</h3><div class="acts"><button class="b d" data-zerar>Apagar tudo e voltar aos exemplos</button></div></div>` : '') : ''}`;
   }
   /* cada tela tem um h1 com sobretítulo. Nas abas que já começam com um cabeçalho, o primeiro título vira o h1;
      no painel (que começa pelos indicadores) o cabeçalho é criado aqui. */
-  const SOBRE = { painel: 'Visão geral', equipe: 'Quem faz o projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
+  const SOBRE = { historico: 'Histórico', painel: 'Visão geral', equipe: 'Quem faz o projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
   function tituloDaTela(v) {
     const cab = [...v.children].find(c => c.classList && c.classList.contains('head')), eye = `<span class="eyebrow">${SOBRE[tab] || ''}</span>`;
     if (cab && tab !== 'painel') { const h2 = cab.querySelector('h2'), d = h2 && h2.parentElement; if (!h2) return; const h1 = document.createElement('h1'); h1.textContent = h2.textContent; h2.replaceWith(h1); d.classList.add('pg'); h1.insertAdjacentHTML('beforebegin', eye); return; }
@@ -1578,7 +1599,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function render() {
     if (!eu || !db) return;
     nav(); const v = $('#view');
-    v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     tituloDaTela(v); escalaDesenhos();
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
@@ -1827,6 +1848,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
     else if (d.exp) { if (fora() && !['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].includes(d.exp)) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+    else if (d.acessos !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { acessos = await api.acessos(); } catch (e) { acessos = undefined; toast(e.message); } render(); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
     else if (d.senha !== undefined) {
       ed = null; $('#frm').className = ''; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
