@@ -912,3 +912,5 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 .vg-b{width:320px;max-width:100%;justify-content:flex-start} .eq .acts{justify-content:flex-end}
 @media (max-width:640px){.vg-b{width:100%}}
 .eq .acts{padding-right:29px} @media (max-width:640px){.eq .acts{padding-right:0}}
+/* formulário da equipe: aviso de substituição (v47) */
+.fm-sub{margin:0;padding:12px 16px;border-left:3px solid var(--ferment);border-radius:0 10px 10px 0;background:var(--ferment-soft);font-size:var(--t-md);color:var(--txt-1)}

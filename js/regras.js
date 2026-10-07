@@ -287,6 +287,7 @@
       if (!['coordenacao', 'auxiliar', 'discente'].includes(r.funcao)) return 'Escolha a função.';
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
+      if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
     }
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
