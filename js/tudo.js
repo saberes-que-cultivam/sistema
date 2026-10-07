@@ -406,6 +406,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
       if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
+      const mc = validarDadosPessoais(r); if (mc) return mc;
     }
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
@@ -436,6 +437,42 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
     && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
 
+  /* ---------- cadastro da equipe: documentos e endereço (vale na tela da coordenação e no link que a pessoa preenche) ---------- */
+  const soDigitos = s => String(s == null ? '' : s).replace(/\D/g, '');
+  function cpfValido(c) {
+    c = soDigitos(c); if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+    const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += +c[i] * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+    return dv(9) === +c[9] && dv(10) === +c[10];
+  }
+  /* campos que a pessoa pode preencher pelo link (o banco aceita só estes) e os que só a coordenação lê */
+  const CAMPOS_CONVITE = ['nome', 'nome_social', 'cpf', 'pis', 'nascimento', 'telefone', 'email', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf',
+    'vinculo', 'siape', 'organizacao', 'experiencia', 'outra_bolsa', 'arlo', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet', 'socio', 'escolaridade', 'raca_cor', 'renda', 'pessoas_casa', 'lgpd'];
+  const CAMPOS_RESERVADOS = ['cpf', 'pis', 'nascimento', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'uf', 'socio', 'escolaridade', 'raca_cor', 'renda', 'pessoas_casa'];
+  /* guarda documento só com números, UF em maiúsculas, e apaga o questionário se a pessoa não quis responder */
+  function normalizarMembro(r) {
+    ['cpf', 'pis', 'cep'].forEach(k => { if (r[k] != null) r[k] = soDigitos(r[k]); });
+    if (r.uf) r.uf = String(r.uf).toUpperCase().trim();
+    if (!r.socio) { r.socio = false; ['escolaridade', 'raca_cor', 'renda', 'pessoas_casa'].forEach(k => { r[k] = ''; }); }
+    return r;
+  }
+  function validarDadosPessoais(r) {
+    if (r.cpf && !cpfValido(r.cpf)) return 'O CPF informado não é válido. Confira os números.';
+    if (r.pis && soDigitos(r.pis).length !== 11) return 'O PIS/NIS/PASEP tem 11 números.';
+    if (r.cep && soDigitos(r.cep).length !== 8) return 'O CEP tem 8 números.';
+    if (r.nascimento && (r.nascimento < '1900-01-02' || r.nascimento >= iso(new Date()))) return 'Confira a data de nascimento.';
+    if (r.nascimento && r.inicio && r.nascimento >= r.inicio) return 'A data de nascimento não pode ser depois do início da bolsa.';
+    if (r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)) return 'Confira o e-mail.';
+    if (r.renda !== '' && r.renda != null && !(Number(r.renda) >= 0)) return 'A renda precisa ser um número positivo.';
+    if (r.pessoas_casa !== '' && r.pessoas_casa != null && !(Number.isInteger(Number(r.pessoas_casa)) && r.pessoas_casa >= 1 && r.pessoas_casa <= 40)) return 'Pessoas na casa: informe um número de 1 a 40.';
+    return '';
+  }
+  /* o que a pessoa envia pelo link: nome e termo são obrigatórios; o resto é conferido se vier */
+  function validarConvite(r) {
+    if (String(r.nome || '').trim().length < 3) return 'Informe o nome completo.';
+    const m = validarDadosPessoais(r); if (m) return m;
+    if (!r.lgpd) return 'Para enviar, marque que você leu e concorda com o uso dos dados.';
+    return '';
+  }
   /* equipe: quem está em cada função hoje e quem já saiu (fim preenchido e já passado) */
   const ativo = (m, hojeIso) => !m.fim || m.fim > hojeIso;
   function equipePorFuncao(db, funcao, hojeIso) {
@@ -463,7 +500,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
 /* ===== planilha.js ===== */
@@ -676,6 +713,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
         c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = [];
       }
+      if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       return c;
     },
     async salvar(tabela, reg) {
@@ -699,6 +737,18 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    /* link de cadastro, simulado neste navegador (na demonstração o "banco" é o próprio aparelho) */
+    preparar() {},
+    _cv(g) { const K = 'sqc-demo-convites'; let l = []; try { l = JSON.parse(ler(K)) || []; } catch (e) { l = []; } if (g) { const n = g(l); gravar(K, JSON.stringify(n)); return n; } return l; },
+    async convites() { if (!eu || eu.perfil !== 'Coordenação') return []; return this._cv().filter(c => c.status === 'preenchido' || (c.status === 'aberto' && new Date(c.expira_em) > new Date())).map(c => ({ id: c.id, funcao: c.funcao, status: c.status, dados: c.dados, expira_em: c.expira_em, preenchido_em: c.preenchido_em, criado_em: c.criado_em })); },
+    async criarConvite(funcao) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação gera link de cadastro.'); const token = (SQC.novoId() + SQC.novoId()).replace(/-/g, '');
+      this._cv(l => l.concat([{ id: SQC.novoId(), funcao, token, status: 'aberto', dados: null, expira_em: new Date(Date.now() + 7 * 864e5).toISOString(), criado_em: new Date().toISOString() }])); return token; },
+    async conviteVer(token) { const c = this._cv().find(x => x.token === token && x.status === 'aberto' && new Date(x.expira_em) > new Date()); return c ? c.funcao : null; },
+    async conviteEnviar(token, dados) { let ok = false; const limpo = {}; R.CAMPOS_CONVITE.forEach(k => { if (k in dados && String(dados[k]).length <= 300) limpo[k] = dados[k]; });
+      const msg = R.validarConvite(limpo); if (msg) throw falha(msg);
+      this._cv(l => l.map(c => { if (c.token === token && c.status === 'aberto' && new Date(c.expira_em) > new Date()) { ok = true; return Object.assign({}, c, { status: 'preenchido', dados: limpo, preenchido_em: new Date().toISOString() }); } return c; }));
+      if (!ok) throw falha('Este link já foi usado ou venceu. Peça outro à coordenação do projeto.'); },
+    async conviteEncerrar(id, status) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.'); this._cv(l => l.map(c => c.id === id ? Object.assign({}, c, { status, dados: null }) : c)); },
     async acessos() { if (!db) carregarLocal(); return eu && eu.perfil === 'Coordenação' ? db.pessoas.map((p, i) => ({ id: p.id, nome: p.nome, perfil: p.perfil, orgao: p.orgao, ativo: p.ativo !== false, ultimo: p.id === eu.id ? new Date().toISOString() : i === 1 ? new Date(Date.now() - 12 * 864e5).toISOString() : null })) : []; },
     /* só na demonstração */
     async apagarExemplos() {
@@ -742,10 +792,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'inicio', 'fim', 'motivo', 'obs'],
+    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
-  const BOOL = ['ativo', 'kit', 'lgpd'].concat(D.CHECK.map(c => c[0]));
+  const BOOL = ['ativo', 'kit', 'lgpd', 'socio'].concat(D.CHECK.map(c => c[0]));
+  /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
+     e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
+  let semCompleto = false;
+  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
+  const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
+  /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
+  const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; }) });
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
@@ -756,7 +813,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   async function todas(tabela) {
     let tudo = [];
     for (let de = 0; de < 100000;) {
-      const { data, error } = await sb.from(tabela).select('*').order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
       if (error) throw erro(error);
       tudo = tudo.concat(data || []); de += (data || []).length;
@@ -767,11 +825,24 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   SQC.apiSupabase = {
     modo: 'supabase', offline: false, recuperando: false,
+    /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
+    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } }); },
+    /* ----- link de cadastro da equipe ----- */
+    async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
+      const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });
+      if (error && (error.code === '42P01' || error.code === 'PGRST205' || /convites/.test(String(error.message)))) return null;
+      if (error) throw erro(error);
+      return (data || []).filter(c => c.status === 'preenchido' || new Date(c.expira_em) > new Date());
+    },
+    async criarConvite(funcao) { const { data, error } = await sb.rpc('criar_convite', { p_funcao: funcao }); if (error) throw erro(error); return data; },
+    async conviteVer(token) { this.preparar(); const { data, error } = await sb.rpc('convite_ver', { p_token: token }); if (error) throw erro(error); return data || null; },
+    async conviteEnviar(token, dados) { this.preparar(); const { error } = await sb.rpc('convite_enviar', { p_token: token, p_dados: dados }); if (error) throw erro(error); },
+    async conviteEncerrar(id, status) { const { error } = await sb.rpc('convite_encerrar', { p_id: id, p_status: status }); if (error) throw erro(error); },
     async iniciar() {
       // chegou por um link do e-mail (primeiro acesso ou senha esquecida)? então a próxima tela é a de criar a senha
       const h = String(location.hash || ''); const veioDeLink = /[#&]type=(signup|magiclink|recovery|invite)/.test(h);
       if (/[#&]error(_code|_description)?=/.test(h)) this.linkVencido = true;
-      sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
+      this.preparar();
       // voltou pelo link de "esqueci a senha": a tela pede a senha nova antes de qualquer coisa
       sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { this.recuperando = true; if (SQC.app && SQC.app.pedirSenhaNova) SQC.app.pedirSenhaNova(); } });
       let sessao = null;
@@ -831,7 +902,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
         const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'membros' ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
-        guardar(CHAVE_DADOS, db); guardar(CHAVE_QUANDO, Date.now()); this.offline = false; return db;
+        // dados reservados da equipe: só a coordenação recebe, por função própria do banco
+        if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {
+          const rs = await sb.rpc('membros_reservados'); if (rs.error && rs.error.code !== 'PGRST202' && rs.error.code !== '42883') throw erro(rs.error);
+          (rs.data || []).forEach(x => { const m = db.membros.find(y => y.id === x.id); if (m) Object.assign(m, x); });
+        }
+        guardar(CHAVE_DADOS, semReservado(db)); guardar(CHAVE_QUANDO, Date.now()); this.offline = false; return db;
       } catch (e) {
         const g = ler(CHAVE_DADOS);
         if (g && e.semRede && copiaValida()) { this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
@@ -842,11 +918,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
        Edição só grava se o registro ainda está nessa versão: o que um colega mudou depois não é desfeito,
        e registro excluído por outra pessoa não volta a existir. */
     async salvar(tabela, reg, op) {
-      try { return await this._salvar(tabela, reg, op); }
+      try { const out = await this._salvar(tabela, reg, op); if (tabela === 'membros') R.CAMPOS_RESERVADOS.forEach(k => { if (k in reg) out[k] = reg[k]; }); return out; }
       catch (e) {
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
-        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar o script 08_equipe_dados.sql no Supabase.' });
+        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
         if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
         if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
         semItem = true; return await this._salvar(tabela, reg, op);
@@ -855,7 +931,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     async _salvar(tabela, reg, op) {
       op = op || {}; const r = limpar(tabela, reg); const { id, ...campos } = r;
       if (op.novo) {
-        const ins = await sb.from(tabela).insert(r).select().single();
+        const ins = await sb.from(tabela).insert(r).select(sel(tabela)).single();
         if (!ins.error) return ins.data;
         if (ins.error.code !== '23505') throw erro(ins.error);
         // já existe com este id: é reenvio da fila (a primeira tentativa gravou e a resposta se perdeu); segue como edição sem versão
@@ -864,14 +940,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         op = {};
       }
       let q = sb.from(tabela).update(campos).eq('id', id); if (op.base) q = q.eq('atualizado_em', op.base);
-      const up = await q.select();
+      const up = await q.select(sel(tabela));
       if (up.error) throw erro(up.error);
       if (up.data && up.data.length) return up.data[0];
       const existe = await sb.from(tabela).select('id').eq('id', id).maybeSingle();
       if (existe.error) throw erro(existe.error);
       if (existe.data) throw erro(op.base ? { code: 'P0001', message: R.MSG_CONFLITO } : { code: '42501', message: 'permission denied' });
       if (op.novo === false || op.base) throw erro({ code: 'P0001', message: R.MSG_EXCLUIDO });
-      const ins = await sb.from(tabela).insert(r).select().single();   // sem informação de origem (item antigo da fila): comporta-se como antes
+      const ins = await sb.from(tabela).insert(r).select(sel(tabela)).single();   // sem informação de origem (item antigo da fila): comporta-se como antes
       if (ins.error) throw erro(ins.error);
       return ins.data;
     },
@@ -900,7 +976,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (error) throw erro(error);
       return data || [];
     },
-    guardarCopia(db) { guardar(CHAVE_DADOS, db); },
+    guardarCopia(db) { guardar(CHAVE_DADOS, semReservado(db)); },
     COLUNAS, limpar
   };
 })();
@@ -1096,11 +1172,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Etapa', d => `<span class="mono">${esc(d.etapa)}</span>`],
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
-    membros: { um: 'Pessoa da equipe', oque: 'Quem ocupa uma função no projeto. Quando a pessoa sair, preencha o desligamento: o registro fica como histórico e a vaga volta a aparecer aberta.', dicas: { fim: 'Deixe vazio enquanto a pessoa estiver na equipe.', vinculo: 'Exemplo: IFRN Campus Apodi, ou o curso do estudante.', inicio: 'Sugerimos hoje. Mude se a pessoa começou em outro dia.', lgpd: 'CPF, PIS, conta bancária e chave Pix não entram aqui: vão direto para a FUNCERN, que faz o pagamento.', outra_bolsa: 'A fundação confere acúmulo de bolsas antes de pagar.', arlo: 'É o sistema em que a FUNCERN cadastra quem recebe. Sem esse cadastro a bolsa não é paga.', nome: 'Escreva como aparece na planilha da FUNCERN, para o sistema ligar a pessoa às bolsas.' }, nome: 'Equipe', titulo: 'Equipe', desc: '', novo: 'Cadastrar', restrito: 1,
+    membros: { um: 'Pessoa da equipe', oque: 'Quem ocupa uma função no projeto. Quando a pessoa sair, preencha o desligamento: o registro fica como histórico e a vaga volta a aparecer aberta.', dicas: { fim: 'Deixe vazio enquanto a pessoa estiver na equipe.', vinculo: 'Exemplo: IFRN Campus Apodi, ou o curso do estudante.', inicio: 'Sugerimos hoje. Mude se a pessoa começou em outro dia.', lgpd: 'Conta bancária e chave Pix não entram aqui: vão direto para a FUNCERN, que faz o pagamento.', cpf: 'Só a coordenação vê. Guardado só com os números.', cep: 'Só os 8 números.', socio: 'Com uma equipe pequena não dá para esconder de quem é cada resposta: por isso ela fica só com a coordenação e não entra em relatório.', siape: 'Deixe vazio se não for.', organizacao: 'Exemplo: sindicato, associação, cooperativa.', outra_bolsa: 'A fundação confere acúmulo de bolsas antes de pagar.', arlo: 'É o sistema em que a FUNCERN cadastra quem recebe. Sem esse cadastro a bolsa não é paga.', nome: 'Escreva como aparece na planilha da FUNCERN, para o sistema ligar a pessoa às bolsas.' }, nome: 'Equipe', titulo: 'Equipe', desc: '', novo: 'Cadastrar', restrito: 1,
       campos: [['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente']]],
-        ['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome completo', 'text', 1], ['nome_social', 'Nome social (se usar)', 'text'], ['telefone', 'Celular com WhatsApp', 'tel'], ['email', 'E-mail', 'email'], ['municipio', 'Município onde mora (com a UF)', 'text'],
-        ['_s2', 'Vínculo', 'sec'], ['vinculo', 'Instituição ou curso', 'text'], ['siape', 'Matrícula SIAPE (só se for servidor federal)', 'text'], ['experiencia', 'Experiência com agricultura familiar ou agroecologia', 'select', 0, opt(['', 'Nenhuma ainda', 'Estudo ou estágio na área', 'Até 2 anos de trabalho', 'Mais de 2 anos de trabalho', 'É de família agricultora'])],
-        ['_s3', 'Bolsa', 'sec'], ['inicio', 'Início da bolsa', 'date', 1], ['outra_bolsa', 'Recebe hoje outra bolsa, de qualquer instituição?', 'select', 0, opt(['', 'Não', 'Sim'])], ['arlo', 'Já tem cadastro no sistema Arlo, da FUNCERN?', 'select', 0, opt(['', 'Sim', 'Não'])],
+        ['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome completo', 'text', 1], ['cpf', 'CPF', 'text'], ['telefone', 'Celular com WhatsApp', 'tel'], ['email', 'E-mail', 'email'],
+        ['_s1b', 'Endereço', 'sec'], ['cep', 'CEP', 'text'], ['numero', 'Número', 'text'], ['logradouro', 'Logradouro (rua, sítio, estrada)', 'text'], ['complemento', 'Complemento', 'text'], ['bairro', 'Bairro ou comunidade', 'text'], ['municipio', 'Município onde mora', 'text'], ['uf', 'Estado', 'select', 0, opt(['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'])],
+        ['_s1c', 'Questionário socioeconômico (opcional)', 'sec'], ['socio', 'Responder. Só a coordenação vê estas respostas.', 'check'], ['escolaridade', 'Escolaridade', 'select', 0, opt(['', 'Fundamental incompleto', 'Fundamental completo', 'Médio incompleto', 'Médio completo', 'Técnico', 'Superior incompleto', 'Superior completo', 'Pós-graduação'])], ['raca_cor', 'Raça/cor', 'select', 0, opt(['', 'Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Prefiro não informar'])], ['renda', 'Renda familiar por mês (R$)', 'number'], ['pessoas_casa', 'Pessoas na casa', 'number'],
+        ['_s3', 'Bolsa', 'sec'], ['inicio', 'Início da bolsa', 'date', 1], ['outra_bolsa', 'Recebe hoje outra bolsa, de qualquer instituição?', 'select', 0, opt(['', 'Não', 'Sim'])], ['experiencia', 'Experiência com agricultura familiar ou agroecologia', 'select', 0, opt(['', 'Nenhuma ainda', 'Estudo ou estágio na área', 'Até 2 anos de trabalho', 'Mais de 2 anos de trabalho', 'É de família agricultora'])],
+        ['_s3b', 'Cadastro na FUNCERN (sistema Arlo)', 'sec'], ['arlo', 'A pessoa já tem cadastro no sistema Arlo, da FUNCERN?', 'select', 0, opt(['', 'Sim', 'Não'])],
+        ['_s2', 'Mais dados pessoais', 'sec'], ['nome_social', 'Nome social (se usar)', 'text'], ['nascimento', 'Data de nascimento', 'date'], ['pis', 'PIS/NIS/PASEP (se tiver)', 'text'], ['siape', 'Matrícula SIAPE (só se for servidor(a) público(a) federal)', 'text'], ['vinculo', 'Instituição ou curso', 'text'], ['organizacao', 'Organização ou movimento', 'text'],
+        ['_s2b', 'Perfil no campo', 'sec'], ['agricultor', 'É agricultor(a)? (produz alimento em quintal, roça ou lote)', 'select', 0, opt(['', 'Sim', 'Não'])], ['atua_af', 'Atua junto a agricultoras e agricultores familiares do território?', 'select', 0, opt(['', 'Sim', 'Não'])], ['zona_rural', 'Mora na zona rural?', 'select', 0, opt(['', 'Sim', 'Não'])], ['celular_internet', 'Tem celular com internet?', 'select', 0, opt(['', 'Sim', 'Não'])],
         ['_s4', 'Proteção de dados', 'sec'], ['lgpd', 'A pessoa foi informada e concorda que estes dados sejam usados só para a gestão do projeto e o pagamento da bolsa (Lei nº 13.709/2018).', 'check'],
         ['_s5', 'Desligamento', 'sec'], ['fim', 'Data do desligamento', 'date'], ['motivo', 'Motivo', 'text'], ['obs', 'Observações', 'textarea']], cols: [] },
     pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
@@ -1479,6 +1559,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     ['discente', 'i03', 'Bolsistas discentes', 'bolsista discente', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo', 0]];
   const IC_GENTE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.500"/><path d="M2.500 20a6.500 6.500 0 0 1 13 0"/><circle cx="17.500" cy="9" r="2.500"/><path d="M17 14.200a5 5 0 0 1 4.500 5"/></svg>';
   function equipe() {
+    if (coord() && !real && convites === undefined) { convites = []; carregarConvites(); }
     const FI = R.finItens(db), hj = iso(hoje()), pode = R.podeGravar(eu, 'membros'), rot = k => (R.ritmo(db, hoje()).pontos[k] || {}).rotulo || k + 1;
     const semTabela = api.semMembros ? `<div class="banner"><span>O cadastro da equipe ainda não foi ligado no banco: a coordenação precisa rodar o script <b>07_equipe.sql</b> no Supabase. Até lá, nada do que for cadastrado aqui é gravado.</span></div>` : '';
     const bloco = f => { const x = FI.find(i => i.id === f[1]), E = R.equipePorFuncao(db, f[0], hj), ms = x ? x.meses : [], bolsas = {};
@@ -1486,11 +1567,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const bolsaDe = m => { const g = bolsas[R.nrm(m.nome)]; if (g) g.visto = 1; return g ? `<span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}` : '<span>nenhuma bolsa na planilha ainda</span>'; };
       const cartao = m => `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(m.nome))}</span><div class="pc-t"><div class="pc-n"><b>${esc(m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
         ${pode ? `<button class="b eq-vd" data-edit="membros:${esc(m.id)}">Ver detalhes</button>` : ''}</li>`;
-      const ult = E.antigos[0], vaga = `<div class="vg"><div><span class="chip f vg-c">Vaga aberta</span><p>${ult ? `A pessoa anterior, ${esc(ult.nome)}, foi desligada em ${dt(ult.fim)}.` : 'Ninguém foi cadastrado nesta função ainda.'}</p></div>${pode ? `<button class="vg-b" data-new="membros" data-pre="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button>` : ''}</div>`;
-      const corpo = (E.ativos.length ? `<ul class="eq-l">${E.ativos.map(cartao).join('')}</ul>` : '') + (!E.ativos.length ? vaga : !f[5] && pode ? `<div class="acts"><button class="vg-b" data-new="membros" data-pre="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button></div>` : '');
+      const ult = E.antigos[0], vaga = `<div class="vg"><div><span class="chip f vg-c">Vaga aberta</span><p>${ult ? `A pessoa anterior, ${esc(ult.nome)}, foi desligada em ${dt(ult.fim)}.` : 'Ninguém foi cadastrado nesta função ainda.'}</p></div>${pode ? `<button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button>` : ''}</div>`;
+      const corpo = (E.ativos.length ? `<ul class="eq-l">${E.ativos.map(cartao).join('')}</ul>` : '') + (!E.ativos.length ? vaga : !f[5] && pode ? `<div class="acts"><button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button></div>` : '');
+      const cvs = pode && Array.isArray(convites) ? convites.filter(c => c.funcao === f[0]) : [];
+      const cvHtml = cvs.length ? `<ul class="cv">${cvs.map(c => c.status === 'preenchido'
+        ? `<li class="cv-i ok"><div><b>${esc((c.dados && c.dados.nome) || 'Cadastro recebido')}</b><small>preencheu pelo link em ${dt(String(c.preenchido_em).slice(0, 10))} · falta você conferir e aprovar</small></div><span class="ac"><button class="b p" data-cvaprovar="${esc(c.id)}">Conferir e aprovar</button><button class="b" data-cvfim="${esc(c.id)}:recusado">Recusar</button></span></li>`
+        : `<li class="cv-i"><div><b>Link de cadastro enviado</b><small>gerado em ${dt(String(c.criado_em).slice(0, 10))} · vale até ${dt(String(c.expira_em).slice(0, 10))} · aguardando a pessoa preencher</small></div><span class="ac"><button class="b" data-cvfim="${esc(c.id)}:cancelado">Cancelar o link</button></span></li>`).join('')}</ul>` : '';
       const fora_ = Object.values(bolsas).filter(g => !g.visto && !E.antigos.some(m => R.nrm(m.nome) === R.nrm(g.nome)));
       return `<section class="eq" aria-label="${f[2]}"><div class="eq-cab"><div><h2>${f[2]}</h2><p>${f[4]}</p></div>${f[5] ? '' : `<span class="chip">${E.ativos.length} na equipe</span>`}</div>
-       ${corpo}
+       ${cvHtml}${corpo}
        ${fora_.length ? `<p class="note eq-n">Na planilha da FUNCERN há bolsa desta função para ${fora_.map(g => esc(g.nome)).join(', ')}, que não ${fora_.length === 1 ? 'está' : 'estão'} no cadastro. Cadastre com o mesmo nome para ligar a pessoa às bolsas.</p>` : ''}
        ${E.antigos.length ? `<details class="dx-como eq-h"><summary>Quem já passou por esta função (${E.antigos.length})</summary><ul class="eq-a">${E.antigos.map(m => `<li><span><b>${esc(m.nome)}</b>${exChip(m)}<small>${m.vinculo ? esc(m.vinculo) + ' · ' : ''}${dt(m.inicio)} a ${dt(m.fim)}${m.motivo ? ' · ' + esc(m.motivo) : ''}</small></span>${pode ? `<span class="ac"><button class="ab" title="Editar" data-edit="membros:${esc(m.id)}">${IC_LAPIS}<span class="so">Editar</span></button>${R.podeExcluir(eu, 'membros', m) ? `<button class="ab d" title="Excluir" data-del="membros:${esc(m.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>` : ''}</li>`).join('')}</ul></details>` : ''}</section>`; };
     const IC_MAIS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.500"/><path d="M3.500 20a6.500 6.500 0 0 1 11-4.700M18 14v6M15 17h6"/></svg>';
@@ -1609,8 +1694,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   /* ---------- formulário ---------- */
-  function abrir(m, id, pre) {
-    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? { funcao: pre, inicio: iso(hoje()) } : { agricultor: pre }) : {}); ed = { m, id };
+  /* corpo de um formulário: os campos vão em grupos; cada marcador de seção (tipo 'sec') fecha um grupo e abre outro com título.
+     "quais" (opcional) limita aos campos indicados: é assim que o link de cadastro mostra só o que a pessoa pode preencher. */
+  function corpoForm(M, r, id, quais) {
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
@@ -1620,14 +1706,67 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
       return `<div class="fld${['nome', 'tema', 'titulo', 'descricao', 'email'].includes(k) ? ' w' : ''}"><label for="${idc}">${l}</label><input id="${idc}" type="${t}" ${t === 'number' ? 'step="any" min="0" inputmode="decimal"' : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : v)}"${Rq}></div>`;
     };
-    // os campos vão em grupos: cada marcador de seção (tipo 'sec') fecha um grupo e abre outro com título
     let corpo = '', aberto = false; const dica = k => M.dicas && M.dicas[k] ? `<span class="fm-dica">${esc(M.dicas[k])}</span>` : '';
+    let pend = '';
     M.campos.forEach(c => {
-      if (c[2] === 'sec') { corpo += (aberto ? '</div>' : '') + `<h3 class="fm-sec">${c[1]}</h3><div class="fields">`; aberto = true; return; }
+      if (c[2] === 'sec') { pend = c[1]; return; }
+      if (quais && !quais.includes(c[0])) return;
+      if (pend) { corpo += (aberto ? '</div>' : '') + `<h3 class="fm-sec">${pend}</h3><div class="fields">`; aberto = true; pend = ''; }
       if (!aberto) { corpo += '<div class="fields">'; aberto = true; }
       corpo += campo(c).replace(/<\/div>$/, dica(c[0]) + '</div>');
     });
     if (aberto) corpo += '</div>';
+    return corpo;
+  }
+  /* ---------- link de cadastro da equipe ---------- */
+  let convites, preMembro = null;   // convites: undefined = ainda não carregou; null = o banco não tem (falta o script 11); lista = carregado
+  const NOME_FUNCAO = { coordenacao: 'Coordenação do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Bolsista discente' };
+  async function carregarConvites() { try { convites = await api.convites(); } catch (e) { convites = []; toast(e.message); } if (tab === 'equipe') render(); }
+  function abrirEscolha(funcao) {
+    ed = null; $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Cadastrar</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="aj-p">Como você quer fazer este cadastro?</p>
+      <button type="button" class="esc" data-gerarlink="${funcao}"><span class="esc-r">Recomendado</span><b>Gerar link de cadastro</b><span>A pessoa preenche os próprios dados pelo celular e aceita o termo de uso dos dados. Você confere e aprova. Menos digitação e menos erro.</span></button>
+      <button type="button" class="esc" data-digitar="${funcao}"><b>Digitar os dados agora</b><span>Você digita os dados. Use quando já tem tudo em mãos ou a pessoa não tem internet.</span></button></div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button></div></div>`;
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  function mostrarLink(funcao, token) {
+    const link = location.origin + location.pathname + '#c=' + token, msg = `Olá! Para entrar na equipe do projeto Saberes que Cultivam (${NOME_FUNCAO[funcao]}), preencha o seu cadastro neste link. Ele vale 7 dias e serve uma vez só: ${link}`;
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Link de cadastro</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><div class="fm-oque"><span>Link gerado</span><p>Mande para a pessoa. Vale 7 dias e serve uma vez só. Depois que ela preencher, o cadastro aparece na aba Equipe para você conferir e aprovar.</p></div>
+      <div class="fields"><div class="fld w"><label for="lk_txt">Link</label><input id="lk_txt" readonly value="${esc(link)}"><span class="fm-dica">Copie agora: por segurança o sistema não guarda o link e não consegue mostrá-lo de novo. Se perder, cancele este e gere outro.</span></div></div></div>
+     <div class="fm-pe"><div class="err" id="ferr" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button><a class="b" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener noreferrer">Mandar pelo WhatsApp</a><button type="button" class="b p" data-copiarlink>Copiar o link</button></div></div>`;
+  }
+  /* página do link: sem login. A pessoa só fala com duas funções do banco (ver se o link vale; enviar uma vez). */
+  let pub = null;
+  async function telaConvite(token) {
+    $('#carregando').hidden = true; $('#auth').hidden = true; $('#app').hidden = true; const P = $('#pub'); P.hidden = false;
+    const cab = '<div class="pub-m"><img src="assets/icon-192.png" alt="" width="48" height="48"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>';
+    const aviso = (t, p) => { P.innerHTML = `<div class="pub">${cab}<div class="panel pub-c"><h1>${t}</h1><p>${p}</p></div></div>`; };
+    let funcao = null; try { funcao = await api.conviteVer(token); } catch (e) { return aviso('Não foi possível abrir o cadastro', 'Confira a sua internet e abra o link de novo.'); }
+    if (!funcao) return aviso('Este link não vale mais', 'Ele já foi usado ou passou dos 7 dias. Peça outro à coordenação do projeto.');
+    pub = { token, funcao }; const M = MOD.membros, rotLgpd = 'Li e concordo que estes dados sejam usados só para a gestão do projeto e o pagamento da bolsa (Lei nº 13.709/2018).';
+    const Mp = Object.assign({}, M, { campos: M.campos.map(c => c[0] === 'lgpd' ? ['lgpd', rotLgpd, 'check'] : c[0] === 'socio' ? ['socio', 'Quero responder. Só a coordenação do projeto vê estas respostas.', 'check'] : c[0] === 'arlo' ? ['arlo', 'Você já tem cadastro no sistema Arlo, da FUNCERN?', 'select', 0, c[4]] : c),
+      dicas: Object.assign({}, M.dicas, { nome: '', vinculo: 'Exemplo: IFRN Campus Apodi, ou o seu curso.', cpf: 'Só a coordenação do projeto vê.', socio: '' }) });
+    P.innerHTML = `<div class="pub">${cab}<form id="fpub" class="fm panel pub-c" novalidate><div class="fm-cab"><div><span class="fm-eye">Cadastro na equipe</span><h1>${NOME_FUNCAO[funcao]}</h1></div></div>
+      <div class="fm-corpo"><div class="fm-oque"><span>Como funciona</span><p>Preencha os seus dados e envie. A coordenação do projeto confere e confirma o seu cadastro. Este link serve uma vez só; nome e termo de uso são obrigatórios, o resto ajuda a agilizar a sua bolsa.</p></div>${corpoForm(Mp, {}, null, R.CAMPOS_CONVITE)}</div>
+      <div class="fm-pe"><div class="err" id="perr" role="alert"></div><div class="frow"><button class="b p" id="penviar">Enviar o meu cadastro</button></div></div></form></div>`;
+  }
+  async function aoEnviarConvite(ev) {
+    ev.preventDefault(); if (!pub) return; const r = {}, er = t => { $('#perr').textContent = t; };
+    for (const [k, l, t] of MOD.membros.campos) { if (t === 'sec' || !R.CAMPOS_CONVITE.includes(k)) continue; const el = $('#f_' + k); if (!el) continue;
+      r[k] = t === 'check' ? el.checked : t === 'number' ? (el.value === '' ? '' : +el.value) : el.value.trim(); }
+    R.normalizarMembro(r); const msg = R.validarConvite(r); if (msg) return er(msg);
+    Object.keys(r).forEach(k => { if (r[k] === '' || r[k] == null) delete r[k]; });
+    const b = $('#penviar'); if (b.disabled) return; b.disabled = true; b.textContent = 'Enviando…'; er('');
+    try { await api.conviteEnviar(pub.token, r); } catch (e) { b.disabled = false; b.textContent = 'Enviar o meu cadastro'; return er(e.message || 'Não foi possível enviar. Tente de novo.'); }
+    pub = null; try { history.replaceState(null, '', location.pathname); } catch (x) {}
+    $('#pub').querySelector('.pub-c').outerHTML = '<div class="panel pub-c"><h1>Cadastro enviado</h1><p>Obrigado. A coordenação do projeto vai conferir os seus dados e confirmar o cadastro. Pode fechar esta página.</p></div>'; scrollTo(0, 0);
+  }
+  function abrir(m, id, pre) {
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
+    const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
@@ -1673,11 +1812,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     }
     if (m === 'lotes' && !r.dias && r.dias !== 0) r.dias = (D.TIPOS[r.tipo] || [0, 30])[1];
     if (m === 'pessoas') r.email = r.email.toLowerCase();
+    if (m === 'membros') R.normalizarMembro(r);
+    const conviteAberto = ed.convite;
     const msg = R.validar(db, m, r, ant); if (msg) return er(msg);
     const b = $('#fsalvar'); b.disabled = true; b.textContent = 'Salvando…';
     const res = await gravarRegistro(m, r, ant);
     b.disabled = false; b.textContent = 'Salvar';
     if (!res.ok) return er(res.msg);
+    if (conviteAberto) { try { await api.conviteEncerrar(conviteAberto, 'aprovado'); } catch (e) { toast('Cadastro gravado, mas o convite não foi encerrado: ' + e.message); } convites = undefined; }
     $('#dlg').close(); ed = null; render();
     if (res.fila) toast('Sem internet: guardado neste aparelho. Envia sozinho quando o sinal voltar.');
     else if (m === 'pessoas' && !id && !demo()) toast('Acesso criado. Avise a pessoa para abrir o sistema e usar “Primeiro acesso”.');
@@ -1789,7 +1931,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if ($('#dlg').open) $('#dlg').close();
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
-    eu = null; db = null; real = null; hist = null; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
+    eu = null; db = null; real = null; hist = null; convites = undefined; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
@@ -1827,6 +1969,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); if (d.deslig !== undefined && $('#f_fim')) { if (!$('#f_fim').value) $('#f_fim').value = iso(hoje()); $('#f_fim').focus(); } }
+    else if (d.cadeq) { if (convites === null) abrir('membros', null, d.cadeq); else abrirEscolha(d.cadeq); }
+    else if (d.digitar) abrir('membros', null, d.digitar);
+    else if (d.gerarlink) { t.disabled = true; try { const tk = await api.criarConvite(d.gerarlink); convites = undefined; mostrarLink(d.gerarlink, tk); render(); } catch (e) { t.disabled = false; $('#ferr').textContent = e.message; } }
+    else if (d.copiarlink !== undefined) { const c = $('#lk_txt'); try { await navigator.clipboard.writeText(c.value); $('#ferr').textContent = 'Link copiado.'; } catch (e) { c.select(); $('#ferr').textContent = 'Selecionei o link: copie com Ctrl+C (ou segure o dedo e escolha Copiar).'; } }
+    else if (d.cvaprovar) { const c = (convites || []).find(x => x.id === d.cvaprovar); if (c) { preMembro = { dados: c.dados || {}, convite: c.id }; abrir('membros', null, c.funcao); } }
+    else if (d.cvfim) { const [id, st] = d.cvfim.split(':'); if (!d.ok) { d.ok = 1; t.textContent = st === 'recusado' ? 'Confirmar: recusar e apagar os dados' : 'Confirmar: cancelar o link'; return; } await api.conviteEncerrar(id, st); convites = undefined; render(); }
     else if (d.vercomo !== undefined) { if (coord() && !real) { real = { eu, db, tab }; db = semPessoal(db); eu = Object.assign({}, eu, { perfil: 'Acompanhamento', orgao: d.vercomo || 'SEAB/MDA' }); tab = 'painel'; nav(); render(); scrollTo(0, 0); } }
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
@@ -1863,7 +2011,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   async function iniciar() {
     api = SQC.CONFIG && SQC.CONFIG.supabaseUrl ? SQC.apiSupabase : SQC.apiDemo; SQC.api = api;
     document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
-    document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
+    document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); else if (ev.target.id === 'fpub') aoEnviarConvite(ev).catch(e => { $('#perr').textContent = e.message; }); });
     document.addEventListener('change', ev => {
       const e = ev.target, de = e.dataset || {};
       if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
@@ -1884,6 +2032,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
     try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
     if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) tab = location.hash.slice(1);
+    // abriu por um link de cadastro da equipe: mostra só o formulário público, sem entrar em conta nenhuma
+    const mc = /^#c=([0-9a-f]{64})$/.exec(location.hash || ''); if (mc) { if (api.preparar) api.preparar(); return telaConvite(mc[1]); }
     try {
       eu = await api.iniciar();
       if (api.recuperando) return pedirSenhaNova();

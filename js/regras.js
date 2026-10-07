@@ -288,6 +288,7 @@
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
       if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
+      const mc = validarDadosPessoais(r); if (mc) return mc;
     }
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
@@ -318,6 +319,42 @@
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
     && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
 
+  /* ---------- cadastro da equipe: documentos e endereço (vale na tela da coordenação e no link que a pessoa preenche) ---------- */
+  const soDigitos = s => String(s == null ? '' : s).replace(/\D/g, '');
+  function cpfValido(c) {
+    c = soDigitos(c); if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+    const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += +c[i] * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+    return dv(9) === +c[9] && dv(10) === +c[10];
+  }
+  /* campos que a pessoa pode preencher pelo link (o banco aceita só estes) e os que só a coordenação lê */
+  const CAMPOS_CONVITE = ['nome', 'nome_social', 'cpf', 'pis', 'nascimento', 'telefone', 'email', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf',
+    'vinculo', 'siape', 'organizacao', 'experiencia', 'outra_bolsa', 'arlo', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet', 'socio', 'escolaridade', 'raca_cor', 'renda', 'pessoas_casa', 'lgpd'];
+  const CAMPOS_RESERVADOS = ['cpf', 'pis', 'nascimento', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'uf', 'socio', 'escolaridade', 'raca_cor', 'renda', 'pessoas_casa'];
+  /* guarda documento só com números, UF em maiúsculas, e apaga o questionário se a pessoa não quis responder */
+  function normalizarMembro(r) {
+    ['cpf', 'pis', 'cep'].forEach(k => { if (r[k] != null) r[k] = soDigitos(r[k]); });
+    if (r.uf) r.uf = String(r.uf).toUpperCase().trim();
+    if (!r.socio) { r.socio = false; ['escolaridade', 'raca_cor', 'renda', 'pessoas_casa'].forEach(k => { r[k] = ''; }); }
+    return r;
+  }
+  function validarDadosPessoais(r) {
+    if (r.cpf && !cpfValido(r.cpf)) return 'O CPF informado não é válido. Confira os números.';
+    if (r.pis && soDigitos(r.pis).length !== 11) return 'O PIS/NIS/PASEP tem 11 números.';
+    if (r.cep && soDigitos(r.cep).length !== 8) return 'O CEP tem 8 números.';
+    if (r.nascimento && (r.nascimento < '1900-01-02' || r.nascimento >= iso(new Date()))) return 'Confira a data de nascimento.';
+    if (r.nascimento && r.inicio && r.nascimento >= r.inicio) return 'A data de nascimento não pode ser depois do início da bolsa.';
+    if (r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)) return 'Confira o e-mail.';
+    if (r.renda !== '' && r.renda != null && !(Number(r.renda) >= 0)) return 'A renda precisa ser um número positivo.';
+    if (r.pessoas_casa !== '' && r.pessoas_casa != null && !(Number.isInteger(Number(r.pessoas_casa)) && r.pessoas_casa >= 1 && r.pessoas_casa <= 40)) return 'Pessoas na casa: informe um número de 1 a 40.';
+    return '';
+  }
+  /* o que a pessoa envia pelo link: nome e termo são obrigatórios; o resto é conferido se vier */
+  function validarConvite(r) {
+    if (String(r.nome || '').trim().length < 3) return 'Informe o nome completo.';
+    const m = validarDadosPessoais(r); if (m) return m;
+    if (!r.lgpd) return 'Para enviar, marque que você leu e concorda com o uso dos dados.';
+    return '';
+  }
   /* equipe: quem está em cada função hoje e quem já saiu (fim preenchido e já passado) */
   const ativo = (m, hojeIso) => !m.fim || m.fim > hojeIso;
   function equipePorFuncao(db, funcao, hojeIso) {
@@ -345,5 +382,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

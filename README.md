@@ -45,6 +45,8 @@ supabase/06_item_da_despesa.sql      item do plano na despesa, para a execução
 supabase/07_equipe.sql               cadastro da equipe do projeto, para a aba Equipe (obrigatório)
 supabase/09_ultimos_acessos.sql       último acesso de cada pessoa, para a aba Histórico (obrigatório)
 supabase/08_equipe_dados.sql         mais dados no cadastro da equipe: nome social, SIAPE, outra bolsa, Arlo, LGPD (obrigatório)
+supabase/10_equipe_cadastro_completo.sql  CPF, endereço, questionário e perfil no cadastro da equipe; dados reservados só para a Coordenação (obrigatório)
+supabase/11_convite_cadastro.sql     link de cadastro que a própria pessoa preenche, sem login (obrigatório)
 supabase/tests/                      testes do banco e de estresse num Postgres local
 testes/desempenho/                   desempenho das contas com volume (1x, 10x e 50x)
 testes/unit/                         testes de unidade (npm test)

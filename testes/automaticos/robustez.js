@@ -55,10 +55,25 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await p.click(`[data-del="lotes:${lote.id}"]`); await p.click(`[data-del="lotes:${lote.id}"]`); await p.waitForFunction(a => SQC.app._estado().db.lotes.length === a, antes);
     ok(!(await p.textContent('#view')).includes(lote.codigo), 'excluir confirmado: o registro some da lista');
     // entrega acima do saldo (regra de negócio) e datas
-    await p.click('[data-tab="equipe"]'); await p.click('.vg-b'); await p.fill('#f_nome', X + S); await p.fill('#f_inicio', '2026-10-10'); await p.fill('#f_fim', '2026-10-01'); await p.check('#f_lgpd'); antes = await n(p, 'membros'); await p.click('#fsalvar');
+    await p.click('[data-tab="equipe"]'); await p.click('.vg-b'); await p.click('[data-digitar]'); await p.fill('#f_nome', X + S); await p.fill('#f_inicio', '2026-10-10'); await p.fill('#f_fim', '2026-10-01'); await p.check('#f_lgpd'); antes = await n(p, 'membros'); await p.click('#fsalvar');
     ok(await n(p, 'membros') === antes && /antes do início/.test(await p.textContent('#ferr')), 'desligamento antes do início: recusado'); await p.fill('#f_fim', ''); await p.uncheck('#f_lgpd'); await p.click('#fsalvar');
     ok(await n(p, 'membros') === antes, 'sem o registro de LGPD: não grava'); await p.check('#f_lgpd'); await p.click('#fsalvar'); await fechado(p); ok(await n(p, 'membros') === antes + 1, 'cadastro válido da equipe grava');
     await semXss(p, 'aba Equipe');
+    /* ---------- 2b. link de cadastro: página sem login, uma vez só, e nada vira cadastro sem a coordenação aprovar ---------- */
+    await p.click('.vg-b'); await p.click('[data-gerarlink]'); await p.waitForSelector('#lk_txt'); const link = await p.inputValue('#lk_txt'); await p.click('#dlg [data-fechar]');
+    ok(/#c=[0-9a-f]{64}$/.test(link), 'link de cadastro: código sorteado de 64 caracteres');
+    const q = await p.context().newPage(); q.erros = []; q.on('pageerror', e => q.erros.push(String(e))); await q.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: DEMO })); await q.route(/fonts\./, r => r.fulfill({ contentType: 'text/css', body: '' }));
+    await q.goto(link.replace(/[0-9a-f]{4}$/, '0000')); await q.waitForSelector('#pub:not([hidden])'); ok(!(await q.$('#fpub')) && /não vale mais/.test(await q.textContent('#pub')), 'link de cadastro: código errado não abre formulário');
+    await q.goto(link); await q.reload(); await q.waitForSelector('#fpub');
+    ok(await q.evaluate(() => document.querySelector('#app').hidden && !document.querySelector('#view').innerHTML && !document.querySelector('#f_funcao') && !document.querySelector('#f_inicio') && !document.querySelector('#f_fim')), 'link de cadastro: a página não mostra nada do sistema nem os campos da coordenação');
+    antes = await n(p, 'membros'); await q.fill('#f_nome', X); await q.fill('#f_cpf', '123.456.789-00'); await q.check('#f_lgpd'); await q.click('#penviar'); ok(/CPF/.test(await q.textContent('#perr')), 'link de cadastro: CPF inválido é recusado');
+    await q.fill('#f_cpf', '529.982.247-25'); await q.uncheck('#f_lgpd'); await q.click('#penviar'); ok(/concorda/.test(await q.textContent('#perr')), 'link de cadastro: sem aceitar o termo não envia');
+    await q.check('#f_lgpd'); await q.click('#penviar'); await q.click('#penviar').catch(() => {}); await q.waitForSelector('text=Cadastro enviado');
+    await q.goto(link); await q.reload(); await q.waitForSelector('#pub:not([hidden])'); ok(!(await q.$('#fpub')), 'link de cadastro: o mesmo link não abre de novo depois de usado'); ok(!q.erros.length, 'link de cadastro: sem erro de script'); await q.close();
+    await p.reload(); await p.waitForSelector('#app:not([hidden])'); await p.click('[data-tab="equipe"]'); await p.waitForSelector('[data-cvaprovar]');
+    ok(await n(p, 'membros') === antes, 'link de cadastro: enviar não cria cadastro sozinho'); await semXss(p, 'convite pendente');
+    await p.click('[data-cvaprovar]'); await p.waitForSelector('#dlg[open] #f_cpf'); ok(await p.inputValue('#f_cpf') === '52998224725' && await p.inputValue('#f_nome') === X, 'link de cadastro: a coordenação confere os dados como texto'); await p.click('#fsalvar'); await fechado(p); await p.waitForTimeout(200);
+    ok(await n(p, 'membros') === antes + 1 && !(await p.$('[data-cvaprovar]')), 'link de cadastro: aprovado vira cadastro e o convite some'); await semXss(p, 'cadastro aprovado');
     /* ---------- 3. planilha com conteúdo malicioso e linhas inválidas ---------- */
     await p.click('[data-tab="financeiro"]'); antes = await n(p, 'despesas'); await p.setInputFiles('#imp_arq', path.join(__dirname, '..', 'unit', 'dados', 'solicitacoes_maliciosa.xlsx')); await p.waitForSelector('#dlg[open] [data-impok]');
     await semXss(p, 'prévia da importação'); ok((await p.textContent('#frm')).includes('não consegui ler (2)'), 'importação: valor negativo e data inválida ficam de fora, com aviso');
@@ -74,7 +89,7 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await p.click('[data-sair]'); await p.click('[data-demo="Equipe"]'); await p.waitForFunction(q => !document.querySelector('#app').hidden && document.querySelector('#quem').textContent.length > 0); await p.click('[data-tab="painel"]');
     ok(!(await p.$('[data-tab="historico"]')), 'Equipe: não tem a aba Histórico');
     await p.click('[data-tab="financeiro"]'); ok(!(await p.$('#imp_arq')) && !(await p.$('[data-new="despesas"]')) && !(await p.$('[data-edit^="despesas"]')) && !(await p.$('[data-del^="despesas"]')), 'Equipe: não importa, não lança, não edita nem exclui despesa');
-    await p.click('[data-tab="equipe"]'); ok(!(await p.$('[data-new="membros"]')) && !(await p.$('[data-edit^="membros"]')) && !(await p.$('.ae')), 'Equipe: vê a equipe, sem cadastrar nem ver o acompanhamento externo');
+    await p.click('[data-tab="equipe"]'); ok(!(await p.$('[data-cadeq]')) && !(await p.$('[data-cvaprovar]')) && !(await p.evaluate(() => SQC.app._estado().db.membros.some(m => 'cpf' in m || 'renda' in m || 'logradouro' in m))) && !(await p.$('[data-edit^="membros"]')) && !(await p.$('.ae')), 'Equipe: vê a equipe, sem cadastrar nem ver o acompanhamento externo');
     await p.click('[data-tab="dados"]'); ok(!(await p.$('[data-new="pessoas"]')), 'Equipe: não cadastra acessos');
     const r1 = await p.evaluate(async () => { try { await SQC.apiDemo.salvar('despesas', { id: 'zz1', data: '2026-10-01', etapa: '6.1', rubrica: 'consumo', descricao: 'x', valor: 1, status: 'Pago' }); return 'gravou'; } catch (e) { return e.message; } });
     ok(/permissão/.test(r1), 'Equipe: chamar a gravação de despesa direto, por fora da tela, é recusado');
