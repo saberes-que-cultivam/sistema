@@ -198,6 +198,84 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
     });
   }
+  /* ---------- importação da planilha de solicitações da FUNCERN ----------
+     A planilha é a fonte das despesas: cada solicitação vira (ou atualiza) uma despesa, reconhecida pelo número da solicitação
+     guardado em "doc". O CPF do beneficiário é descartado na leitura e nunca é guardado. */
+  const nrm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const limpo = s => { const t = String(s == null ? '' : s).trim(); return t === '-' ? '' : t; };
+  const DOC_SOL = 'Solicitação FUNCERN ';
+  const numSol = d => { const m = /^Solicitação FUNCERN (\S+)$/.exec(String((d && d.doc) || '')); return m ? m[1] : ''; };
+  function valorPlanilha(x) {
+    if (typeof x === 'number') return x; let t = String(x == null ? '' : x).replace(/[R$\s]/g, '');
+    if (/,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
+    const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+  }
+  function dataPlanilha(x) {
+    const t = String(x == null ? '' : x).trim(); let m;
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t))) return `${m[1]}-${m[2]}-${m[3]}`;
+    if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t))) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    if (/^\d+(\.\d+)?$/.test(t) && +t > 20000 && +t < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.floor(+t) * 864e5).toISOString().slice(0, 10);   // número de série do Excel
+    return '';
+  }
+  /* das abas lidas (SQC.planilha.ler) para solicitações; a linha de títulos é a que tem "ID Solicitação" */
+  function lerSolicitacoes(abas) {
+    const sols = [], erros = [];
+    (abas || []).forEach(aba => {
+      const ic = aba.linhas.findIndex(l => l.some(c => nrm(c) === 'id solicitacao')); if (ic < 0) return;
+      const col = {}; aba.linhas[ic].forEach((c, i) => { col[nrm(c)] = i; });
+      const g = (l, nome) => col[nome] === undefined ? '' : limpo(l[col[nome]]);
+      aba.linhas.slice(ic + 1).forEach((l, k) => {
+        const sol = g(l, 'id solicitacao'); if (!sol) return;
+        const valor = valorPlanilha(g(l, 'valor')), data = dataPlanilha(g(l, 'data solicitacao'));
+        if (!(valor > 0) || !data) { erros.push(`Aba “${aba.nome}”, linha ${ic + k + 2} (solicitação ${sol}): ${!(valor > 0) ? 'valor' : 'data'} não reconhecido.`); return; }
+        sols.push({ sol, aba: aba.nome, tipo: g(l, 'tipo solicitacao'), beneficiario: g(l, 'beneficiario nome'), valor, rubricaTxt: g(l, 'rubrica financeira'), sub: g(l, 'subrubrica financeira'), detalhe: g(l, 'detalhe rubrica'), statusTxt: g(l, 'status') || '(sem status)', data });
+      });
+    });
+    return { sols, erros };
+  }
+  function rubricaDaFuncern(rub, detalhe, tipo) {
+    const r = nrm(rub), d = nrm(detalhe), t = nrm(tipo);
+    if (/\bdoa\b/.test(d) || /\bdoa\b/.test(t)) return 'doa';
+    return /pesquisador/.test(r) ? 'bolsa_pesquisador' : /estudante|discente|aluno/.test(r) ? 'bolsa_estudante' : /diaria/.test(r) ? 'diarias' : /ajuda de custo/.test(r) ? 'ajuda_custo'
+      : /passage|locomocao/.test(r) ? 'passagens' : /pessoa juridica/.test(r) ? 'servicos_pj' : /consumo/.test(r) ? 'consumo' : /equipamento|permanente/.test(r) ? 'equipamentos' : '';
+  }
+  function itemDaFuncern(rubrica, detalhe) {
+    const its = D.DESEMBOLSO.itens.filter(i => i.rubrica === rubrica), d = nrm(detalhe); if (its.length === 1) return its[0].id; if (!d) return '';
+    const x = its.filter(i => nrm(i.nome).includes(d) || d.includes(nrm(i.nome).replace(/^bolsa - /, ''))); return x.length === 1 ? x[0].id : '';
+  }
+  /* como cada status da fundação entra na conta, quando a coordenação ainda não escolheu */
+  function destinoStatus(txt) {
+    const s = nrm(txt);
+    return /cancel|recus|reprov|indefer|devolv|estorn/.test(s) ? 'Ignorar' : /\bpago\b|\bpaga\b|finaliz|conclu|liquid|quitad/.test(s) ? 'Pago' : 'Comprometido';
+  }
+  /* escolhas = { status: { texto: 'Pago' | 'Comprometido' | 'Ignorar' }, etapa: { grupo: id }, rubrica: { grupo: id } }
+     Devolve o que seria feito, sem gravar nada: a tela mostra, a coordenação confirma. */
+  function planoImportacao(db, sols, escolhas) {
+    escolhas = escolhas || {}; const es = escolhas.status || {}, ee = escolhas.etapa || {}, er = escolhas.rubrica || {};
+    const porSol = {}; db.despesas.forEach(d => { const n = numSol(d); if (n) porSol[n] = d; });
+    const grupos = {}, status = {}, linhas = [], vistos = new Set();
+    sols.forEach(s => {
+      if (vistos.has(s.sol)) return; vistos.add(s.sol);
+      const dest = es[s.statusTxt] || destinoStatus(s.statusTxt), ant = porSol[s.sol] || null;
+      const st = status[s.statusTxt] = status[s.statusTxt] || { txt: s.statusTxt, n: 0, total: 0, destino: dest }; st.n++; st.total += s.valor;
+      if (dest === 'Ignorar') { linhas.push({ s, ant, acao: ant ? 'remove' : 'ignora' }); return; }
+      const chave = nrm(s.rubricaTxt) + ' | ' + nrm(s.detalhe), auto = rubricaDaFuncern(s.rubricaTxt, s.detalhe, s.tipo);
+      const rubrica = er[chave] || (ant && ant.rubrica) || auto;
+      const igual = db.despesas.filter(d => numSol(d) && d.rubrica === rubrica && nrm(d.descricao).endsWith('· ' + nrm(s.detalhe))).sort((a, b) => a.data < b.data ? 1 : -1)[0];
+      const etapa = ee[chave] || (ant && ant.etapa) || (igual && igual.etapa) || (rubrica === 'doa' ? '6.3' : '');
+      const g = grupos[chave] = grupos[chave] || { chave, rubricaTxt: s.rubricaTxt, detalhe: s.detalhe, rubricaAuto: auto, rubrica, etapa, n: 0, total: 0 }; g.n++; g.total += s.valor;
+      const item = ant && ant.item && D.DESEMBOLSO.itens.some(i => i.id === ant.item && i.rubrica === rubrica) ? ant.item : itemDaFuncern(rubrica, s.detalhe);
+      const reg = { id: ant ? ant.id : null, data: s.data, etapa, rubrica, item: item || '', descricao: [String(s.tipo).replace(/^Solicitação de /i, ''), s.detalhe].filter((x, i, a) => x && a.indexOf(x) === i).join(' · ') || 'Solicitação',
+        favorecido: s.beneficiario, doc: DOC_SOL + s.sol, valor: s.valor, status: dest === 'Pago' ? 'Pago' : 'Solicitado' };
+      const mudou = !ant || ['data', 'etapa', 'rubrica', 'descricao', 'favorecido', 'status'].some(k => String(ant[k] || '') !== String(reg[k] || '')) || Number(ant.valor) !== reg.valor || String(ant.item || '') !== reg.item;
+      linhas.push({ s, ant, reg, grupo: chave, acao: !ant ? 'nova' : mudou ? 'atualiza' : 'igual' });
+    });
+    const G = Object.values(grupos), conta = a => linhas.filter(l => l.acao === a).length, vale = linhas.filter(l => l.reg);
+    return { linhas, grupos: G, status: Object.values(status), faltam: G.filter(g => !g.rubrica || !g.etapa).length,
+      novas: conta('nova'), atualizadas: conta('atualiza'), iguais: conta('igual'), removidas: conta('remove'), ignoradas: conta('ignora'),
+      pago: vale.filter(l => l.reg.status === 'Pago').reduce((t, l) => t + l.reg.valor, 0), comprometido: vale.filter(l => l.reg.status !== 'Pago').reduce((t, l) => t + l.reg.valor, 0),
+      foraDaPlanilha: db.despesas.filter(d => numSol(d) && !vistos.has(numSol(d))).length, manuais: db.despesas.filter(d => !numSol(d)).length };
+  }
   /* por item do plano (dentro da rubrica): previsto, pago, comprometido e saldo. Só entra a despesa que indica o item;
      "composicao" descreve como o previsto se distribui (meses e valor por mês, quando é sempre o mesmo). */
   function finItens(db, lim) {
@@ -372,7 +450,63 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+})();
+;
+/* ===== planilha.js ===== */
+/* Saberes que Cultivam — leitura de planilha .xlsx no próprio aparelho, sem biblioteca externa.
+   Um .xlsx é um arquivo zip com XML dentro: aqui se abre o zip, se descompacta com o que o navegador já tem
+   (DecompressionStream) e se leem as abas como listas de linhas. O arquivo não é enviado a lugar nenhum. */
+(function () {
+  const G = typeof window !== 'undefined' ? window : globalThis;
+  const SQC = (G.SQC = G.SQC || {});
+  const LIMITE = 5 * 1024 * 1024;
+  const txt = b => new TextDecoder('utf-8').decode(b);
+  const ent = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&');
+  async function inflar(bytes) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()); }
+  /* índice do zip: nome do arquivo interno -> função que devolve o conteúdo */
+  function indice(buf) {
+    const v = new DataView(buf), u = new Uint8Array(buf); let fim = -1;
+    for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (v.getUint32(i, true) === 0x06054b50) { fim = i; break; }
+    if (fim < 0) throw new Error('Este arquivo não é uma planilha .xlsx.');
+    const n = v.getUint16(fim + 10, true); let p = v.getUint32(fim + 16, true); const arqs = {};
+    for (let k = 0; k < n; k++) {
+      if (v.getUint32(p, true) !== 0x02014b50) break;
+      const metodo = v.getUint16(p + 10, true), tam = v.getUint32(p + 20, true), nl = v.getUint16(p + 28, true), el = v.getUint16(p + 30, true), cl = v.getUint16(p + 32, true), local = v.getUint32(p + 42, true);
+      const nome = txt(u.subarray(p + 46, p + 46 + nl));
+      arqs[nome] = async () => { const ini = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true), dados = u.subarray(ini, ini + tam);
+        if (metodo === 0) return dados; if (metodo === 8) return inflar(dados); throw new Error('Planilha compactada de um jeito que o sistema não lê. Salve de novo como .xlsx e tente outra vez.'); };
+      p += 46 + nl + el + cl;
+    }
+    return arqs;
+  }
+  const coluna = ref => { let c = 0; for (const ch of String(ref).replace(/[^A-Z]/gi, '').toUpperCase()) c = c * 26 + ch.charCodeAt(0) - 64; return c - 1; };
+  const textos = x => (String(x).replace(/<rPh[\s\S]*?<\/rPh>/g, '').match(/<t[^>]*>[\s\S]*?<\/t>|<t[^>]*\/>/g) || []).map(t => ent(t.replace(/^<t[^>]*>|<\/t>$/g, '').replace(/^<t[^>]*\/>$/, ''))).join('');
+  /* devolve [{ nome, linhas: [[célula, …], …] }], uma por aba, na ordem da planilha */
+  async function ler(buf) {
+    if (!buf || buf.byteLength > LIMITE) throw new Error('Planilha grande demais (o limite é 5 MB).');
+    const z = indice(buf), abre = async n => z[n] ? txt(await z[n]()) : '';
+    const livro = await abre('xl/workbook.xml'); if (!livro) throw new Error('Este arquivo não é uma planilha .xlsx.');
+    const rels = {}; ((await abre('xl/_rels/workbook.xml.rels')).match(/<Relationship\b[^>]*>/g) || []).forEach(r => { const id = /Id="([^"]+)"/.exec(r), t = /Target="([^"]+)"/.exec(r); if (id && t) rels[id[1]] = t[1].replace(/^\/?xl\//, '').replace(/^\//, ''); });
+    const fixos = ((await abre('xl/sharedStrings.xml')).match(/<si>[\s\S]*?<\/si>|<si\/>/g) || []).map(textos);
+    const abas = [];
+    for (const s of livro.match(/<sheet\b[^>]*>/g) || []) {
+      const nome = ent((/name="([^"]*)"/.exec(s) || [])[1] || ''), rid = (/r:id="([^"]+)"/.exec(s) || [])[1], xml = await abre('xl/' + (rels[rid] || '')); const linhas = [];
+      for (const row of xml.match(/<row\b[^>]*>[\s\S]*?<\/row>/g) || []) {
+        const l = [];
+        for (const m of row.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+          const at = m[1], corpo = m[2] || '', tipo = (/\bt="([^"]+)"/.exec(at) || [])[1], ref = (/\br="([^"]+)"/.exec(at) || [])[1], val = (/<v>([\s\S]*?)<\/v>/.exec(corpo) || [])[1];
+          const c = tipo === 's' ? fixos[+val] : tipo === 'inlineStr' ? textos(corpo) : val === undefined ? '' : tipo === 'str' || tipo === 'b' ? ent(val) : val;
+          l[ref ? coluna(ref) : l.length] = c === undefined ? '' : c;
+        }
+        for (let i = 0; i < l.length; i++) if (l[i] === undefined) l[i] = '';
+        linhas.push(l);
+      }
+      abas.push({ nome, linhas });
+    }
+    return abas;
+  }
+  SQC.planilha = { ler };
 })();
 ;
 /* ===== fila.js ===== */
@@ -916,7 +1050,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
         ['Evidência', g => link(g.link)]] },
-    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
+    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Despesas do projeto', desc: 'Vêm da planilha de solicitações da FUNCERN: suba a planilha atualizada e o sistema mostra o que mudou antes de gravar. Enquanto não estiver paga, a despesa conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
       campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
         ['item', 'Item do plano', 'select', 0, () => [['', 'Sem item indicado']].concat(D.DESEMBOLSO.itens.map(i => [i.id, `${nomeRubrica(i.rubrica)} · ${i.nome}`]))],
         ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor (R$)', 'number', 1],
@@ -947,11 +1081,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const PAGINA = 100, mostrando = {};
   const IC_LAPIS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16v4zM13.500 6.500l4 4"/></svg>';
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+  const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
   function tabela(m) {
     const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" data-del="${m}:${esc(r.id)}">${IC_LIXO}Excluir</button>` : ''}</span>`;
-    return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
+    return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
  <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
   }
   const finTabela = (F, titulo) => `<table><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td>${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td><td class="n">${brl(r.prev)}</td><td class="n">${brl(r.comp)}</td><td class="n">${brl(r.pago)}</td><td class="n">${brl(r.saldo)}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="n">${brl(R.soma(F, 'prev'))}</td><td class="n">${brl(R.soma(F, 'comp'))}</td><td class="n">${brl(R.soma(F, 'pago'))}</td><td class="n">${brl(R.soma(F, 'saldo'))}</td></tr></tbody></table>`;
@@ -1218,6 +1353,49 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
    <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(linha).join('')}
     <div class="rb-tot"><span>Total</span><span>${brl(R.soma(FR, 'prev'))}</span><span>${brl(R.soma(FR, 'pago'))}</span><span>${brl(R.soma(FR, 'comp'))}</span><span><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
    <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>`;
+  }
+  /* ---------- importar a planilha de solicitações da FUNCERN: lê no aparelho, mostra o que vai mudar e só grava depois de confirmar ---------- */
+  let imp = null;
+  const CH_ST = 'sqc-imp-status';
+  const lerLS = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
+  async function aoEscolherPlanilha(arq) {
+    if (!arq) return;
+    try {
+      if (!/\.xlsx$/i.test(arq.name)) throw new Error('Envie a planilha no formato .xlsx, como a FUNCERN exporta.');
+      const L = R.lerSolicitacoes(await SQC.planilha.ler(await arq.arrayBuffer()));
+      if (!L.sols.length) throw new Error('Não encontrei solicitações nesta planilha. Ela precisa ter a coluna “ID Solicitação”, como a exportação da FUNCERN.');
+      imp = { nome: arq.name, sols: L.sols, erros: L.erros, escolhas: { status: lerLS(CH_ST), etapa: {}, rubrica: {} } }; desenharImportacao();
+    } catch (e) { toast(e.message || 'Não consegui ler a planilha.'); }
+  }
+  function desenharImportacao(msg) {
+    const P = imp.plano = R.planoImportacao(db, imp.sols, imp.escolhas); ed = null; $('#frm').className = 'fm';
+    const op = (lista, sel) => lista.map(o => `<option value="${esc(o[0])}"${o[0] === sel ? ' selected' : ''}>${esc(o[1])}</option>`).join('');
+    const n = P.novas + P.atualizadas + P.removidas;
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Importar planilha</span><h2>Solicitações da FUNCERN</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><div class="fm-oque"><span>${esc(imp.nome)}</span><p>Nada é gravado antes de você confirmar. O CPF dos beneficiários não é lido nem guardado. Cada solicitação é reconhecida pelo número: subir a mesma planilha de novo não duplica nada.</p></div>
+      <dl class="imp-r"><div><dt>Novas</dt><dd>${P.novas}</dd></div><div><dt>Atualizadas</dt><dd>${P.atualizadas}</dd></div><div><dt>Sem mudança</dt><dd>${P.iguais}</dd></div><div><dt>Removidas</dt><dd>${P.removidas}</dd></div><div><dt>Pago</dt><dd>${brl(P.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(P.comprometido)}</dd></div></dl>
+      <h3 class="fm-sec">Como cada status da fundação entra na conta</h3>
+      <div class="imp-l">${P.status.map(s => `<div class="imp-i"><div><b>${esc(s.txt)}</b><span class="small">${s.n} solicitação(ões) · ${brl(s.total)}</span></div><select data-imp-st="${esc(s.txt)}" aria-label="Como contar o status ${esc(s.txt)}">${op([['Pago', 'Conta como pago'], ['Comprometido', 'Conta como comprometido'], ['Ignorar', 'Não entra (cancelada)']], s.destino)}</select></div>`).join('')}</div>
+      <h3 class="fm-sec">Etapa do plano de cada tipo de despesa</h3><p class="aj-p">A planilha não traz a etapa do TED. Escolha uma vez por tipo: nas próximas importações o sistema repete a escolha.</p>
+      <div class="imp-l">${P.grupos.map(g => `<div class="imp-i${!g.rubrica || !g.etapa ? ' falta' : ''}"><div><b>${esc(g.detalhe || g.rubricaTxt || 'Sem detalhe')}</b><span class="small">${esc(g.rubricaTxt)} · ${g.n} solicitação(ões) · ${brl(g.total)}</span></div>
+        <span class="imp-s">${g.rubricaAuto ? '' : `<select data-imp-rb="${esc(g.chave)}" aria-label="Rubrica de ${esc(g.detalhe)}">${op([['', 'Escolha a rubrica']].concat(D.RUBRICAS.map(x => [x.id, x.nome])), g.rubrica)}</select>`}<select data-imp-et="${esc(g.chave)}" aria-label="Etapa de ${esc(g.detalhe)}">${op([['', 'Escolha a etapa']].concat(D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])), g.etapa)}</select></span></div>`).join('') || '<p class="small">Nenhuma solicitação a importar.</p>'}</div>
+      ${imp.erros.length ? `<h3 class="fm-sec">Linhas que não consegui ler (${imp.erros.length})</h3><ul class="al">${imp.erros.slice(0, 8).map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul>` : ''}
+      ${P.foraDaPlanilha || P.manuais ? `<p class="note">${P.foraDaPlanilha ? `${P.foraDaPlanilha} despesa(s) importada(s) antes não estão nesta planilha e ficam como estão. ` : ''}${P.manuais ? `${P.manuais} despesa(s) lançada(s) à mão não são alteradas pela importação.` : ''}</p>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert">${esc(msg || (P.faltam ? `Falta escolher a etapa${P.grupos.some(g => !g.rubrica) ? ' ou a rubrica' : ''} de ${P.faltam} tipo(s) de despesa.` : ''))}</div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-impok${P.faltam || !n ? ' disabled' : ''}>${n ? `Gravar ${n} alteração(ões)` : 'Nada a gravar'}</button></div></div>`;
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  async function confirmarImportacao(bt) {
+    const P = imp.plano; bt.disabled = true; let feitas = 0; const total = P.novas + P.atualizadas + P.removidas;
+    try {
+      for (const l of P.linhas) {
+        if (l.acao === 'nova') await api.salvar('despesas', Object.assign({}, l.reg, { id: SQC.novoId() }), { novo: true });
+        else if (l.acao === 'atualiza') await api.salvar('despesas', Object.assign({}, l.ant, l.reg), { novo: false, base: l.ant.atualizado_em || null });
+        else if (l.acao === 'remove') await api.excluir('despesas', l.ant.id);
+        else continue;
+        bt.textContent = `Gravando ${++feitas} de ${total}…`;
+      }
+      db = await api.carregar(); $('#dlg').close(); imp = null; render(); toast(`Planilha importada: ${P.novas} nova(s), ${P.atualizadas} atualizada(s), ${P.removidas} removida(s).`);
+    } catch (e) { try { db = await api.carregar(); } catch (x) { /* fica com o que tinha */ } render(); desenharImportacao(`Parou depois de ${feitas} de ${total}: ${e.message} O que já foi gravado continua gravado; corrija e confirme de novo.`); }
   }
   /* o mesmo gasto pelas metas do TED: meta abre as etapas; etapa abre a composição e os valores (mesmo desenho da tabela por rubrica) */
   function tabelaMetas(F) {
@@ -1555,6 +1733,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
+    else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
@@ -1588,7 +1767,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     api = SQC.CONFIG && SQC.CONFIG.supabaseUrl ? SQC.apiSupabase : SQC.apiDemo; SQC.api = api;
     document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
-    document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+    document.addEventListener('change', ev => {
+      const e = ev.target, de = e.dataset || {};
+      if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
+      if (imp && (de.impSt !== undefined || de.impEt !== undefined || de.impRb !== undefined)) {
+        if (de.impSt !== undefined) { imp.escolhas.status[de.impSt] = e.value; try { localStorage.setItem(CH_ST, JSON.stringify(imp.escolhas.status)); } catch (x) {} }
+        else if (de.impEt !== undefined) imp.escolhas.etapa[de.impEt] = e.value; else imp.escolhas.rubrica[de.impRb] = e.value;
+        const foco = Object.keys(de).find(k => /^imp/.test(k)), val = de[foco]; desenharImportacao();
+        const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
+      } if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
     document.addEventListener('keydown', ev => { const t = ev.target; if (!t.matches || !t.matches('.sg [role="tab"]')) return; const ordem = ['entrar', 'primeiro'], i = ordem.indexOf(authModo);

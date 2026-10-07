@@ -4,7 +4,7 @@
    Rode SEMPRE depois de mudar qualquer arquivo em js/ (menos o config.js, que fica separado). */
 const fs = require('fs'); const path = require('path');
 const raiz = path.join(__dirname, '..');
-const ORDEM = ['vendor/supabase-2.117.2.js', 'dados.js', 'geo.js', 'regras.js', 'fila.js', 'api-demo.js', 'api-supabase.js', 'sessao.js', 'app.js'];
+const ORDEM = ['vendor/supabase-2.117.2.js', 'dados.js', 'geo.js', 'regras.js', 'planilha.js', 'fila.js', 'api-demo.js', 'api-supabase.js', 'sessao.js', 'app.js'];
 function montar() {
   return '/* GERADO por ferramentas/montar.js — não edite aqui: edite os arquivos de js/ e rode a montagem de novo. */\n'
     + ORDEM.map(f => `/* ===== ${f} ===== */\n` + fs.readFileSync(path.join(raiz, 'js', f), 'utf8').replace(/\s*$/, '') + '\n;\n').join('');
