@@ -911,3 +911,4 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 /* botões "Cadastrar …" da aba Equipe: todos com a mesma largura e altura (v45) */
 .vg-b{width:320px;max-width:100%;justify-content:flex-start} .eq .acts{justify-content:flex-end}
 @media (max-width:640px){.vg-b{width:100%}}
+.eq .acts{padding-right:29px} @media (max-width:640px){.eq .acts{padding-right:0}}
