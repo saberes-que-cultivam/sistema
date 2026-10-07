@@ -159,9 +159,9 @@
     const prazoTxt = p => { const d = R.dias(new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), pd(p)); return d < 0 ? `venceu há ${-d} dia${d === -1 ? '' : 's'}` : d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`; }; const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
     const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
-      if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span>Meta ${mm} · ${D.METAS[mm]}</span><span></span><span></span></div>`; }
+      if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span><b aria-hidden="true">M${mm}</b>Meta ${mm} · ${D.METAS[mm]}</span></div>`; }
       const a = pos(pd(e.ini)), b = pos(new Date(R.fimMes(e.fim).getTime() + 864e5)), f = feito(e), late = R.venceu(e, hoje()) && f < e.q;
-      g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${late ? 'late' : ''}" style="left:${a}%;width:${b - a}%"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div><div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n">${f}/${e.q}</div></div>`;
+      g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${f >= e.q ? 'ok' : late ? 'late' : hoje() < pd(e.ini) ? 'fut' : ''}" style="left:${a}%;width:${b - a}%" title="${mesAno(e.ini)} a ${mesAno(e.fim)}"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div><div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n"><span><b>${f}</b> de ${e.q}</span>${f >= e.q ? '<small class="ok">concluída</small>' : late ? '<small class="bad">vencida</small>' : hoje() < pd(e.ini) ? '<small>não começou</small>' : '<small>em curso</small>'}</div></div>`;
     });
     /* metas do plano de trabalho: uma linha por meta (barra = realizado, traço = previsto até o mês passado); abrir mostra as etapas */
     const mesCurto = d => d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2);
@@ -209,8 +209,9 @@
  <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Datas do plano de trabalho: início e prazo das etapas, parcela a receber e fim da vigência.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
  </div>
  ${mapa()}
- <div><div class="head"><div><h2>Cronograma físico do plano de trabalho</h2><p>Barra cinza: janela da etapa. Preenchimento: quanto da quantidade prevista já foi registrado. Linha âmbar: hoje.</p></div></div>
- <div class="panel scroll" style="margin-top:10px"><div class="gantt"><div class="g-row"><span></span><div class="g-months">${meses.map(m => `<span>${m}</span>`).join('')}</div><span></span></div>${g}</div></div></div>
+ <section class="panel mts gt" aria-label="Cronograma físico do plano de trabalho"><div class="mts-cab"><h2>Cronograma físico do plano de trabalho</h2>
+  <p class="g-leg"><span><i class="g-k jan"></i>período da etapa</span><span><i class="g-k fei"></i>já registrado</span><span><i class="g-k fut"></i>ainda não começou</span><span><i class="g-k late"></i>prazo vencido</span><span><i class="g-k hj"></i>hoje</span></p></div>
+  <div class="scroll"><div class="gantt"><div class="g-row cab"><span></span><div class="g-months">${meses.map((m, i) => `<span class="${i === (hoje().getFullYear() - G0.getFullYear()) * 12 + hoje().getMonth() - G0.getMonth() ? 'g-at' : ''}">${m}</span>`).join('')}<i class="g-hj" style="left:${pos(hoje())}%">hoje</i></div><span></span></div>${g}</div></div></section>
  <div class="two">
   <div class="panel box"><h3>Produção e distribuição</h3>${Object.keys(prod).length ? `<div class="scroll"><table><thead><tr><th>Tipo</th><th class="n">Produzido</th><th class="n">Distribuído</th></tr></thead><tbody>${Object.entries(prod).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${num(v[0])} ${esc(v[2])}</td><td class="n">${num(v[1])} ${esc(v[2])}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small">Nenhum lote registrado.</div>'}</div>
   <div class="panel box"><h3>Indicadores para a avaliação (Meta 5)</h3><dl class="kv">
