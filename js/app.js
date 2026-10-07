@@ -124,10 +124,12 @@
   }
   /* listas longas aparecem de 100 em 100 (as mais recentes primeiro): desenhar milhares de linhas trava celular simples */
   const PAGINA = 100, mostrando = {};
+  const IC_LAPIS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16v4zM13.500 6.500l4 4"/></svg>';
+  const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   function tabela(m) {
     const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
-    const acoes = r => `${pode ? `<button class="b s" data-edit="${m}:${esc(r.id)}">Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? ` <button class="b s d" data-del="${m}:${esc(r.id)}">Excluir</button>` : ''}`;
+    const acoes = r => `<span class="ac">${pode ? `<button class="ab" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" data-del="${m}:${esc(r.id)}">${IC_LIXO}Excluir</button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
  <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
   }
