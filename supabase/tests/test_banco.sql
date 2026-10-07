@@ -206,4 +206,57 @@ do $$ begin
   insert into public.eventos (tipo, data, tema) values ('Reunião', '2026-10-01', 'ok');
 end $$;
 reset role;
+-- ===== scripts 06 a 09: item da despesa, equipe (membros) e últimos acessos =====
+-- coordenação: grava membro e despesa com item; formato errado e período invertido são recusados
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+insert into public.membros (id, funcao, nome, inicio, lgpd) values ('eeeeeeee-0000-4000-8000-000000000001', 'coordenacao', 'Membro <b>Teste</b>''; drop table membros;--', '2026-08-01', true);
+insert into public.despesas (data, etapa, rubrica, item, descricao, valor) values ('2026-10-02', '6.2', 'bolsa_pesquisador', 'i01', 'Bolsa teste', 2000);
+do $$ declare n int; begin
+  begin insert into public.membros (funcao, nome, inicio) values ('diretor', 'X', '2026-08-01'); raise exception 'FALHOU: aceitou função fora da lista';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, inicio, fim) values ('auxiliar', 'X', '2026-08-01', '2026-07-01'); raise exception 'FALHOU: aceitou desligamento antes do início';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, inicio, arlo) values ('auxiliar', 'X', '2026-08-01', 'talvez'); raise exception 'FALHOU: aceitou valor fora de Sim/Não';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, inicio) values ('auxiliar', '   ', '2026-08-01'); raise exception 'FALHOU: aceitou nome em branco';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.despesas (data, etapa, rubrica, item, descricao, valor) values ('2026-10-02', '6.2', 'consumo', 'qualquer', 'x', 1); raise exception 'FALHOU: aceitou item da despesa fora do formato';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  if not exists (select 1 from public.membros where nome like 'Membro <b>Teste</b>%') then raise exception 'FALHOU: texto com aspas e marcação não foi guardado como texto'; end if;
+  select count(*) into n from public.ultimos_acessos(); if n < 3 then raise exception 'FALHOU: coordenação não recebeu os últimos acessos'; end if;
+  if not exists (select 1 from public.auditoria where tabela = 'membros' and acao = 'INSERT') then raise exception 'FALHOU: cadastro de membro não entrou no histórico'; end if;
+end $$;
+reset role;
+-- equipe: lê a equipe, mas não inclui, não altera, não exclui, e não recebe os últimos acessos
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare n int; begin
+  if not exists (select 1 from public.membros) then raise exception 'FALHOU: equipe não lê a equipe'; end if;
+  begin insert into public.membros (funcao, nome, inicio) values ('discente', 'Intruso', '2026-08-01'); raise exception 'FALHOU: equipe cadastrou membro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  update public.membros set nome = 'alterado'; get diagnostics n = row_count; if n > 0 then raise exception 'FALHOU: equipe alterou membro'; end if;
+  delete from public.membros; get diagnostics n = row_count; if n > 0 then raise exception 'FALHOU: equipe excluiu membro'; end if;
+  select count(*) into n from public.ultimos_acessos(); if n > 0 then raise exception 'FALHOU: equipe recebeu os últimos acessos'; end if;
+end $$;
+reset role;
+-- acompanhamento (SEAB/MDA): não lê a equipe nem os últimos acessos, e não grava
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ declare n int; begin
+  select count(*) into n from public.membros; if n > 0 then raise exception 'FALHOU: acompanhamento leu a equipe'; end if;
+  select count(*) into n from public.ultimos_acessos(); if n > 0 then raise exception 'FALHOU: acompanhamento recebeu os últimos acessos'; end if;
+  begin insert into public.membros (funcao, nome, inicio) values ('discente', 'Intruso', '2026-08-01'); raise exception 'FALHOU: acompanhamento cadastrou membro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+-- sem login: nada da equipe nem dos acessos
+set role anon;
+do $$ declare n int; begin
+  begin select count(*) into n from public.membros; raise exception 'FALHOU: sem login leu a equipe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin select count(*) into n from public.ultimos_acessos(); raise exception 'FALHOU: sem login chamou os últimos acessos';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;
