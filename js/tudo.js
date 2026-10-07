@@ -908,7 +908,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
-  const TABS = [['painel', 'Painel'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['entregas', 'Entregas'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
+  const TABS = [['painel', 'Visão geral'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['entregas', 'Entregas'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
   /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
   const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados'];
   const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS;
@@ -1244,7 +1244,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   function dados() {
     if (fora()) return `<div class="head"><div><h2>Dados</h2><p>O seu acesso é de acompanhamento: consulta em tempo real, sem alterar nada.</p></div></div>
- <div class="panel box"><h3>O que este acesso mostra</h3><ul class="al"><li><span class="chip ok">Mostra</span><span>Painel de execução, biofábricas e aquisições, lotes produzidos e distribuídos, capacitações e dias de campo, entregas do plano, despesas por meta e por rubrica, e o relatório de execução por período (aba Relatórios, com opção de imprimir).</span></li>
+ <div class="panel box"><h3>O que este acesso mostra</h3><ul class="al"><li><span class="chip ok">Mostra</span><span>Visão geral da execução, biofábricas e aquisições, lotes produzidos e distribuídos, capacitações e dias de campo, entregas do plano, despesas por meta e por rubrica, e o relatório de execução por período (aba Relatórios, com opção de imprimir).</span></li>
   <li><span class="chip">Não mostra</span><span>Nome, comunidade e demais dados pessoais de agricultoras e agricultores (Lei Geral de Proteção de Dados); anotações livres das visitas; e-mails da equipe; histórico interno de alterações.</span></li>
   <li><span class="chip f">Atenção</span><span>Os valores financeiros são os lançados pela equipe neste sistema. O registro oficial é o da FUNCERN e o do TransfereGov.</span></li></ul></div>
  <div class="panel box"><h3>Planilhas (.csv)</h3><div class="acts">${['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div></div>
