@@ -653,3 +653,12 @@ nav button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 .medidor.fino{height:8px;border-radius:4px;margin-top:8px;background:color-mix(in srgb,var(--kc) 20%,var(--surface))}
 .dx-kpi-p{font-size:var(--t-base)} .dx-kpi-s{font-size:var(--t-sm)}
 @media (max-width:640px){.dx-exec{padding:24px 16px}.dx-kpi{padding:20px 14px;gap:8px}.dx-kpi-r{min-height:0;font-size:var(--t-md)}.dx-anel svg{width:48px;height:48px}.dx-kpi-topo{gap:10px}}
+
+/* ---------- foco de teclado em todo o sistema (v25): o mesmo anel verde da tela de entrada ---------- */
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+:is(a,summary,[tabindex]):focus-visible{border-radius:6px}
+:is(input,select,textarea):focus-visible,.fm input:focus,.fm select:focus,.fm textarea:focus{outline:3px solid var(--accent);outline-offset:2px;border-color:var(--accent)}
+.tb:focus-visible,.pe-b:focus-visible,header.top :focus-visible,footer :focus-visible{outline:3px solid var(--topo-ink);outline-offset:3px}
+/* o menu rola para o lado e cortaria um anel externo: ali o anel fica por dentro, com fundo verde-claro */
+nav button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;border-radius:8px;background:var(--accent-soft);color:var(--txt-1);border-bottom-color:transparent}
+.scroll :focus-visible,.dx-topo :focus-visible,dialog :is(button,summary,a):focus-visible{outline-offset:1px}
