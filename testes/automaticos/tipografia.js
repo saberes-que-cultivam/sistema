@@ -27,7 +27,7 @@ const medir = () => {
     const fam = st.fontFamily.split(',')[0].replace(/["']/g, '').trim(), marca = el.matches('.marca-nome, .ent-marca b, .pe-m b');
     if (marca ? fam !== 'Lora' : fam !== 'Manrope') prob.push('FONTE ' + fam + ': ' + quem(el));
     if (st.fontStyle === 'italic') prob.push('ITÁLICO: ' + quem(el));
-    if (st.textTransform === 'uppercase' && !el.matches('th, .eyebrow, .fm-eye, .rb-h span, .at-col span, .ng-r, .dx-rot, .rb-x dt, .imp-r dt')) prob.push('MAIÚSCULAS: ' + quem(el));
+    if (st.textTransform === 'uppercase' && !el.matches('th, .eyebrow, .fm-eye, .rb-h span, .at-col span, .ng-r, .dx-rot, .rb-x dt, .imp-r dt, .ae-h span')) prob.push('MAIÚSCULAS: ' + quem(el));
     // cortado: conteúdo maior que a caixa numa caixa que esconde o excesso, ou texto saindo pela direita da tela
     if (!sv && el.scrollWidth > el.clientWidth + 1 && ['hidden', 'clip'].includes(st.overflowX) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) prob.push('CORTADO: ' + quem(el));
     const rolavel = (() => { for (let e = el.parentElement; e; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o === 'auto' || o === 'scroll') return true; } return false; })();

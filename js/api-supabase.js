@@ -28,6 +28,7 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
+    membros: ['funcao', 'nome', 'vinculo', 'email', 'telefone', 'municipio', 'inicio', 'fim', 'motivo', 'obs'],
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
   const BOOL = ['ativo', 'kit'].concat(D.CHECK.map(c => c[0]));
@@ -42,6 +43,7 @@
     let tudo = [];
     for (let de = 0; de < 100000;) {
       const { data, error } = await sb.from(tabela).select('*').order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
       if (error) throw erro(error);
       tudo = tudo.concat(data || []); de += (data || []).length;
       if (!data || data.length < 1000) break;
@@ -113,7 +115,7 @@
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
         const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'membros' ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         guardar(CHAVE_DADOS, db); guardar(CHAVE_QUANDO, Date.now()); this.offline = false; return db;
       } catch (e) {

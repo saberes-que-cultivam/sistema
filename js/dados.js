@@ -88,6 +88,6 @@
     TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Outro'],
     /* janela do cronograma na tela: jul/2026 a jul/2027 (13 meses) */
     G0: '2026-07-01', G1: '2027-08-01',
-    TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas']
+    TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas', 'membros']
   };
 })();

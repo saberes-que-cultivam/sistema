@@ -282,6 +282,12 @@
       if (n(r.mulheres) > n(r.part)) return 'O número de mulheres não pode passar do total de participantes.';
     }
     if (tabela === 'agricultores' && r.kit && !r.kitdata) return 'Informe a data da entrega do kit.';
+    if (tabela === 'membros') {
+      if (!String(r.nome || '').trim()) return 'Informe o nome.';
+      if (!['coordenacao', 'auxiliar', 'discente'].includes(r.funcao)) return 'Escolha a função.';
+      if (!r.inicio) return 'Informe a data de início.';
+      if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
+    }
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
       if (!D.RUBRICAS.some(x => x.id === r.rubrica)) return 'Escolha a rubrica.';
@@ -304,13 +310,19 @@
   const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => db[c].some(x => x[k] === id)).map(([c]) => c);
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
-  const RESTRITAS = ['despesas', 'pessoas'];   // só a coordenação grava
+  const RESTRITAS = ['despesas', 'pessoas', 'membros'];   // só a coordenação grava
   /* perfil Acompanhamento (SEAB/MDA) só lê */
   const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela)));
   /* excluir: a coordenação exclui tudo; a equipe, só o que ela mesma lançou (nunca despesas nem acessos) */
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
     && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
 
+  /* equipe: quem está em cada função hoje e quem já saiu (fim preenchido e já passado) */
+  const ativo = (m, hojeIso) => !m.fim || m.fim > hojeIso;
+  function equipePorFuncao(db, funcao, hojeIso) {
+    const L = (db.membros || []).filter(m => m.funcao === funcao);
+    return { ativos: L.filter(m => ativo(m, hojeIso)).sort((a, b) => a.inicio < b.inicio ? -1 : 1), antigos: L.filter(m => !ativo(m, hojeIso)).sort((a, b) => a.fim < b.fim ? 1 : -1) };
+  }
   const MSG_CONFLITO = 'Este registro foi alterado por outra pessoa depois que você abriu. Feche, confira como ficou e faça a sua alteração de novo.';
   const MSG_EXCLUIDO = 'Este registro foi excluído por outra pessoa enquanto você editava.';
   /* ---------- mensagens de erro do servidor em português de gente ---------- */
@@ -332,5 +344,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
