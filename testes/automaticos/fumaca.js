@@ -21,7 +21,8 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
     await p.click(`[data-tab="${t}"]`); ok((await p.textContent('#view')).length > 80, 'aba ' + t + ' abre');
     if (FOTOS) await p.screenshot({ path: `${FOTOS}/${t}.png`, fullPage: true });
   }
-  ok((await p.textContent('#view')).includes('R$ 400.000,00'), 'painel mostra o valor total do TED');
+  ok((await p.textContent('#view')).includes('Metas do plano de trabalho') && (await p.textContent('#view')).includes('Próximos marcos'), 'painel mostra as metas e os próximos marcos');
+  await p.click('[data-tab="financeiro"]'); ok((await p.textContent('#view')).includes('R$ 400.000,00'), 'financeiro mostra o valor total do TED');
   // lote novo -> entrega acima do saldo é recusada -> entrega dentro do saldo passa
   await p.click('[data-tab="lotes"]'); await p.click('[data-new="lotes"]');
   await p.selectOption('#f_unidade', { index: 1 }); await p.selectOption('#f_tipo', 'Bokashi'); ok((await p.inputValue('#f_dias')) === '15', 'tipo do lote preenche os dias');
