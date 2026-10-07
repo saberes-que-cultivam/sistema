@@ -823,3 +823,5 @@ td.a{width:1%;padding-left:8px}
 .ab.d{background:none;color:var(--txt-3)} .ab.d:hover{background:var(--bad-soft);color:var(--bad)}
 @media (max-width:640px){td{padding:12px}.ac{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){tbody tr,.ab{transition:none}}
+/* Excluir no mesmo formato do Editar, em vermelho suave (v37) */
+.ab.d{background:var(--bad-soft);color:var(--bad)} .ab.d:hover{background:var(--bad);color:var(--surface)}
