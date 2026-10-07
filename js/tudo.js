@@ -912,7 +912,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
   const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados'];
   const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS;
-  function nav() { $('#tabs').innerHTML = abas().map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join(''); }
+  /* menu superior em grupos (rótulo em cima, abas embaixo); grupo sem nenhuma aba para o perfil não aparece */
+  const GRUPOS = [['Gestão', ['painel', 'entregas', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'dados']]];
+  function nav() {
+    const tem = abas();
+    $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
+    const s = $('#tabs [aria-selected="true"]'); if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
   /* listas longas aparecem de 100 em 100 (as mais recentes primeiro): desenhar milhares de linhas trava celular simples */
   const PAGINA = 100, mostrando = {};
   function tabela(m) {

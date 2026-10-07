@@ -617,3 +617,17 @@ ul.ent-uf i{width:24px;height:24px;font:700 var(--t-2xs)/1 var(--body);font-styl
 @media (prefers-reduced-motion:reduce){.sg button,.bt,.bt .seta,.cp-olho,#auth .cp input{transition:none}.bt:hover .seta{transform:none}.bt:active{transform:none}}
 /* opção do seletor com o foco do teclado mas ainda não escolhida: fundo verde-claro (Enter ou Espaço escolhe) */
 .sg button[aria-selected="false"]:focus-visible{background:var(--accent-soft);color:var(--txt-1)}
+
+/* ---------- menu superior em grupos (v23): rótulo do grupo em cima, abas embaixo, traço entre os grupos ---------- */
+nav .wrap{gap:0;align-items:stretch;padding-top:16px;scrollbar-width:none} nav .wrap::-webkit-scrollbar{display:none}
+.ng{flex:none;display:flex;flex-direction:column;gap:8px;padding:0 14px;border-left:1px solid var(--line)}
+.ng:first-child{padding-left:0;border-left:0} .ng:last-child{padding-right:0}
+.ng-r{font:600 var(--t-2xs)/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--txt-2);padding:0 6px}
+.ng-a{display:flex;gap:0}
+nav button{font-size:var(--t-base);font-weight:500;color:var(--txt-2);padding:8px 6px 12px;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;white-space:nowrap;transition:color .15s,border-color .15s}
+nav button:hover{color:var(--txt-1);border-bottom-color:var(--line)}
+nav button[aria-selected="true"]{color:var(--txt-1);font-weight:600;border-bottom-color:var(--accent)}
+nav button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+@media (max-width:860px){nav .wrap{padding-top:12px}.ng{padding:0 12px}nav button{font-size:var(--t-md);padding:8px 8px 10px}}
+@media (prefers-reduced-motion:reduce){nav button{transition:none}}
+@media (max-width:1220px){.ng{padding:0 10px}nav button{font-size:var(--t-md)}}
