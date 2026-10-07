@@ -631,3 +631,25 @@ nav button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 @media (max-width:860px){nav .wrap{padding-top:12px}.ng{padding:0 12px}nav button{font-size:var(--t-md);padding:8px 8px 10px}}
 @media (prefers-reduced-motion:reduce){nav button{transition:none}}
 @media (max-width:1220px){.ng{padding:0 10px}nav button{font-size:var(--t-md)}}
+
+/* ---------- cabeçalho dos indicadores (v24): percentual em destaque, anéis e barras na cor de cada indicador ---------- */
+:root{--t-num:clamp(44px,5.4vw,72px)}   /* só o percentual grande do cabeçalho do painel e do financeiro */
+.dx-topo{border-radius:20px}
+@media (min-width:981px){.dx-topo:not(.so){grid-template-columns:minmax(300px,1.4fr) minmax(0,4fr)}}
+.dx-exec{gap:16px;padding:32px}
+.dx-rot{font:700 var(--t-xs)/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--txt-1)}
+.dx-exec-num b{font:800 var(--t-num)/.95 var(--body);letter-spacing:-.04em;display:block}
+.dx-exec .chip{display:inline-flex;align-items:center;gap:8px;padding:4px 12px;font-size:var(--t-md);font-weight:600}
+.dx-exec .chip::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
+.dx-exec .medidor{height:14px;border-radius:7px}
+.dx-exec-sub{font-size:var(--t-md)}
+.dx-como summary{font-size:var(--t-sm)}
+.dx-kpi{gap:12px;padding:32px 24px}
+.dx-anel svg{width:56px;height:56px} .dx-anel circle{stroke-width:5}
+.dx-anel .tr{stroke:color-mix(in srgb,var(--kc) 28%,var(--surface))}
+.dx-kpi-n b,.dx-kpis.fin .dx-kpi-n b{font:700 var(--t-h1)/1 var(--body);letter-spacing:-.03em}
+.dx-kpi-r{font:600 var(--t-lg)/1.3 var(--body);min-height:2.6em}
+.dx-kpis.fin .dx-kpi-r{min-height:0}
+.medidor.fino{height:8px;border-radius:4px;margin-top:8px;background:color-mix(in srgb,var(--kc) 20%,var(--surface))}
+.dx-kpi-p{font-size:var(--t-base)} .dx-kpi-s{font-size:var(--t-sm)}
+@media (max-width:640px){.dx-exec{padding:24px 16px}.dx-kpi{padding:20px 14px;gap:8px}.dx-kpi-r{min-height:0;font-size:var(--t-md)}.dx-anel svg{width:48px;height:48px}.dx-kpi-topo{gap:10px}}
