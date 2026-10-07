@@ -80,6 +80,84 @@
       return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
     });
   }
+  /* ---------- importação da planilha de solicitações da FUNCERN ----------
+     A planilha é a fonte das despesas: cada solicitação vira (ou atualiza) uma despesa, reconhecida pelo número da solicitação
+     guardado em "doc". O CPF do beneficiário é descartado na leitura e nunca é guardado. */
+  const nrm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const limpo = s => { const t = String(s == null ? '' : s).trim(); return t === '-' ? '' : t; };
+  const DOC_SOL = 'Solicitação FUNCERN ';
+  const numSol = d => { const m = /^Solicitação FUNCERN (\S+)$/.exec(String((d && d.doc) || '')); return m ? m[1] : ''; };
+  function valorPlanilha(x) {
+    if (typeof x === 'number') return x; let t = String(x == null ? '' : x).replace(/[R$\s]/g, '');
+    if (/,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
+    const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+  }
+  function dataPlanilha(x) {
+    const t = String(x == null ? '' : x).trim(); let m;
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t))) return `${m[1]}-${m[2]}-${m[3]}`;
+    if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t))) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    if (/^\d+(\.\d+)?$/.test(t) && +t > 20000 && +t < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.floor(+t) * 864e5).toISOString().slice(0, 10);   // número de série do Excel
+    return '';
+  }
+  /* das abas lidas (SQC.planilha.ler) para solicitações; a linha de títulos é a que tem "ID Solicitação" */
+  function lerSolicitacoes(abas) {
+    const sols = [], erros = [];
+    (abas || []).forEach(aba => {
+      const ic = aba.linhas.findIndex(l => l.some(c => nrm(c) === 'id solicitacao')); if (ic < 0) return;
+      const col = {}; aba.linhas[ic].forEach((c, i) => { col[nrm(c)] = i; });
+      const g = (l, nome) => col[nome] === undefined ? '' : limpo(l[col[nome]]);
+      aba.linhas.slice(ic + 1).forEach((l, k) => {
+        const sol = g(l, 'id solicitacao'); if (!sol) return;
+        const valor = valorPlanilha(g(l, 'valor')), data = dataPlanilha(g(l, 'data solicitacao'));
+        if (!(valor > 0) || !data) { erros.push(`Aba “${aba.nome}”, linha ${ic + k + 2} (solicitação ${sol}): ${!(valor > 0) ? 'valor' : 'data'} não reconhecido.`); return; }
+        sols.push({ sol, aba: aba.nome, tipo: g(l, 'tipo solicitacao'), beneficiario: g(l, 'beneficiario nome'), valor, rubricaTxt: g(l, 'rubrica financeira'), sub: g(l, 'subrubrica financeira'), detalhe: g(l, 'detalhe rubrica'), statusTxt: g(l, 'status') || '(sem status)', data });
+      });
+    });
+    return { sols, erros };
+  }
+  function rubricaDaFuncern(rub, detalhe, tipo) {
+    const r = nrm(rub), d = nrm(detalhe), t = nrm(tipo);
+    if (/\bdoa\b/.test(d) || /\bdoa\b/.test(t)) return 'doa';
+    return /pesquisador/.test(r) ? 'bolsa_pesquisador' : /estudante|discente|aluno/.test(r) ? 'bolsa_estudante' : /diaria/.test(r) ? 'diarias' : /ajuda de custo/.test(r) ? 'ajuda_custo'
+      : /passage|locomocao/.test(r) ? 'passagens' : /pessoa juridica/.test(r) ? 'servicos_pj' : /consumo/.test(r) ? 'consumo' : /equipamento|permanente/.test(r) ? 'equipamentos' : '';
+  }
+  function itemDaFuncern(rubrica, detalhe) {
+    const its = D.DESEMBOLSO.itens.filter(i => i.rubrica === rubrica), d = nrm(detalhe); if (its.length === 1) return its[0].id; if (!d) return '';
+    const x = its.filter(i => nrm(i.nome).includes(d) || d.includes(nrm(i.nome).replace(/^bolsa - /, ''))); return x.length === 1 ? x[0].id : '';
+  }
+  /* como cada status da fundação entra na conta, quando a coordenação ainda não escolheu */
+  function destinoStatus(txt) {
+    const s = nrm(txt);
+    return /cancel|recus|reprov|indefer|devolv|estorn/.test(s) ? 'Ignorar' : /\bpago\b|\bpaga\b|finaliz|conclu|liquid|quitad/.test(s) ? 'Pago' : 'Comprometido';
+  }
+  /* escolhas = { status: { texto: 'Pago' | 'Comprometido' | 'Ignorar' }, etapa: { grupo: id }, rubrica: { grupo: id } }
+     Devolve o que seria feito, sem gravar nada: a tela mostra, a coordenação confirma. */
+  function planoImportacao(db, sols, escolhas) {
+    escolhas = escolhas || {}; const es = escolhas.status || {}, ee = escolhas.etapa || {}, er = escolhas.rubrica || {};
+    const porSol = {}; db.despesas.forEach(d => { const n = numSol(d); if (n) porSol[n] = d; });
+    const grupos = {}, status = {}, linhas = [], vistos = new Set();
+    sols.forEach(s => {
+      if (vistos.has(s.sol)) return; vistos.add(s.sol);
+      const dest = es[s.statusTxt] || destinoStatus(s.statusTxt), ant = porSol[s.sol] || null;
+      const st = status[s.statusTxt] = status[s.statusTxt] || { txt: s.statusTxt, n: 0, total: 0, destino: dest }; st.n++; st.total += s.valor;
+      if (dest === 'Ignorar') { linhas.push({ s, ant, acao: ant ? 'remove' : 'ignora' }); return; }
+      const chave = nrm(s.rubricaTxt) + ' | ' + nrm(s.detalhe), auto = rubricaDaFuncern(s.rubricaTxt, s.detalhe, s.tipo);
+      const rubrica = er[chave] || (ant && ant.rubrica) || auto;
+      const igual = db.despesas.filter(d => numSol(d) && d.rubrica === rubrica && nrm(d.descricao).endsWith('· ' + nrm(s.detalhe))).sort((a, b) => a.data < b.data ? 1 : -1)[0];
+      const etapa = ee[chave] || (ant && ant.etapa) || (igual && igual.etapa) || (rubrica === 'doa' ? '6.3' : '');
+      const g = grupos[chave] = grupos[chave] || { chave, rubricaTxt: s.rubricaTxt, detalhe: s.detalhe, rubricaAuto: auto, rubrica, etapa, n: 0, total: 0 }; g.n++; g.total += s.valor;
+      const item = ant && ant.item && D.DESEMBOLSO.itens.some(i => i.id === ant.item && i.rubrica === rubrica) ? ant.item : itemDaFuncern(rubrica, s.detalhe);
+      const reg = { id: ant ? ant.id : null, data: s.data, etapa, rubrica, item: item || '', descricao: [String(s.tipo).replace(/^Solicitação de /i, ''), s.detalhe].filter((x, i, a) => x && a.indexOf(x) === i).join(' · ') || 'Solicitação',
+        favorecido: s.beneficiario, doc: DOC_SOL + s.sol, valor: s.valor, status: dest === 'Pago' ? 'Pago' : 'Solicitado' };
+      const mudou = !ant || ['data', 'etapa', 'rubrica', 'descricao', 'favorecido', 'status'].some(k => String(ant[k] || '') !== String(reg[k] || '')) || Number(ant.valor) !== reg.valor || String(ant.item || '') !== reg.item;
+      linhas.push({ s, ant, reg, grupo: chave, acao: !ant ? 'nova' : mudou ? 'atualiza' : 'igual' });
+    });
+    const G = Object.values(grupos), conta = a => linhas.filter(l => l.acao === a).length, vale = linhas.filter(l => l.reg);
+    return { linhas, grupos: G, status: Object.values(status), faltam: G.filter(g => !g.rubrica || !g.etapa).length,
+      novas: conta('nova'), atualizadas: conta('atualiza'), iguais: conta('igual'), removidas: conta('remove'), ignoradas: conta('ignora'),
+      pago: vale.filter(l => l.reg.status === 'Pago').reduce((t, l) => t + l.reg.valor, 0), comprometido: vale.filter(l => l.reg.status !== 'Pago').reduce((t, l) => t + l.reg.valor, 0),
+      foraDaPlanilha: db.despesas.filter(d => numSol(d) && !vistos.has(numSol(d))).length, manuais: db.despesas.filter(d => !numSol(d)).length };
+  }
   /* por item do plano (dentro da rubrica): previsto, pago, comprometido e saldo. Só entra a despesa que indica o item;
      "composicao" descreve como o previsto se distribui (meses e valor por mês, quando é sempre o mesmo). */
   function finItens(db, lim) {
@@ -254,5 +332,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

@@ -23,6 +23,16 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   }
   ok((await p.textContent('#view')).includes('Metas do plano de trabalho') && (await p.textContent('#view')).includes('Próximos marcos'), 'painel mostra as metas e os próximos marcos');
   await p.click('[data-tab="financeiro"]'); ok((await p.textContent('#view')).includes('R$ 400.000,00'), 'financeiro mostra o valor total do TED');
+  // importação da planilha de solicitações (arquivo fictício do teste): prévia, escolha da etapa, gravação e reenvio sem duplicar
+  const planilha = require('path').join(__dirname, '..', 'unit', 'dados', 'solicitacoes_exemplo.xlsx'), nDesp = () => p.evaluate(() => SQC.app._estado().db.despesas.length), antes = await nDesp();
+  await p.setInputFiles('#imp_arq', planilha); await p.waitForSelector('#dlg[open] [data-impok]');
+  ok(await p.isDisabled('[data-impok]'), 'importação: não grava enquanto falta escolher a etapa');
+  while (await p.$('#frm select[data-imp-et]:has(option[value=""]:checked)')) await p.selectOption('#frm select[data-imp-et]:has(option[value=""]:checked)', '6.2');
+  ok((await p.textContent('[data-impok]')).includes('3'), 'importação: prévia mostra 3 alterações (a cancelada fica de fora)');
+  await p.click('[data-impok]'); await p.waitForSelector('#dlg:not([open])', { state: 'attached' });
+  ok(await nDesp() === antes + 3, 'importação: 3 despesas gravadas'); ok(!JSON.stringify(await p.evaluate(() => SQC.app._estado().db.despesas)).includes('000.000.000'), 'importação: CPF não foi guardado');
+  await p.setInputFiles('#imp_arq', planilha); await p.waitForSelector('#dlg[open] [data-impok]');
+  ok(await p.isDisabled('[data-impok]') && (await p.textContent('[data-impok]')).includes('Nada a gravar'), 'importação: subir a mesma planilha de novo não muda nada'); await p.click('#dlg [data-fechar]');
   // lote novo -> entrega acima do saldo é recusada -> entrega dentro do saldo passa
   await p.click('[data-tab="lotes"]'); await p.click('[data-new="lotes"]');
   await p.selectOption('#f_unidade', { index: 1 }); await p.selectOption('#f_tipo', 'Bokashi'); ok((await p.inputValue('#f_dias')) === '15', 'tipo do lote preenche os dias');

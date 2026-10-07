@@ -95,7 +95,7 @@
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
         ['Evidência', g => link(g.link)]] },
-    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Lançamentos de despesa', desc: 'Cada despesa tem a etapa (plano do TED) e a rubrica (plano executado pela FUNCERN). Enquanto não estiver paga, conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
+    despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Despesas do projeto', desc: 'Vêm da planilha de solicitações da FUNCERN: suba a planilha atualizada e o sistema mostra o que mudou antes de gravar. Enquanto não estiver paga, a despesa conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
       campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
         ['item', 'Item do plano', 'select', 0, () => [['', 'Sem item indicado']].concat(D.DESEMBOLSO.itens.map(i => [i.id, `${nomeRubrica(i.rubrica)} · ${i.nome}`]))],
         ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor (R$)', 'number', 1],
@@ -126,11 +126,12 @@
   const PAGINA = 100, mostrando = {};
   const IC_LAPIS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16v4zM13.500 6.500l4 4"/></svg>';
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+  const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
   function tabela(m) {
     const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}Editar</button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" data-del="${m}:${esc(r.id)}">${IC_LIXO}Excluir</button>` : ''}</span>`;
-    return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
+    return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
  <div class="panel scroll">${rows.length ? `<table><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
   }
   const finTabela = (F, titulo) => `<table><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td>${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td><td class="n">${brl(r.prev)}</td><td class="n">${brl(r.comp)}</td><td class="n">${brl(r.pago)}</td><td class="n">${brl(r.saldo)}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="n">${brl(R.soma(F, 'prev'))}</td><td class="n">${brl(R.soma(F, 'comp'))}</td><td class="n">${brl(R.soma(F, 'pago'))}</td><td class="n">${brl(R.soma(F, 'saldo'))}</td></tr></tbody></table>`;
@@ -397,6 +398,49 @@
    <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(linha).join('')}
     <div class="rb-tot"><span>Total</span><span>${brl(R.soma(FR, 'prev'))}</span><span>${brl(R.soma(FR, 'pago'))}</span><span>${brl(R.soma(FR, 'comp'))}</span><span><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
    <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>`;
+  }
+  /* ---------- importar a planilha de solicitações da FUNCERN: lê no aparelho, mostra o que vai mudar e só grava depois de confirmar ---------- */
+  let imp = null;
+  const CH_ST = 'sqc-imp-status';
+  const lerLS = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
+  async function aoEscolherPlanilha(arq) {
+    if (!arq) return;
+    try {
+      if (!/\.xlsx$/i.test(arq.name)) throw new Error('Envie a planilha no formato .xlsx, como a FUNCERN exporta.');
+      const L = R.lerSolicitacoes(await SQC.planilha.ler(await arq.arrayBuffer()));
+      if (!L.sols.length) throw new Error('Não encontrei solicitações nesta planilha. Ela precisa ter a coluna “ID Solicitação”, como a exportação da FUNCERN.');
+      imp = { nome: arq.name, sols: L.sols, erros: L.erros, escolhas: { status: lerLS(CH_ST), etapa: {}, rubrica: {} } }; desenharImportacao();
+    } catch (e) { toast(e.message || 'Não consegui ler a planilha.'); }
+  }
+  function desenharImportacao(msg) {
+    const P = imp.plano = R.planoImportacao(db, imp.sols, imp.escolhas); ed = null; $('#frm').className = 'fm';
+    const op = (lista, sel) => lista.map(o => `<option value="${esc(o[0])}"${o[0] === sel ? ' selected' : ''}>${esc(o[1])}</option>`).join('');
+    const n = P.novas + P.atualizadas + P.removidas;
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Importar planilha</span><h2>Solicitações da FUNCERN</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><div class="fm-oque"><span>${esc(imp.nome)}</span><p>Nada é gravado antes de você confirmar. O CPF dos beneficiários não é lido nem guardado. Cada solicitação é reconhecida pelo número: subir a mesma planilha de novo não duplica nada.</p></div>
+      <dl class="imp-r"><div><dt>Novas</dt><dd>${P.novas}</dd></div><div><dt>Atualizadas</dt><dd>${P.atualizadas}</dd></div><div><dt>Sem mudança</dt><dd>${P.iguais}</dd></div><div><dt>Removidas</dt><dd>${P.removidas}</dd></div><div><dt>Pago</dt><dd>${brl(P.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(P.comprometido)}</dd></div></dl>
+      <h3 class="fm-sec">Como cada status da fundação entra na conta</h3>
+      <div class="imp-l">${P.status.map(s => `<div class="imp-i"><div><b>${esc(s.txt)}</b><span class="small">${s.n} solicitação(ões) · ${brl(s.total)}</span></div><select data-imp-st="${esc(s.txt)}" aria-label="Como contar o status ${esc(s.txt)}">${op([['Pago', 'Conta como pago'], ['Comprometido', 'Conta como comprometido'], ['Ignorar', 'Não entra (cancelada)']], s.destino)}</select></div>`).join('')}</div>
+      <h3 class="fm-sec">Etapa do plano de cada tipo de despesa</h3><p class="aj-p">A planilha não traz a etapa do TED. Escolha uma vez por tipo: nas próximas importações o sistema repete a escolha.</p>
+      <div class="imp-l">${P.grupos.map(g => `<div class="imp-i${!g.rubrica || !g.etapa ? ' falta' : ''}"><div><b>${esc(g.detalhe || g.rubricaTxt || 'Sem detalhe')}</b><span class="small">${esc(g.rubricaTxt)} · ${g.n} solicitação(ões) · ${brl(g.total)}</span></div>
+        <span class="imp-s">${g.rubricaAuto ? '' : `<select data-imp-rb="${esc(g.chave)}" aria-label="Rubrica de ${esc(g.detalhe)}">${op([['', 'Escolha a rubrica']].concat(D.RUBRICAS.map(x => [x.id, x.nome])), g.rubrica)}</select>`}<select data-imp-et="${esc(g.chave)}" aria-label="Etapa de ${esc(g.detalhe)}">${op([['', 'Escolha a etapa']].concat(D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])), g.etapa)}</select></span></div>`).join('') || '<p class="small">Nenhuma solicitação a importar.</p>'}</div>
+      ${imp.erros.length ? `<h3 class="fm-sec">Linhas que não consegui ler (${imp.erros.length})</h3><ul class="al">${imp.erros.slice(0, 8).map(e => `<li><span>${esc(e)}</span></li>`).join('')}</ul>` : ''}
+      ${P.foraDaPlanilha || P.manuais ? `<p class="note">${P.foraDaPlanilha ? `${P.foraDaPlanilha} despesa(s) importada(s) antes não estão nesta planilha e ficam como estão. ` : ''}${P.manuais ? `${P.manuais} despesa(s) lançada(s) à mão não são alteradas pela importação.` : ''}</p>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert">${esc(msg || (P.faltam ? `Falta escolher a etapa${P.grupos.some(g => !g.rubrica) ? ' ou a rubrica' : ''} de ${P.faltam} tipo(s) de despesa.` : ''))}</div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-impok${P.faltam || !n ? ' disabled' : ''}>${n ? `Gravar ${n} alteração(ões)` : 'Nada a gravar'}</button></div></div>`;
+    if (!$('#dlg').open) $('#dlg').showModal();
+  }
+  async function confirmarImportacao(bt) {
+    const P = imp.plano; bt.disabled = true; let feitas = 0; const total = P.novas + P.atualizadas + P.removidas;
+    try {
+      for (const l of P.linhas) {
+        if (l.acao === 'nova') await api.salvar('despesas', Object.assign({}, l.reg, { id: SQC.novoId() }), { novo: true });
+        else if (l.acao === 'atualiza') await api.salvar('despesas', Object.assign({}, l.ant, l.reg), { novo: false, base: l.ant.atualizado_em || null });
+        else if (l.acao === 'remove') await api.excluir('despesas', l.ant.id);
+        else continue;
+        bt.textContent = `Gravando ${++feitas} de ${total}…`;
+      }
+      db = await api.carregar(); $('#dlg').close(); imp = null; render(); toast(`Planilha importada: ${P.novas} nova(s), ${P.atualizadas} atualizada(s), ${P.removidas} removida(s).`);
+    } catch (e) { try { db = await api.carregar(); } catch (x) { /* fica com o que tinha */ } render(); desenharImportacao(`Parou depois de ${feitas} de ${total}: ${e.message} O que já foi gravado continua gravado; corrija e confirme de novo.`); }
   }
   /* o mesmo gasto pelas metas do TED: meta abre as etapas; etapa abre a composição e os valores (mesmo desenho da tabela por rubrica) */
   function tabelaMetas(F) {
@@ -734,6 +778,7 @@
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); }
+    else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { $('#dlg').close(); ed = null; }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
@@ -767,7 +812,15 @@
     api = SQC.CONFIG && SQC.CONFIG.supabaseUrl ? SQC.apiSupabase : SQC.apiDemo; SQC.api = api;
     document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); });
-    document.addEventListener('change', ev => { if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+    document.addEventListener('change', ev => {
+      const e = ev.target, de = e.dataset || {};
+      if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
+      if (imp && (de.impSt !== undefined || de.impEt !== undefined || de.impRb !== undefined)) {
+        if (de.impSt !== undefined) { imp.escolhas.status[de.impSt] = e.value; try { localStorage.setItem(CH_ST, JSON.stringify(imp.escolhas.status)); } catch (x) {} }
+        else if (de.impEt !== undefined) imp.escolhas.etapa[de.impEt] = e.value; else imp.escolhas.rubrica[de.impRb] = e.value;
+        const foco = Object.keys(de).find(k => /^imp/.test(k)), val = de[foco]; desenharImportacao();
+        const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
+      } if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
     document.addEventListener('keydown', ev => { const t = ev.target; if (!t.matches || !t.matches('.sg [role="tab"]')) return; const ordem = ['entrar', 'primeiro'], i = ordem.indexOf(authModo);
