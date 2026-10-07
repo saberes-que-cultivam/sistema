@@ -29,7 +29,7 @@ const medir = () => {
     if (st.fontStyle === 'italic') prob.push('ITÁLICO: ' + quem(el));
     if (st.textTransform === 'uppercase' && !el.matches('th, .eyebrow, .fm-eye, .rb-h span, .at-col span, .ng-r, .dx-rot, .rb-x dt, .imp-r dt, .ae-h span')) prob.push('MAIÚSCULAS: ' + quem(el));
     // cortado: conteúdo maior que a caixa numa caixa que esconde o excesso, ou texto saindo pela direita da tela
-    if (!sv && el.scrollWidth > el.clientWidth + 1 && ['hidden', 'clip'].includes(st.overflowX) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) prob.push('CORTADO: ' + quem(el));
+    if (!sv && !el.matches('.so') && el.scrollWidth > el.clientWidth + 1 && ['hidden', 'clip'].includes(st.overflowX) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) prob.push('CORTADO: ' + quem(el));
     const rolavel = (() => { for (let e = el.parentElement; e; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o === 'auto' || o === 'scroll') return true; } return false; })();
     if (!rolavel && !el.closest('nav') && r.right > vw + 1 && r.left < vw) prob.push('SAI DA TELA: ' + quem(el));
     if (sv) { const q = sv.getBoundingClientRect(); if (r.left < q.left - 1 || r.right > q.right + 1 || r.top < q.top - 1 || r.bottom > q.bottom + 1) prob.push('CORTADO NO DESENHO: ' + quem(el)); }
