@@ -796,3 +796,11 @@ table{border-collapse:separate;border-spacing:0} thead th:first-child{border-top
 .g-n{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding-right:12px;font-size:var(--t-md);font-weight:400;color:var(--txt-2);white-space:nowrap} .g-n b{font-weight:700;color:var(--txt-1)}
 .g-n small{font-size:var(--t-xs);color:var(--txt-3)} .g-n small.ok{color:var(--accent);font-weight:600} .g-n small.bad{color:var(--bad);font-weight:600}
 @media (max-width:860px){.g-row{grid-template-columns:200px 1fr 88px;gap:12px}}
+
+/* ---------- menu superior (v35): retângulo de foco com a mesma folga em cima e embaixo; o traço da aba aberta fica fora dele ---------- */
+nav button,nav button:hover,nav button[aria-selected="true"]{position:relative;border:0;border-radius:8px;padding:9px 8px;margin-bottom:8px;line-height:1.2}
+nav button::after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:3px;border-radius:2px 2px 0 0;background:transparent;transition:background-color .15s}
+nav button:hover::after{background:var(--line)} nav button[aria-selected="true"]::after{background:var(--accent)}
+nav button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;border-radius:8px}
+@media (max-width:860px){nav button,nav button:hover,nav button[aria-selected="true"]{padding:9px 8px}}
+@media (prefers-reduced-motion:reduce){nav button::after{transition:none}}
