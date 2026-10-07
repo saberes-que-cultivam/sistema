@@ -914,3 +914,14 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 .eq .acts{padding-right:29px} @media (max-width:640px){.eq .acts{padding-right:0}}
 /* formulário da equipe: aviso de substituição (v47) */
 .fm-sub{margin:0;padding:12px 16px;border-left:3px solid var(--ferment);border-radius:0 10px 10px 0;background:var(--ferment-soft);font-size:var(--t-md);color:var(--txt-1)}
+
+/* ---------- ações da linha só com ícone (v48): lápis e lixeira discretos; o nome fica para leitor de tela e na dica ao passar o mouse.
+   O primeiro toque na lixeira não apaga: o botão vira "Confirmar exclusão", em vermelho. ---------- */
+.so{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.ac{gap:2px}
+.ab{position:relative;justify-content:center;width:40px;height:40px;padding:0;border-radius:10px;background:none;color:var(--txt-3)}
+.ab svg{width:18px;height:18px}
+.ab:hover{background:var(--accent-soft);color:var(--accent)}
+.ab.d{background:none;color:var(--txt-3)} .ab.d:hover{background:var(--bad-soft);color:var(--bad)}
+.ab.d[data-ok],.ab:disabled{width:auto;padding:0 12px;background:var(--bad);color:var(--surface);font-size:var(--t-sm)} .ab.d[data-ok]:hover{background:color-mix(in srgb,var(--bad) 86%,#000);color:var(--surface)}
+.ab:disabled{background:var(--sunken);color:var(--txt-2);cursor:default}
