@@ -28,10 +28,17 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'inicio', 'fim', 'motivo', 'obs'],
+    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
   };
-  const BOOL = ['ativo', 'kit', 'lgpd'].concat(D.CHECK.map(c => c[0]));
+  const BOOL = ['ativo', 'kit', 'lgpd', 'socio'].concat(D.CHECK.map(c => c[0]));
+  /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
+     e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
+  let semCompleto = false;
+  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
+  const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
+  /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
+  const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; }) });
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
@@ -42,7 +49,8 @@
   async function todas(tabela) {
     let tudo = [];
     for (let de = 0; de < 100000;) {
-      const { data, error } = await sb.from(tabela).select('*').order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
       if (error) throw erro(error);
       tudo = tudo.concat(data || []); de += (data || []).length;
@@ -53,11 +61,24 @@
 
   SQC.apiSupabase = {
     modo: 'supabase', offline: false, recuperando: false,
+    /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
+    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } }); },
+    /* ----- link de cadastro da equipe ----- */
+    async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
+      const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });
+      if (error && (error.code === '42P01' || error.code === 'PGRST205' || /convites/.test(String(error.message)))) return null;
+      if (error) throw erro(error);
+      return (data || []).filter(c => c.status === 'preenchido' || new Date(c.expira_em) > new Date());
+    },
+    async criarConvite(funcao) { const { data, error } = await sb.rpc('criar_convite', { p_funcao: funcao }); if (error) throw erro(error); return data; },
+    async conviteVer(token) { this.preparar(); const { data, error } = await sb.rpc('convite_ver', { p_token: token }); if (error) throw erro(error); return data || null; },
+    async conviteEnviar(token, dados) { this.preparar(); const { error } = await sb.rpc('convite_enviar', { p_token: token, p_dados: dados }); if (error) throw erro(error); },
+    async conviteEncerrar(id, status) { const { error } = await sb.rpc('convite_encerrar', { p_id: id, p_status: status }); if (error) throw erro(error); },
     async iniciar() {
       // chegou por um link do e-mail (primeiro acesso ou senha esquecida)? então a próxima tela é a de criar a senha
       const h = String(location.hash || ''); const veioDeLink = /[#&]type=(signup|magiclink|recovery|invite)/.test(h);
       if (/[#&]error(_code|_description)?=/.test(h)) this.linkVencido = true;
-      sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
+      this.preparar();
       // voltou pelo link de "esqueci a senha": a tela pede a senha nova antes de qualquer coisa
       sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { this.recuperando = true; if (SQC.app && SQC.app.pedirSenhaNova) SQC.app.pedirSenhaNova(); } });
       let sessao = null;
@@ -117,7 +138,12 @@
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
         const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'membros' ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
-        guardar(CHAVE_DADOS, db); guardar(CHAVE_QUANDO, Date.now()); this.offline = false; return db;
+        // dados reservados da equipe: só a coordenação recebe, por função própria do banco
+        if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {
+          const rs = await sb.rpc('membros_reservados'); if (rs.error && rs.error.code !== 'PGRST202' && rs.error.code !== '42883') throw erro(rs.error);
+          (rs.data || []).forEach(x => { const m = db.membros.find(y => y.id === x.id); if (m) Object.assign(m, x); });
+        }
+        guardar(CHAVE_DADOS, semReservado(db)); guardar(CHAVE_QUANDO, Date.now()); this.offline = false; return db;
       } catch (e) {
         const g = ler(CHAVE_DADOS);
         if (g && e.semRede && copiaValida()) { this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
@@ -128,11 +154,11 @@
        Edição só grava se o registro ainda está nessa versão: o que um colega mudou depois não é desfeito,
        e registro excluído por outra pessoa não volta a existir. */
     async salvar(tabela, reg, op) {
-      try { return await this._salvar(tabela, reg, op); }
+      try { const out = await this._salvar(tabela, reg, op); if (tabela === 'membros') R.CAMPOS_RESERVADOS.forEach(k => { if (k in reg) out[k] = reg[k]; }); return out; }
       catch (e) {
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
-        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar o script 08_equipe_dados.sql no Supabase.' });
+        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
         if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
         if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
         semItem = true; return await this._salvar(tabela, reg, op);
@@ -141,7 +167,7 @@
     async _salvar(tabela, reg, op) {
       op = op || {}; const r = limpar(tabela, reg); const { id, ...campos } = r;
       if (op.novo) {
-        const ins = await sb.from(tabela).insert(r).select().single();
+        const ins = await sb.from(tabela).insert(r).select(sel(tabela)).single();
         if (!ins.error) return ins.data;
         if (ins.error.code !== '23505') throw erro(ins.error);
         // já existe com este id: é reenvio da fila (a primeira tentativa gravou e a resposta se perdeu); segue como edição sem versão
@@ -150,14 +176,14 @@
         op = {};
       }
       let q = sb.from(tabela).update(campos).eq('id', id); if (op.base) q = q.eq('atualizado_em', op.base);
-      const up = await q.select();
+      const up = await q.select(sel(tabela));
       if (up.error) throw erro(up.error);
       if (up.data && up.data.length) return up.data[0];
       const existe = await sb.from(tabela).select('id').eq('id', id).maybeSingle();
       if (existe.error) throw erro(existe.error);
       if (existe.data) throw erro(op.base ? { code: 'P0001', message: R.MSG_CONFLITO } : { code: '42501', message: 'permission denied' });
       if (op.novo === false || op.base) throw erro({ code: 'P0001', message: R.MSG_EXCLUIDO });
-      const ins = await sb.from(tabela).insert(r).select().single();   // sem informação de origem (item antigo da fila): comporta-se como antes
+      const ins = await sb.from(tabela).insert(r).select(sel(tabela)).single();   // sem informação de origem (item antigo da fila): comporta-se como antes
       if (ins.error) throw erro(ins.error);
       return ins.data;
     },
@@ -186,7 +212,7 @@
       if (error) throw erro(error);
       return data || [];
     },
-    guardarCopia(db) { guardar(CHAVE_DADOS, db); },
+    guardarCopia(db) { guardar(CHAVE_DADOS, semReservado(db)); },
     COLUNAS, limpar
   };
 })();

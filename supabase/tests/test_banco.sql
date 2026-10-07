@@ -259,4 +259,71 @@ do $$ declare n int; begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
+-- ===== scripts 10 e 11: dados reservados da equipe e link de cadastro =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+insert into public.membros (id, funcao, nome, inicio, lgpd, cpf, renda, raca_cor) values ('eeeeeeee-0000-4000-8000-000000000010', 'auxiliar', 'Reservado Teste', '2026-08-01', true, '52998224725', 1500, 'Parda');
+create temp table tk (t text); grant all on tk to public;
+insert into tk select public.criar_convite('discente');
+do $$ declare n int; begin
+  select count(*) into n from public.membros_reservados() where cpf = '52998224725'; if n <> 1 then raise exception 'FALHOU: coordenação não recebeu o dado reservado'; end if;
+  begin insert into public.membros (funcao, nome, inicio, cpf) values ('auxiliar', 'X', '2026-08-01', '123'); raise exception 'FALHOU: aceitou CPF fora do formato';
+  exception when check_violation then null; end;
+end $$;
+reset role;
+do $$ begin if exists (select 1 from public.convites where token_hash = (select t from tk) or dados::text like '%' || (select t from tk) || '%') then raise exception 'FALHOU: o banco guardou o código do convite em claro'; end if; end $$;
+-- equipe: vê os colegas, mas não os dados reservados; não gera nem lê convite
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare n int; x text; begin
+  select count(*) into n from (select nome, telefone from public.membros) q; if n < 1 then raise exception 'FALHOU: equipe não vê os colegas'; end if;
+  begin select cpf into x from public.membros limit 1; raise exception 'FALHOU: equipe leu o CPF direto da tabela';
+  exception when insufficient_privilege then null; end;
+  begin select renda::text into x from public.membros limit 1; raise exception 'FALHOU: equipe leu a renda direto da tabela';
+  exception when insufficient_privilege then null; end;
+  select count(*) into n from public.membros_reservados(); if n > 0 then raise exception 'FALHOU: equipe recebeu dados reservados pela função'; end if;
+  begin perform public.criar_convite('discente'); raise exception 'FALHOU: equipe gerou convite';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  select count(*) into n from (select id from public.convites) q; if n > 0 then raise exception 'FALHOU: equipe leu convites'; end if;
+end $$;
+reset role;
+-- sem login: só as duas funções do link; código errado não diz nada; envio vale uma vez; campo estranho é descartado
+set role anon;
+do $$ declare n int; r text; t text := (select t from tk); begin
+  begin select count(*) into n from public.convites; raise exception 'FALHOU: sem login leu a tabela de convites';
+  exception when insufficient_privilege then null; end;
+  begin perform public.criar_convite('discente'); raise exception 'FALHOU: sem login gerou convite';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  if public.convite_ver(repeat('a', 64)) is not null then raise exception 'FALHOU: código inventado foi aceito'; end if;
+  if public.convite_ver(t) is distinct from 'discente' then raise exception 'FALHOU: convite válido não foi reconhecido'; end if;
+  begin perform public.convite_enviar(t, '{"nome":"Sem Termo"}'::jsonb); raise exception 'FALHOU: aceitou envio sem o termo';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin perform public.convite_enviar(t, jsonb_build_object('nome', 'Grande', 'lgpd', true, 'bairro', repeat('x', 9000))); raise exception 'FALHOU: aceitou envio grande demais';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  r := public.convite_enviar(t, '{"nome":"Convidada <script>","lgpd":true,"cpf":"52998224725","perfil":"Coordenação","funcao":"coordenacao","id":"x"}'::jsonb);
+  begin perform public.convite_enviar(t, '{"nome":"Segunda Vez","lgpd":true}'::jsonb); raise exception 'FALHOU: o mesmo link gravou duas vezes';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  if public.convite_ver(t) is not null then raise exception 'FALHOU: link usado ainda aparece como aberto'; end if;
+end $$;
+reset role;
+-- coordenação: recebe o que foi enviado (sem os campos estranhos), encerra e os dados somem
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+do $$ declare c record; n int; begin
+  select id, funcao, status, dados into c from public.convites where status = 'preenchido';
+  if c.dados ->> 'nome' <> 'Convidada <script>' or c.dados ? 'perfil' or c.dados ? 'funcao' or c.dados ? 'id' or c.funcao <> 'discente' then raise exception 'FALHOU: envio do convite guardado errado: %', c.dados; end if;
+  perform public.convite_encerrar(c.id, 'aprovado');
+  select count(*) into n from (select id from public.convites where dados is not null) q; if n > 0 then raise exception 'FALHOU: dados do convite não foram apagados ao encerrar'; end if;
+  select count(*) into n from (select id from public.membros where nome like 'Convidada%') q; if n > 0 then raise exception 'FALHOU: o convite criou cadastro sozinho, sem aprovação'; end if;
+end $$;
+reset role;
+-- convite vencido não abre nem grava
+update public.convites set status = 'aberto', expira_em = now() - interval '1 minute';
+set role anon;
+do $$ begin
+  if public.convite_ver((select t from tk)) is not null then raise exception 'FALHOU: convite vencido abriu'; end if;
+  begin perform public.convite_enviar((select t from tk), '{"nome":"Vencido","lgpd":true}'::jsonb); raise exception 'FALHOU: convite vencido gravou';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

@@ -78,6 +78,7 @@
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
         c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = [];
       }
+      if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       return c;
     },
     async salvar(tabela, reg) {
@@ -101,6 +102,18 @@
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    /* link de cadastro, simulado neste navegador (na demonstração o "banco" é o próprio aparelho) */
+    preparar() {},
+    _cv(g) { const K = 'sqc-demo-convites'; let l = []; try { l = JSON.parse(ler(K)) || []; } catch (e) { l = []; } if (g) { const n = g(l); gravar(K, JSON.stringify(n)); return n; } return l; },
+    async convites() { if (!eu || eu.perfil !== 'Coordenação') return []; return this._cv().filter(c => c.status === 'preenchido' || (c.status === 'aberto' && new Date(c.expira_em) > new Date())).map(c => ({ id: c.id, funcao: c.funcao, status: c.status, dados: c.dados, expira_em: c.expira_em, preenchido_em: c.preenchido_em, criado_em: c.criado_em })); },
+    async criarConvite(funcao) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação gera link de cadastro.'); const token = (SQC.novoId() + SQC.novoId()).replace(/-/g, '');
+      this._cv(l => l.concat([{ id: SQC.novoId(), funcao, token, status: 'aberto', dados: null, expira_em: new Date(Date.now() + 7 * 864e5).toISOString(), criado_em: new Date().toISOString() }])); return token; },
+    async conviteVer(token) { const c = this._cv().find(x => x.token === token && x.status === 'aberto' && new Date(x.expira_em) > new Date()); return c ? c.funcao : null; },
+    async conviteEnviar(token, dados) { let ok = false; const limpo = {}; R.CAMPOS_CONVITE.forEach(k => { if (k in dados && String(dados[k]).length <= 300) limpo[k] = dados[k]; });
+      const msg = R.validarConvite(limpo); if (msg) throw falha(msg);
+      this._cv(l => l.map(c => { if (c.token === token && c.status === 'aberto' && new Date(c.expira_em) > new Date()) { ok = true; return Object.assign({}, c, { status: 'preenchido', dados: limpo, preenchido_em: new Date().toISOString() }); } return c; }));
+      if (!ok) throw falha('Este link já foi usado ou venceu. Peça outro à coordenação do projeto.'); },
+    async conviteEncerrar(id, status) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.'); this._cv(l => l.map(c => c.id === id ? Object.assign({}, c, { status, dados: null }) : c)); },
     async acessos() { if (!db) carregarLocal(); return eu && eu.perfil === 'Coordenação' ? db.pessoas.map((p, i) => ({ id: p.id, nome: p.nome, perfil: p.perfil, orgao: p.orgao, ativo: p.ativo !== false, ultimo: p.id === eu.id ? new Date().toISOString() : i === 1 ? new Date(Date.now() - 12 * 864e5).toISOString() : null })) : []; },
     /* só na demonstração */
     async apagarExemplos() {

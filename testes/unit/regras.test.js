@@ -138,3 +138,18 @@ test('auditoria 06/10: validações que faltavam (inteiros, mulheres sem total, 
   assert.strictEqual(R.validar(db, 'lotes', { ...db.lotes[1], inicio: '2026-07-01' }, db.lotes[1]), '');   // sem distribuição pode
   assert.match(R.validar(db, 'distribuicoes', { id: 'n', data: '2999-01-01', lote: 'l1', agricultor: 'a1', qtd: 1 }), /futuro/);
 });
+test('CPF: confere os dígitos; aceita com ou sem pontuação; recusa sequência repetida', () => {
+  assert.ok(R.cpfValido('529.982.247-25')); assert.ok(R.cpfValido('52998224725'));
+  ['529.982.247-26', '111.111.111-11', '123', '', '1234567890a'].forEach(c => assert.ok(!R.cpfValido(c), c));
+});
+test('cadastro da equipe: documento guardado só com números; questionário não respondido é apagado', () => {
+  const r = R.normalizarMembro({ cpf: '529.982.247-25', cep: '59700-000', uf: 'rn', socio: false, renda: 1200, raca_cor: 'Parda' });
+  assert.deepStrictEqual([r.cpf, r.cep, r.uf, r.renda, r.raca_cor], ['52998224725', '59700000', 'RN', '', '']);
+});
+test('link de cadastro: nome e termo obrigatórios; CPF e CEP conferidos; campos da coordenação não estão na lista aceita', () => {
+  assert.match(R.validarConvite({ nome: 'Ab', lgpd: true }), /nome/); assert.match(R.validarConvite({ nome: 'Pessoa Exemplo' }), /concorda/);
+  assert.match(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cpf: '11111111111' }), /CPF/); assert.match(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cep: '123' }), /CEP/);
+  assert.strictEqual(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cpf: '52998224725' }), '');
+  ['funcao', 'inicio', 'fim', 'motivo', 'obs', 'id', 'criado_por'].forEach(k => assert.ok(!R.CAMPOS_CONVITE.includes(k), k));
+  R.CAMPOS_RESERVADOS.forEach(k => assert.ok(R.CAMPOS_CONVITE.includes(k), k));
+});
