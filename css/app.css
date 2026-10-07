@@ -765,3 +765,8 @@ table{border-collapse:separate;border-spacing:0} thead th:first-child{border-top
 .rb-d th,.dx-como th,dialog th{background:var(--accent-soft);color:var(--txt-1);padding:10px 16px}
 .at-col{color:var(--txt-1);font:700 var(--t-xs)/1.3 var(--body);letter-spacing:.08em;padding-bottom:8px;border-bottom:2px solid var(--accent)}
 @media print{th,.rb-h,.rb-h span,.rb-h span:not(:first-child){background:none;color:#000} th,.rb-h{border-bottom:1.5px solid #000}}
+
+/* ---------- entregas do plano dentro da meta (v33): a aba Entregas saiu; registra-se e confere-se aqui ---------- */
+.mt-g{grid-column:2/-1;display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:4px}
+.mt-gi{align-self:stretch;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:8px 12px;border-radius:8px;background:var(--surface);border:1px solid var(--line)}
+.mt-gi small{display:block;font-size:var(--t-xs);color:var(--txt-3)} .mt-gi a{color:var(--accent)}

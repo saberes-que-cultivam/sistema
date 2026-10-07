@@ -17,7 +17,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-tab="financeiro"]'); ok(!(await p.$('[data-new="despesas"]')), 'Equipe não vê o botão de lançar despesa');
   await p.click('[data-tab="dados"]'); ok(!(await p.$('[data-new="pessoas"]')), 'Equipe não vê o cadastro de acessos');
   await p.click('[data-sair]'); await p.click('[data-demo="Coordenação"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Coordenação'));
-  for (const t of ['unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados', 'painel']) {
+  for (const t of ['unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'financeiro', 'relatorios', 'dados', 'painel']) {
     await p.click(`[data-tab="${t}"]`); ok((await p.textContent('#view')).length > 80, 'aba ' + t + ' abre');
     if (FOTOS) await p.screenshot({ path: `${FOTOS}/${t}.png`, fullPage: true });
   }
@@ -49,7 +49,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   ok(!(await p.$('[data-tab="agricultores"]')) && !(await p.$('[data-tab="visitas"]')), 'SEAB/MDA não tem as abas de unidades produtivas nem de monitoramento');
   ok(/Acesso de acompanhamento/.test(await p.textContent('#view')) && /\d+%/.test(await p.textContent('.dx-exec-num')), 'SEAB/MDA vê o painel de execução');
   let viu = '';
-  for (const t of ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados']) { await p.click(`[data-tab="${t}"]`); viu += await p.textContent('#view'); ok(!(await p.$('[data-new], [data-edit], [data-del]')), 'SEAB/MDA sem botão de gravar na aba ' + t); if (FOTOS && t === 'painel') await p.screenshot({ path: `${FOTOS}/mda-painel.png`, fullPage: true }); }
+  for (const t of ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'financeiro', 'relatorios', 'dados']) { await p.click(`[data-tab="${t}"]`); viu += await p.textContent('#view'); ok(!(await p.$('[data-new], [data-edit], [data-del]')), 'SEAB/MDA sem botão de gravar na aba ' + t); if (FOTOS && t === 'painel') await p.screenshot({ path: `${FOTOS}/mda-painel.png`, fullPage: true }); }
   ok(!/Maria das Dores|José Raimundo|Francisca Lima|Assentamento|Canteiros com melhor/.test(viu) && /Unidade produtiva 0\d/.test(viu), 'SEAB/MDA não vê nome de agricultor nem texto de visita (só "Unidade produtiva NN")');
   ok(!(await p.evaluate(() => JSON.stringify(SQC.app._estado().db).includes('Maria das Dores'))), 'o nome não chega nem aos dados carregados no navegador');
   await p.click('[data-sair]'); await p.click('[data-demo="Coordenação"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Coordenação')); await p.click('[data-tab="painel"]');
