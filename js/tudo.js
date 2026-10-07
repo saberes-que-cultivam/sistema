@@ -997,8 +997,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
    <div class="at-prazo">${a[5] ? `${dt(a[5])}<small>${prazoTxt(a[5])}</small>` : '—'}</div>
    <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>
+ <div class="mm">
  <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Barra: realizado · traço: previsto até o mês passado · toque na meta para ver as etapas</p></div><ul class="mts-l">${metas}</ul></section>
  <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Datas do plano de trabalho: início e prazo das etapas, parcela a receber e fim da vigência.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
+ </div>
  ${mapa()}
  <div><div class="head"><div><h2>Cronograma físico do plano de trabalho</h2><p>Barra cinza: janela da etapa. Preenchimento: quanto da quantidade prevista já foi registrado. Linha âmbar: hoje.</p></div></div>
  <div class="panel scroll" style="margin-top:10px"><div class="gantt"><div class="g-row"><span></span><div class="g-months">${meses.map(m => `<span>${m}</span>`).join('')}</div><span></span></div>${g}</div></div></div>
