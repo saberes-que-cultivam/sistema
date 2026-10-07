@@ -23,5 +23,10 @@ rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
 rodar "$P -f $DIR/00_verificar.sql" >/dev/null
 rodar "$P -f $DIR/test_banco.sql" | tail -3
+# cópia e restauração: copia o banco de teste, restaura num banco novo e confere se voltou tudo (linhas, regras de acesso, gatilhos e verificações)
+conta() { rodar "psql -At -h $SOCK -p $PORTA -d $1 -c \"select (select count(*) from public.pessoas)||'/'||(select count(*) from public.despesas)||'/'||(select count(*) from public.membros)||'/'||(select count(*) from public.auditoria)||' regras='||(select count(*) from pg_policies where schemaname='public')||' gatilhos='||(select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','auth') and not t.tgisinternal)||' verificacoes='||(select count(*) from pg_constraint k join pg_namespace n on n.oid=k.connamespace where n.nspname='public')\""; }
+rodar "pg_dump -h $SOCK -p $PORTA -d postgres -Fc -f $DIR/copia.dump" && rodar "createdb -h $SOCK -p $PORTA restaurado" && rodar "pg_restore -h $SOCK -p $PORTA -d restaurado --no-owner $DIR/copia.dump" >/dev/null 2>$DIR/rest.log || true
+A="$(conta postgres)"; B="$(conta restaurado)"
+if [ "$A" = "$B" ]; then echo " CÓPIA E RESTAURAÇÃO: conferem ($A)"; else echo " CÓPIA E RESTAURAÇÃO: DIFERENTES  original=$A  restaurado=$B"; tail -5 $DIR/rest.log; exit 1; fi
 # ESTRESSE=1: com o banco de teste ainda de pé, roda as gravações simultâneas e as medidas com volume
 if [ -n "${ESTRESSE:-}" ]; then cp "$AQUI"/estresse.sh "$AQUI"/estresse_*.sql "$DIR"/; chmod -R a+rX "$DIR"; PSQL="$P" COMO="$COMO" DIR="$DIR" bash "$DIR/estresse.sh"; fi

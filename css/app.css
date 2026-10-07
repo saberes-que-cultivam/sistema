@@ -929,3 +929,11 @@ button.b.eq-vd{height:44px;padding:0 20px;border-radius:12px;font-size:var(--t-b
 .hs-r{margin:8px 0;font-size:var(--t-md);color:var(--txt-2)} .hs-r b{color:var(--txt-1)}
 /* menu com 12 abas (v50): espaçamento mais justo para caber sem cortar */
 nav button,nav button:hover,nav button[aria-selected="true"]{padding:9px 6px;font-size:var(--t-md)} .ng{padding:0 10px} .ng-r{padding:0 6px}
+/* ícones de ação com realce (v51): círculo fino ao redor, lápis verde e lixeira vermelha; preenche ao passar o mouse */
+.ac{gap:6px}
+.ab{width:36px;height:36px;border-radius:50%;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface));color:var(--accent)}
+.ab:hover{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.ab.d{border-color:color-mix(in srgb,var(--bad) 30%,var(--line));background:color-mix(in srgb,var(--bad-soft) 45%,var(--surface));color:var(--bad)}
+.ab.d:hover{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.ab.d[data-ok],.ab:disabled{border-radius:18px;height:36px}
+.ab:disabled{border-color:var(--line)}
