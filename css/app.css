@@ -851,3 +851,5 @@ label.b.p:hover{background:color-mix(in srgb,var(--accent) 86%,#000);box-shadow:
 .imp-i>div{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 220px} .imp-i b{font:600 var(--t-base)/1.35 var(--body);color:var(--txt-1)}
 .imp-s{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 260px;justify-content:flex-end} .imp-i select{flex:1 1 240px;max-width:100%;min-width:0;height:44px;border-radius:10px;padding:0 12px;border:1px solid color-mix(in srgb,var(--ink) 26%,var(--line));background:var(--surface);color:var(--txt-1)}
 @media (prefers-reduced-motion:reduce){label.b.p{transition:none}}
+.imp-r{grid-template-columns:repeat(3,minmax(0,1fr))} .imp-r dd{white-space:nowrap;font-size:var(--t-lg)}
+@media (max-width:480px){.imp-r{grid-template-columns:repeat(2,minmax(0,1fr))}}
