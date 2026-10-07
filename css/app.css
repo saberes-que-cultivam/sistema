@@ -707,3 +707,27 @@ button.dx-kpi:hover{background:color-mix(in srgb,var(--kc) 6%,var(--surface))}
 .fr-f{fill:var(--c-exec);stroke:var(--surface);stroke-width:2} .fr-l{fill:#fff;opacity:.9} .fr-v{fill:none;stroke:#fff;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .leg .mk-f{vertical-align:-5px;margin-right:6px}
 .mp-s.bf li{align-items:center;justify-content:flex-start} .mp-s.bf li>span{flex:1;min-width:0} .mp-s.bf .mk-f{flex:none}
+
+/* ---------- financeiro, por rubrica (v28): rubrica aberta com faixa lateral e itens do plano alinhados às colunas ---------- */
+.rb-t{border-radius:20px}
+.rb-h,.rb summary,.rb-tot,.rb-i{padding:16px 24px;gap:16px}
+.rb-h{padding-top:20px;padding-bottom:20px}
+.rb summary{padding-top:20px;padding-bottom:20px;transition:background-color .15s}
+.rb-n{gap:16px;font-size:var(--t-base);font-weight:500;color:var(--txt-1)} .rb-v b{font-weight:700}
+.rb-s{width:36px;height:36px;border-radius:10px;border-color:color-mix(in srgb,var(--c-exec) 55%,var(--line))} .rb-s::after{left:13px;top:12px} .rb[open] .rb-s::after{left:13px;top:11px}
+.rb[open]>summary{background:color-mix(in srgb,var(--sunken) 70%,var(--surface));box-shadow:inset 5px 0 0 var(--c-exec)}
+.rb-e .medidor{height:8px;border-radius:4px}
+.rb-c{padding:0;gap:0;background:none}
+.rb-i{display:grid;grid-template-columns:minmax(220px,2.4fr) repeat(4,minmax(96px,1fr)) minmax(120px,1.1fr);align-items:center;border-top:1px solid var(--line);font-size:var(--t-md);color:var(--txt-2)}
+.rb-in{padding-left:52px;position:relative;display:flex;flex-direction:column;gap:2px;min-width:0;color:var(--txt-1)}
+.rb-in::before{content:"";position:absolute;left:30px;top:7px;width:6px;height:6px;border-right:1.5px solid var(--txt-3);border-bottom:1.5px solid var(--txt-3);transform:rotate(-45deg)}
+.rb-in small{font-size:var(--t-xs);color:var(--txt-3)}
+.rb-d{padding:16px 24px 24px 76px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--sunken) 30%,var(--surface))} .rb-d h3{margin:0 0 8px}
+.rb summary:focus-visible{outline-offset:-4px;border-radius:12px}
+@media (max-width:860px){
+  .rb-h,.rb summary,.rb-tot,.rb-i{padding:14px 16px;gap:6px 12px}
+  .rb-i{grid-template-columns:1fr 1fr} .rb-in{grid-column:1/-1;padding-left:24px} .rb-in::before{left:4px}
+  .rb-d{padding:14px 16px 16px}
+}
+@media (prefers-reduced-motion:reduce){.rb summary{transition:none}}
+.rb-e .medidor.fino{background:color-mix(in srgb,var(--c-exec) 18%,var(--surface));margin-top:0}
