@@ -50,7 +50,7 @@ const medir = () => {
     // sistema em modo demonstração
     const p = await ctx.newPage(); await p.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.SQC=window.SQC||{};SQC.CONFIG={supabaseUrl:'',semServiceWorker:true};" }));
     await p.goto(URL_); await p.evaluate(() => { localStorage.clear(); }); await p.reload(); await p.click('[data-demo="Coordenação"]'); await p.waitForSelector('.dx-topo');
-    for (const t of ['painel', 'unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'financeiro', 'relatorios', 'dados']) { await p.click(`[data-tab="${t}"]`); if (t === 'financeiro') await p.click('[data-abrir-rub]'); await rel(p, 'aba ' + t); }
+    for (const t of ['painel', 'unidades', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'financeiro', 'relatorios', 'dados']) { await p.click(`[data-tab="${t}"]`); if (t === 'financeiro') await p.click('[data-abrir-rub]'); await rel(p, 'aba ' + t); }
     await p.click('[data-tab="agricultores"]'); await p.click('[data-new="agricultores"]'); await rel(p, 'formulário'); await p.click('#fsalvar'); await rel(p, 'formulário com erro'); await p.click('[data-fechar]');
     await p.click('.pc [data-ficha]'); await rel(p, 'ficha'); await p.click('[data-fechar]');
     await p.click('[data-ajuda]'); await rel(p, 'ajuda'); await p.click('[data-fechar]'); await p.click('[data-relatar]'); await rel(p, 'relato'); await p.click('[data-fechar]');
