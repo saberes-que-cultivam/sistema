@@ -34,4 +34,20 @@ wait
 rodar "$PSQL -f $DIR/estresse_confere.sql" 2>&1 | sed -E 's/^psql:[^ ]* WARNING: */   /'
 echo "4) volume: 10 vezes o tamanho previsto do projeto"
 rodar "$PSQL -f $DIR/estresse_volume.sql" 2>&1 | grep -E '^---|Time:|linhas_auditoria|^ +[0-9]+ \|' | sed 's/^/   /'
+echo "5) carga crescente: N pessoas gravando uma visita e lendo o painel ao mesmo tempo (o Postgres de teste aceita 100 conexões)"
+echo "   pessoas | gravadas | recusadas | tempo total | por pessoa"
+for n in 1 5 10 25 50 75 100 150 200; do
+  antes=$(rodar "$Q -At -c \"select count(*) from public.visitas where obs = 'carga $n'\"")
+  for i in $(seq 1 $n); do u=$((1 + i % 20)); a=$((1 + i % 30))
+    echo "$(jwt $u) insert into public.visitas (data, agricultor, usou, obs) values ('2026-10-05', ('d0000000-0000-4000-8000-' || lpad('$a', 12, '0'))::uuid, 'Sim', 'carga $n'); select count(*) from public.visitas; select count(*) from public.distribuicoes; select count(*) from public.lotes;" > "$DIR/c$i.sql"; done
+  chmod a+r "$DIR"/c*.sql; ini=$(date +%s.%N)
+  for i in $(seq 1 $n); do rodar "$Q -f $DIR/c$i.sql" >/dev/null 2>&1 & done; wait
+  t=$(echo "$(date +%s.%N) - $ini" | bc); ok=$(rodar "$Q -At -c \"select count(*) from public.visitas where obs = 'carga $n'\""); ok=$((ok - antes))
+  printf "   %7s | %8s | %9s | %9.2f s | %7.0f ms\n" "$n" "$ok" "$((n - ok))" "$t" "$(echo "$t * 1000 / $n" | bc -l)"
+  rm -f "$DIR"/c*.sql
+done
+orf=$(rodar "$Q -At -c \"select (select count(*) from public.visitas v where not exists (select 1 from public.agricultores a where a.id = v.agricultor)) + (select count(*) from public.distribuicoes d where not exists (select 1 from public.lotes l where l.id = d.lote))\"")
+[ "$orf" = "0" ] || { echo "   FALHOU: $orf registro(s) sem dono depois da carga"; exit 1; }
+vivo=$(rodar "$Q -At -c \"select 1\""); [ "$vivo" = "1" ] || { echo "   FALHOU: o banco não respondeu depois da carga"; exit 1; }
+echo "   depois da carga: banco respondendo, nenhum registro sem dono"
 echo "ESTRESSE DO BANCO: TUDO CERTO"
