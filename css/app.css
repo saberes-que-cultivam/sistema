@@ -853,3 +853,11 @@ label.b.p:hover{background:color-mix(in srgb,var(--accent) 86%,#000);box-shadow:
 @media (prefers-reduced-motion:reduce){label.b.p{transition:none}}
 .imp-r{grid-template-columns:repeat(3,minmax(0,1fr))} .imp-r dd{white-space:nowrap;font-size:var(--t-lg)}
 @media (max-width:480px){.imp-r{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---------- aba Equipe (v41) ---------- */
+.eq{display:flex;flex-direction:column;gap:16px}
+.eq-cab{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 16px}
+.eq .rb-x.eq-x{margin:0;border-radius:0 12px 12px 0;border-left-color:var(--accent)}
+.eq-b{display:flex;align-items:center;gap:12px} .eq-b .medidor{flex:1;margin:0;--kc:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--surface))} .eq-b b{min-width:3.2em;text-align:right;font-size:var(--t-md);font-variant-numeric:tabular-nums}
+.eq-l{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.eq-l .pc{grid-template-columns:auto minmax(0,1fr)} .eq-v{margin:0}

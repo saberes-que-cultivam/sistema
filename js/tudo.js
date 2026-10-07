@@ -1066,12 +1066,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
-  const TABS = [['painel', 'Visão geral'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
+  const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['dados', 'Dados']];
   /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
   const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'financeiro', 'relatorios', 'dados'];
   const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS;
   /* menu superior em grupos (rótulo em cima, abas embaixo); grupo sem nenhuma aba para o perfil não aparece */
-  const GRUPOS = [['Gestão', ['painel', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'dados']]];
+  const GRUPOS = [['Gestão', ['painel', 'equipe', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'dados']]];
   function nav() {
     const tem = abas();
     $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
@@ -1209,7 +1209,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
-  const AJUDA = { painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
+  const AJUDA = { equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
     distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados.',
     eventos: 'Capacitações, dias de campo, reuniões e articulações.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
@@ -1422,6 +1422,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     dica.innerHTML = `<b>${p.rotulo}</b><span><i class="lg prev"></i>Previsto <b>${brl(p.previsto)}</b></span>${p.executado == null ? '<span class="small">mês que ainda não chegou</span>' : `<span><i class="lg exec"></i>Pago <b>${brl(p.executado)}</b></span><span><i class="lg rec"></i>Recebido <b>${brl(p.recebido)}</b></span>`}`;
     dica.hidden = false; const gb = g.getBoundingClientRect(), esq = cx / k; dica.style.left = Math.max(0, Math.min(gb.width - dica.offsetWidth, esq > gb.width / 2 ? esq - dica.offsetWidth - 12 : esq + 12)) + 'px';
   }
+  /* ---------- equipe: as três funções com bolsa no plano; as pessoas vêm das solicitações importadas da FUNCERN ---------- */
+  const FUNCOES = [['i01', 'Coordenação do projeto', 'Coordena a execução, responde pelo projeto e assina as solicitações à fundação.'], ['i02', 'Auxiliar administrativo', 'Apoia a gestão: solicitações, documentos e prestação de contas.'], ['i03', 'Bolsistas discentes', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo.']];
+  function equipe() {
+    const FI = R.finItens(db), rot = k => ritmoAtual ? ritmoAtual.pontos[k].rotulo : (R.ritmo(db, hoje()).pontos[k] || {}).rotulo || k + 1;
+    const bloco = f => { const x = FI.find(i => i.id === f[0]); if (!x) return ''; const ms = x.meses, gente = {};
+      x.despesas.forEach(d => { const n = (d.favorecido || '').trim() || 'Beneficiário não informado'; const g = gente[n] = gente[n] || { nome: n, n: 0, pago: 0, comp: 0, ult: '' }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; if (d.data > g.ult) g.ult = d.data; });
+      const L = Object.values(gente).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')), u = x.prev ? (x.pago + x.comp) / x.prev * 100 : 0;
+      return `<section class="panel mts eq" aria-label="${f[1]}"><div class="mts-cab eq-cab"><div><h2>${f[1]}</h2><p>${f[2]}</p></div><span class="chip">${esc(nomeRubrica(x.rubrica))}</span></div>
+       <dl class="rb-x eq-x"><div><dt>Bolsa no plano</dt><dd>${x.mensal ? `${ms.length} meses · ${brl(x.mensal)}/mês` : brl(x.prev)}</dd></div><div><dt>Período</dt><dd>${ms.length ? `${rot(ms[0])} a ${rot(ms[ms.length - 1])}` : '—'}</dd></div><div><dt>Previsto</dt><dd>${brl(x.prev)}</dd></div><div><dt>Pago</dt><dd>${brl(x.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(x.comp)}</dd></div><div><dt>Saldo</dt><dd class="${x.saldo < 0 ? 'neg' : ''}"><b>${brl(x.saldo)}</b></dd></div></dl>
+       <div class="eq-b"><span class="medidor fino" role="img" aria-label="${pct(u)}% do previsto pago ou comprometido"><i class="${u > 100 ? 'bad' : ''}" style="width:${Math.min(100, u)}%"></i></span><b>${pct(u)}%</b></div>
+       ${L.length ? `<ul class="eq-l">${L.map(g => `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(g.nome))}</span><div class="pc-t"><div class="pc-n"><b>${esc(g.nome)}</b></div><div class="pc-d"><span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}<span>última em ${dt(g.ult)}</span></div></div></li>`).join('')}</ul>` : `<p class="small eq-v">Ninguém ainda. Os nomes aparecem aqui quando a planilha da FUNCERN trouxer a primeira solicitação de bolsa desta função.</p>`}</section>`; };
+    return `<div class="head"><div><h2>Equipe do projeto</h2><p>As três funções com bolsa no plano de trabalho. Os nomes e os valores vêm da planilha de solicitações da FUNCERN, importada na aba Financeiro.</p></div></div>${FUNCOES.map(bloco).join('')}`;
+  }
   function financeiro() {
     const F = R.fin(db), FR = R.finRubrica(db), pago = R.soma(F, 'pago'), comp = R.soma(F, 'comp'), usado = pago + comp, rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
     const mil = v => num(v / 1000, Math.abs(v) % 1000 ? 1 : 0);
@@ -1491,7 +1504,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   /* cada tela tem um h1 com sobretítulo. Nas abas que já começam com um cabeçalho, o primeiro título vira o h1;
      no painel (que começa pelos indicadores) o cabeçalho é criado aqui. */
-  const SOBRE = { painel: 'Visão geral', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
+  const SOBRE = { painel: 'Visão geral', equipe: 'Quem faz o projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
   function tituloDaTela(v) {
     const cab = [...v.children].find(c => c.classList && c.classList.contains('head')), eye = `<span class="eyebrow">${SOBRE[tab] || ''}</span>`;
     if (cab && tab !== 'painel') { const h2 = cab.querySelector('h2'), d = h2 && h2.parentElement; if (!h2) return; const h1 = document.createElement('h1'); h1.textContent = h2.textContent; h2.replaceWith(h1); d.classList.add('pg'); h1.insertAdjacentHTML('beforebegin', eye); return; }
@@ -1505,7 +1518,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function render() {
     if (!eu || !db) return;
     nav(); const v = $('#view');
-    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    v.innerHTML = avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     tituloDaTela(v); escalaDesenhos();
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
