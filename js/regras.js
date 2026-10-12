@@ -281,6 +281,10 @@
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
+    if (tabela === 'presencas') {
+      if (!(db.eventos || []).some(e => e.id === r.evento)) return 'Escolha a atividade.';
+      if (String(r.nome || '').trim().length < 3) return 'Informe o nome de quem participou.';
+    }
     if (tabela === 'eventos') {
       if (!inteiro(r.part) || !inteiro(r.mulheres)) return 'Participantes e mulheres precisam ser números inteiros.';
       if (!vazio(r.mulheres) && vazio(r.part)) return 'Informe o total de participantes antes do número de mulheres.';
@@ -313,8 +317,8 @@
   }
 
   /* ---------- exclusão: onde o registro está em uso ---------- */
-  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']] };
-  const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => db[c].some(x => x[k] === id)).map(([c]) => c);
+  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']], eventos: [['presencas', 'evento'], ['fotos', 'registro']], visitas: [['fotos', 'registro']] };
+  const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => (db[c] || []).some(x => x[k] === id)).map(([c]) => c);
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
   const RESTRITAS = ['despesas', 'pessoas', 'membros'];   // só a coordenação grava

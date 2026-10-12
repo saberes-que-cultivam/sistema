@@ -103,7 +103,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Outro'],
     /* janela do cronograma na tela: jul/2026 a jul/2027 (13 meses) */
     G0: '2026-07-01', G1: '2027-08-01',
-    TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas', 'membros']
+    TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas', 'membros', 'presencas', 'fotos']
   };
 })();
 ;
@@ -399,6 +399,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
+    if (tabela === 'presencas') {
+      if (!(db.eventos || []).some(e => e.id === r.evento)) return 'Escolha a atividade.';
+      if (String(r.nome || '').trim().length < 3) return 'Informe o nome de quem participou.';
+    }
     if (tabela === 'eventos') {
       if (!inteiro(r.part) || !inteiro(r.mulheres)) return 'Participantes e mulheres precisam ser números inteiros.';
       if (!vazio(r.mulheres) && vazio(r.part)) return 'Informe o total de participantes antes do número de mulheres.';
@@ -431,8 +435,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   /* ---------- exclusão: onde o registro está em uso ---------- */
-  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']] };
-  const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => db[c].some(x => x[k] === id)).map(([c]) => c);
+  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']], eventos: [['presencas', 'evento'], ['fotos', 'registro']], visitas: [['fotos', 'registro']] };
+  const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => (db[c] || []).some(x => x[k] === id)).map(([c]) => c);
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
   const RESTRITAS = ['despesas', 'pessoas', 'membros'];   // só a coordenação grava
@@ -690,6 +694,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       despesas: [
         { id: 'x1', ex: 1, data: atras(25), etapa: '3.1', rubrica: 'servicos_pj', item: 'i09', descricao: 'Impressão de cartilhas (exemplo)', favorecido: 'Gráfica', doc: 'NF 0000', valor: 1800, status: 'Pago' },
         { id: 'x2', ex: 1, data: atras(10), etapa: '6.1', rubrica: 'consumo', descricao: 'Material para feira e oficinas (exemplo)', favorecido: '', doc: '', valor: 2400, status: 'Em compras na FUNCERN' }],
+      presencas: [], fotos: [],
       entregas: [
         { id: 'g1', etapa: '6.3', titulo: 'Contrato 220/2026 com a FUNCERN; 1ª parcela de R$ 200.000,00 liquidada (2026NS001323)', data: '2026-09-22', link: '', obs: 'Contrato assinado em 20/08/2026.' }]
     };
@@ -723,7 +728,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (eu && eu.perfil === 'Acompanhamento') {
         c.agricultores = c.agricultores.map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
-        c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = [];
+        c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = []; c.presencas = []; c.fotos = [];
       }
       if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       return c;
@@ -749,6 +754,16 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    /* fotos na demonstração: a imagem fica só na memória desta página (não ocupa o armazenamento do navegador) */
+    _img: {},
+    async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
+      if (!R.podeGravar(eu, 'fotos')) throw falha('O seu perfil não tem permissão para fazer isso.');
+      if (!(db[tabela] || []).some(x => x.id === registro)) throw falha('A atividade ou visita desta foto não existe mais.');
+      const id = SQC.novoId(); this._img[id] = blob;
+      return this.salvar('fotos', { id, tabela, registro, caminho: `${tabela}/${registro}/${id}.jpg`, tirada_em: tiradaEm || null, legenda: legenda || null });
+    },
+    async arquivoFoto(f) { if (!this._img[f.id]) throw falha('Na demonstração a imagem fica só enquanto a página está aberta.'); return this._img[f.id]; },
+    async excluirFoto(f) { await this.excluir('fotos', f.id); delete this._img[f.id]; },
     /* link de cadastro, simulado neste navegador (na demonstração o "banco" é o próprio aparelho) */
     preparar() {},
     _cv(g) { const K = 'sqc-demo-convites'; let l = []; try { l = JSON.parse(ler(K)) || []; } catch (e) { l = []; } if (g) { const n = g(l); gravar(K, JSON.stringify(n)); return n; } return l; },
@@ -766,7 +781,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     async apagarExemplos() {
       ['distribuicoes', 'visitas', 'lotes', 'agricultores', 'eventos', 'entregas', 'itens', 'despesas', 'membros'].forEach(t => { db[t] = db[t].filter(r => !r.ex); });
       db.distribuicoes = db.distribuicoes.filter(x => db.lotes.some(l => l.id === x.lote) && db.agricultores.some(a => a.id === x.agricultor));
-      db.visitas = db.visitas.filter(x => db.agricultores.some(a => a.id === x.agricultor)); persistir();
+      db.visitas = db.visitas.filter(x => db.agricultores.some(a => a.id === x.agricultor));
+      db.presencas = (db.presencas || []).filter(x => db.eventos.some(e => e.id === x.evento));
+      db.fotos = (db.fotos || []).filter(x => (db[x.tabela] || []).some(r => r.id === x.registro)); persistir();
     },
     async recomecar() { const p = db.pessoas; db = semente(); db.pessoas = p; persistir(); },
     _db: () => db, _zerar() { db = null; eu = null; Object.keys(mem).forEach(k => delete mem[k]); try { G.localStorage.removeItem(CHAVE); G.localStorage.removeItem(CHAVE + '-eu'); } catch (e) {} }
@@ -805,9 +822,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
     membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
-    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
+    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status'],
+    presencas: ['evento', 'nome', 'comunidade', 'municipio', 'mulher', 'agricultor'],
+    fotos: ['tabela', 'registro', 'caminho', 'tirada_em', 'legenda']
   };
-  const BOOL = ['ativo', 'kit', 'lgpd', 'socio'].concat(D.CHECK.map(c => c[0]));
+  const BOOL = ['ativo', 'kit', 'lgpd', 'socio', 'mulher'].concat(D.CHECK.map(c => c[0]));
   /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
      e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
   let semCompleto = false;
@@ -829,6 +848,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     for (let de = 0; de < 100000;) {
       let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
       if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
+      if (error && (tabela === 'presencas' || tabela === 'fotos') && (error.code === '42P01' || error.code === 'PGRST205' || new RegExp(tabela).test(String(error.message)))) { SQC.apiSupabase.semEvidencias = true; return []; }   // falta rodar o script 13
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
       if (error) throw erro(error);
       tudo = tudo.concat(data || []); de += (data || []).length;
@@ -840,14 +860,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* prazo em cada chamada ao servidor (trazido do Mulheres & Quintais, 12/10/2026): com sinal que engana (rede "conectada"
      que não responde) a chamada esperava para sempre e o botão ficava em "Salvando…". Passou de 30 s, conta como falta de
      internet: o lançamento vai para a fila do aparelho e é enviado depois. */
-  SQC.prazoRede = 30000;
+  SQC.prazoRede = 30000; SQC.prazoArquivo = 120000;
   function fetchComPrazo(url, op) {
     if (typeof AbortController === 'undefined') return fetch(url, op);
     const ctl = new AbortController(); let esgotou = false;
-    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, SQC.prazoRede);
+    const arquivo = /\/storage\/v1\/object/.test(String((url && url.url) || url)) && op && op.method && op.method !== 'GET', prazo = arquivo ? SQC.prazoArquivo : SQC.prazoRede;   // foto: 2 minutos
+    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, prazo);
     if (op && op.signal) { if (op.signal.aborted) ctl.abort(); else op.signal.addEventListener('abort', () => ctl.abort(), { once: true }); }   // quem chamou também pode cancelar
     return fetch(url, Object.assign({}, op, { signal: ctl.signal }))
-      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(SQC.prazoRede / 1000) + ' segundos'); throw e; })
+      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(prazo / 1000) + ' segundos'); throw e; })
       .finally(() => clearTimeout(t));
   }
   SQC.fetchComPrazo = fetchComPrazo;
@@ -855,6 +876,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
     preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
+    /* ----- fotos de evidência (script 13): arquivo no Storage, pasta privada "evidencias"; a lista fica na tabela fotos ----- */
+    async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
+      const id = SQC.novoId(), caminho = `${tabela}/${registro}/${id}.jpg`, pasta = sb.storage.from('evidencias');
+      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false });
+      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error); }
+      try { return await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true }); }
+      catch (e) { await pasta.remove([caminho]).catch(() => {}); throw e; }   // a lista recusou: o arquivo não fica solto
+    },
+    async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho); if (error) throw erro(error); return data; },
+    async excluirFoto(f) {
+      const rm = await sb.storage.from('evidencias').remove([f.caminho]); if (rm.error) throw erro(rm.error);
+      await this.excluir('fotos', f.id);
+    },
     /* ----- link de cadastro da equipe ----- */
     async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
       const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });
@@ -928,7 +962,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
         const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'membros' ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos') ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // dados reservados da equipe: só a coordenação recebe, por função própria do banco
         if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {
@@ -1237,6 +1271,119 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   SQC.voz = { suportado: !!SR, parar, preparar };
 })();
 ;
+/* ===== fotodia.js ===== */
+/* Saberes que Cultivam — foto de evidência (atividade ou visita): data de dentro do arquivo, tamanho reduzido e câmera do sistema.
+   Trazido do sistema Mulheres & Quintais (fotodia.js, 12/10/2026), com uma diferença de regra combinada para este projeto:
+   - foto COM data dentro do arquivo (EXIF, gravado pela câmera do celular) só vale se for do dia da atividade ou da visita
+     (visita que passa da meia-noite: vale também foto do dia seguinte até as 4h);
+   - foto SEM data dentro do arquivo (encaminhada pelo WhatsApp, captura de tela) é aceita, mas fica marcada
+     "data não confirmada" — aqui é comum receber a foto da capacitação pelo WhatsApp de quem estava lá;
+   - foto tirada pela câmera do próprio sistema é sempre de agora.
+   Antes de enviar, a foto é reduzida (lado maior 1600 px, JPEG): cabe no espaço gratuito do Supabase e sobe com sinal fraco.
+   Limite conhecido: ninguém impede fotografar, hoje, uma foto antiga impressa ou mostrada em outra tela. */
+(function () {
+  const G = typeof window !== 'undefined' ? window : globalThis;
+  const SQC = (G.SQC = G.SQC || {});
+
+  /* momento em que a foto foi tirada, lido do EXIF: DateTimeOriginal (0x9003), senão DateTimeDigitized (0x9004),
+     senão DateTime (0x0132). Devolve { dia: 'AAAA-MM-DD', hora } ou null. Nunca lança erro. */
+  async function lerMomentoExif(arquivo) {
+    try {
+      const ini = await arquivo.slice(0, 512 * 1024).arrayBuffer(); const v = new DataView(ini);
+      if (v.byteLength >= 4 && v.getUint16(0) === 0xFFD8) {
+        let p = 2;
+        while (p + 4 <= v.byteLength) {
+          if (v.getUint8(p) !== 0xFF) break;
+          const marca = v.getUint8(p + 1), tam = v.getUint16(p + 2);
+          if (marca === 0xE1 && p + 10 <= v.byteLength && v.getUint32(p + 4) === 0x45786966) { const r = lerTiff(v, p + 10, Math.min(v.byteLength, p + 2 + tam)); if (r) return r; break; }
+          if (marca === 0xDA || marca === 0xD9) break;
+          p += 2 + tam;
+        }
+        return null;   // JPEG sem EXIF (WhatsApp, captura de tela)
+      }
+      const r = procurarTiff(v); if (r || arquivo.size <= ini.byteLength) return r;
+      return procurarTiff(new DataView(await arquivo.slice(0, 16 * 1024 * 1024).arrayBuffer()));   // HEIC, PNG, WebP
+    } catch (e) { return null; }
+  }
+  function procurarTiff(v) {
+    for (let i = 0, n = v.byteLength - 8; i < n; i++) {
+      const a = v.getUint8(i);
+      if ((a === 0x49 && v.getUint8(i + 1) === 0x49 && v.getUint8(i + 2) === 0x2A && v.getUint8(i + 3) === 0)
+        || (a === 0x4D && v.getUint8(i + 1) === 0x4D && v.getUint8(i + 2) === 0 && v.getUint8(i + 3) === 0x2A)) {
+        let r = null; try { r = lerTiff(v, i, v.byteLength); } catch (e) { r = null; }
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  function lerTiff(v, t, fim) {
+    if (t + 8 > fim) return null;
+    const le = v.getUint16(t) === 0x4949, u16 = o => v.getUint16(o, le), u32 = o => v.getUint32(o, le);
+    if (u16(t + 2) !== 42) return null;
+    const ifd = off => { const base = t + off; if (off < 8 || base + 2 > fim) return []; const n = u16(base), l = [];
+      for (let i = 0; i < n && i < 500; i++) { const e = base + 2 + i * 12; if (e + 12 > fim) break; l.push({ tag: u16(e), tipo: u16(e + 2), qtd: u32(e + 4), val: u32(e + 8), e }); } return l; };
+    const texto = x => { if (!x || x.tipo !== 2 || x.qtd < 19) return null; const o = x.qtd > 4 ? t + x.val : x.e + 8; if (o + 19 > fim) return null;
+      let s = ''; for (let i = 0; i < 19; i++) s += String.fromCharCode(v.getUint8(o + i)); return s; };
+    const ifd0 = ifd(u32(t + 4)), ptr = ifd0.find(x => x.tag === 0x8769), exif = ptr ? ifd(ptr.val) : [];
+    const bruto = texto(exif.find(x => x.tag === 0x9003)) || texto(exif.find(x => x.tag === 0x9004)) || texto(ifd0.find(x => x.tag === 0x0132));
+    const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):\d{2}:\d{2}$/.exec(bruto || '');
+    if (!m || m[1] === '0000') return null;
+    return { dia: m[1] + '-' + m[2] + '-' + m[3], hora: +m[4] };
+  }
+
+  /* regra: devolve '' (vale) ou a mensagem que explica por que não vale. diaFoto vazio = sem data no arquivo (vale, marcada) */
+  const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const br = d => d.split('-').reverse().join('/');
+  const diaSeguinte = d => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
+  function conferir(diaFoto, diaRegistro, hora) {
+    if (!diaFoto) return '';
+    if (diaFoto > hoje()) return `A data desta foto está no futuro (${br(diaFoto)}). Confira a data do celular e tire a foto de novo.`;
+    if (!diaRegistro || diaFoto === diaRegistro) return '';
+    if (diaFoto === diaSeguinte(diaRegistro) && hora != null && hora < 4) return '';
+    return `Esta foto é de ${br(diaFoto)} e o registro é de ${br(diaRegistro)}. Só vale foto tirada no dia: escolha outra foto ou corrija a data do registro.`;
+  }
+
+  /* reduz para o lado maior ter no máximo 1600 px, em JPEG; devolve um Blob */
+  async function reduzir(arquivo, lado = 1600, qualidade = 0.82) {
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => falha(new Error('Este arquivo não é uma foto que o navegador consiga abrir. Use JPEG ou PNG.')); i.src = url; });
+      const f = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight)), w = Math.round(img.naturalWidth * f), h = Math.round(img.naturalHeight * f);
+      const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h);
+      const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', qualidade));
+      if (!b) throw new Error('A foto não pôde ser preparada. Tente de novo.');
+      return b;
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  /* câmera do próprio sistema (traseira): a foto é tirada agora. Devolve um File, ou null se a pessoa cancelou. */
+  function abrirCamera(avisar) {
+    return new Promise(async pronto => {
+      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { avisar('Este navegador não abre a câmera pelo sistema. Use “Escolher foto” ou atualize o navegador.'); return pronto(null); }
+      let fluxo;
+      try { fluxo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false }); }
+      catch (e) { avisar('Não foi possível abrir a câmera. Permita o uso da câmera para este site nas configurações do navegador.'); return pronto(null); }
+      const j = document.createElement('div'); j.className = 'cam-janela'; j.setAttribute('role', 'dialog'); j.setAttribute('aria-modal', 'true'); j.setAttribute('aria-label', 'Tirar foto');
+      j.innerHTML = '<div class="cam-caixa"><video autoplay playsinline muted></video><p class="small">Enquadre e toque em Tirar foto. A foto fica com a data de agora.</p><div class="frow"><button type="button" class="b" data-cam="cancelar">Cancelar</button><button type="button" class="b p" data-cam="tirar">Tirar foto</button></div></div>';
+      const video = j.querySelector('video'); video.srcObject = fluxo;
+      (document.querySelector('dialog[open]') || document.body).appendChild(j); j.querySelector('[data-cam=tirar]').focus();
+      const fechar = r => { fluxo.getTracks().forEach(t => t.stop()); j.remove(); document.removeEventListener('keydown', tecla, true); pronto(r); };
+      const tecla = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fechar(null); } };
+      document.addEventListener('keydown', tecla, true);
+      j.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-cam]'); if (!b) return;
+        if (b.dataset.cam === 'cancelar') return fechar(null);
+        if (!video.videoWidth) return;
+        const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight; c.getContext('2d').drawImage(video, 0, 0);
+        b.disabled = true; b.textContent = 'Preparando…';
+        c.toBlob(blob => fechar(blob ? new File([blob], 'camera_' + Date.now() + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }) : null), 'image/jpeg', 0.9);
+      });
+    });
+  }
+
+  SQC.fotodia = { lerMomentoExif, conferir, reduzir, abrirCamera, hoje };
+})();
+;
 /* ===== app.js ===== */
 /* Saberes que Cultivam — telas e navegação.
    Uma aba por assunto. Os cadastros são descritos em MOD (campos do formulário e colunas da lista);
@@ -1259,7 +1406,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
      que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
   let real = null;
   function semPessoal(d) {
-    const c = JSON.parse(JSON.stringify(d));
+    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = [];
     c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
     c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
     c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; return c;
@@ -1333,14 +1480,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         ['gasto', 'Gasto atual com insumos comprados (R$/mês)', 'number'], ['obs', 'O que foi observado', 'textarea'], ['problemas', 'Dificuldades relatadas', 'textarea']],
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome)],
         ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
-        ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
+        ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`], ['Fotos', v => evid('visitas', v), '', 'equipe']] },
     eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano. Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
         ['part', 'Participantes', 'number'], ['mulheres', 'Dos quais, mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + exChip(e)], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
-        ['Evidência', e => link(e.link)]] },
+        ['Evidência', e => link(e.link)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe']] },
     entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida.', dicas: { link: 'Onde o documento está guardado.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
       campos: [['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`])],
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
@@ -1365,12 +1512,18 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         ['_s2b', 'Perfil no campo', 'sec'], ['agricultor', 'É agricultor(a)? (produz alimento em quintal, roça ou lote)', 'select', 0, opt(['', 'Sim', 'Não'])], ['atua_af', 'Atua junto a agricultoras e agricultores familiares do território?', 'select', 0, opt(['', 'Sim', 'Não'])], ['zona_rural', 'Mora na zona rural?', 'select', 0, opt(['', 'Sim', 'Não'])], ['celular_internet', 'Tem celular com internet?', 'select', 0, opt(['', 'Sim', 'Não'])],
         ['_s4', 'Proteção de dados', 'sec'], ['lgpd', 'A pessoa foi informada e concorda que estes dados sejam usados só para a gestão do projeto e o pagamento da bolsa (Lei nº 13.709/2018).', 'check'],
         ['_s5', 'Desligamento', 'sec'], ['fim', 'Data do desligamento', 'date'], ['motivo', 'Motivo', 'text'], ['obs', 'Observações', 'textarea']], cols: [] },
+    presencas: { um: 'Participante', nome: 'Presença', novo: 'Adicionar participante', titulo: 'Lista de presença', desc: '', cols: [],
+      campos: [['evento', 'Atividade', 'ref', 1, 'eventos'], ['nome', 'Nome', 'text', 1], ['comunidade', 'Comunidade', 'text'], ['municipio', 'Município', 'text'], ['mulher', 'Mulher', 'check'],
+        ['agricultor', 'É uma unidade produtiva acompanhada?', 'ref', 0, 'agricultores']] },
     pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
       campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, [['Equipe', 'Equipe (registra o trabalho do projeto)'], ['Coordenação', 'Coordenação (faz tudo)'], ['Acompanhamento', 'Acompanhamento (SEAB/MDA: só consulta, sem dados pessoais)']]], ['orgao', 'Órgão ou setor (para quem acompanha)', 'text'], ['ativo', 'Acesso ativo', 'check']],
       cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : u.perfil === 'Acompanhamento' ? 'f' : ''}">${esc(u.perfil)}</span>${u.orgao ? `<div class="small">${esc(u.orgao)}</div>` : ''}`],
         ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
   };
-  const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
+  /* lista de presença e fotos de cada atividade/visita (script 13). Só a equipe do projeto vê: o SEAB/MDA fica com o número de participantes */
+  const evid = (t, r) => { if (r._pendente) return '<span class="small">depois de enviar</span>'; const nf = (db.fotos || []).filter(f => f.tabela === t && f.registro === r.id).length, np = t === 'eventos' ? (db.presencas || []).filter(x => x.evento === r.id).length : null;
+    return `<span class="ev-b">${np !== null ? `<button class="b s" data-presenca="${esc(r.id)}">Lista${np ? ` (${np})` : ''}</button>` : ''}<button class="b s" data-fotos="${t}:${esc(r.id)}">Fotos${nf ? ` (${nf})` : ''}</button></span>`; };
+  const rotulo = { eventos: e => `${dt(e.data)} · ${e.tipo} · ${e.tema}`, unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
   const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['historico', 'Histórico'], ['dados', 'Dados']];
@@ -1390,7 +1543,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
   function tabela(m) {
-    const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !(c[3] === 'equipe' && fora())) }), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
@@ -1524,8 +1677,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
   const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
-    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados.',
-    eventos: 'Capacitações, dias de campo, reuniões e articulações.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
+    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados. Dá para imprimir a ficha em branco e anexar fotos da visita.',
+    eventos: 'Capacitações, dias de campo, reuniões e articulações. Em cada uma: lista de presença (imprimir em branco, colher assinaturas e digitar os nomes) e fotos do dia.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
     financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso.' };
   function abrirAjuda() {
     ed = null; $('#frm').className = 'fm';
@@ -1534,6 +1687,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${AJUDA[tab] || ''}</p>
       <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
+      <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${{ 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento' }[eu.perfil] || 'equipe'}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
       <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
      <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
@@ -1959,10 +2113,107 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     pub = null; try { history.replaceState(null, '', location.pathname); } catch (x) {}
     $('#pub').querySelector('.pub-c').outerHTML = '<div class="panel pub-c"><h1>Cadastro enviado</h1><p>Obrigado. A coordenação do projeto vai conferir os seus dados e confirmar o cadastro. Pode fechar esta página.</p></div>'; scrollTo(0, 0);
   }
+
+  /* ---------- lista de presença de uma atividade (script 13) ---------- */
+  let prUlt = {};   // comunidade e município do último nome digitado: na mesma atividade quase sempre se repetem
+  function abrirPresenca(evId, msg) {
+    const e = by('eventos', evId); if (!e) return;
+    ed = null; prEv = evId; const L = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1), pode = R.podeGravar(eu, 'presencas'), mul = L.filter(x => x.mulher).length;
+    const difere = L.length && (+e.part !== L.length || +e.mulheres !== mul);
+    $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="fm-sub">${esc(e.tipo)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}</p>
+      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe e anexe em Fotos. Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
+      <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}` : ''}.${difere ? ` Na atividade estão registrados ${R.vazio(e.part) ? 'sem número de' : num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.` : ''}</p>
+      ${L.length ? `<ol class="pr-l">${L.map(x => `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · '))}</small></span>${R.podeExcluir(eu, 'presencas', x) && !x._pendente ? `<button type="button" class="ab d" title="Tirar da lista" data-prdel="${esc(x.id)}">${IC_LIXO}<span class="so">Tirar ${esc(x.nome)} da lista</span></button>` : ''}</li>`).join('')}</ol>` : ''}
+      ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3><div class="fields"><div class="fld w"><label for="pr_nome">Nome</label><input id="pr_nome" autocomplete="off"></div>
+        <div class="fld"><label for="pr_com">Comunidade</label><input id="pr_com" value="${esc(prUlt.comunidade || '')}"></div><div class="fld"><label for="pr_mun">Município</label><input id="pr_mun" value="${esc(prUlt.municipio || e.municipio || '')}"></div>
+        <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pr_mul">Mulher</label></fieldset></div></div>
+        <div class="acts"><button type="button" class="b p" data-pradd="${esc(evId)}">Adicionar</button></div>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow"><button type="button" class="b" data-imprimirlista="${esc(evId)}">Imprimir lista em branco</button>${pode && difere ? `<button type="button" class="b" data-prcontar="${esc(evId)}">Usar o total da lista na atividade</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button></div></div>`;
+    if ($('#dlg').open) ($('#pr_nome') || $('#frm .fm-x')).focus(); else $('#dlg').showModal();
+  }
+  let prEv = null;
+  async function adicionarPresenca(evId) {
+    const v = id => ($('#' + id) || {}).value || '', r = { id: SQC.novoId(), evento: evId, nome: v('pr_nome').trim(), comunidade: v('pr_com').trim(), municipio: v('pr_mun').trim(), mulher: !!($('#pr_mul') && $('#pr_mul').checked) };
+    const msg = R.validar(db, 'presencas', r, null); if (msg) { $('#ferr').textContent = msg; $('#pr_nome').focus(); return; }
+    const res = await gravarRegistro('presencas', r, null);
+    if (!res.ok) { $('#ferr').textContent = res.msg; return; }
+    prUlt = { comunidade: r.comunidade, municipio: r.municipio };
+    abrirPresenca(evId, res.fila ? `${r.nome}: guardado neste aparelho, envia quando o sinal voltar.` : `${r.nome} entrou na lista.`); $('#pr_nome').focus();
+  }
+
+  /* ---------- fotos de uma atividade ou visita (script 13) ---------- */
+  const urlsFoto = {};   // id da foto → endereço da imagem já baixada nesta página
+  function abrirFotos(t, id, msg) {
+    const r = by(t, id); if (!r) return;
+    ed = null; const F = (db.fotos || []).filter(f => f.tabela === t && f.registro === id).sort((a, b) => (a.criado_em || '') < (b.criado_em || '') ? -1 : 1), pode = R.podeGravar(eu, 'fotos');
+    const titulo = t === 'eventos' ? esc(r.tema) : esc((by('agricultores', r.agricultor) || { nome: 'Visita' }).nome), dia = r.data;
+    $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Fotos ${t === 'eventos' ? 'da atividade' : 'da visita'}</span><h2>${titulo}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="fm-sub">${t === 'eventos' ? esc(r.tipo) + ' · ' : ''}${dt(dia)}</p>
+      <div class="fm-oque"><span>Regra da foto</span><p>Vale foto tirada no dia ${dt(dia)}. A data vem de dentro do arquivo, gravada pela câmera. Foto sem essa data (encaminhada pelo WhatsApp, captura de tela) entra marcada como “data não confirmada”. Só a equipe do projeto vê as fotos.</p></div>
+      ${F.length ? `<ul class="ft-g">${F.map(f => `<li><div class="ft-i" data-ftimg="${esc(f.id)}" role="img" aria-label="${esc(f.legenda || 'Foto')}"><span class="small">carregando…</span></div>
+        <div class="ft-d"><span>${f.tirada_em ? `<span class="chip ok">tirada em ${dt(f.tirada_em)}</span>` : '<span class="chip f">data não confirmada</span>'}</span>${f.legenda ? `<small>${esc(f.legenda)}</small>` : ''}
+        ${R.podeExcluir(eu, 'fotos', f) ? `<button type="button" class="ab d" title="Excluir foto" data-fotodel="${esc(f.id)}">${IC_LIXO}<span class="so">Excluir foto</span></button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhuma foto ainda.</p>'}
+      ${pode ? `<h3 class="fm-sec">Anexar foto</h3><div class="fields"><div class="fld w"><label for="ft_leg">Legenda (opcional)</label><input id="ft_leg" maxlength="300" placeholder="Ex.: lista de presença assinada; aplicação do biofertilizante"></div></div>
+        <div class="acts"><button type="button" class="b p" data-fotocam="${t}:${esc(id)}">Tirar foto agora</button><label class="b imp-b">Escolher foto<input type="file" id="ft_arq" data-alvo="${t}:${esc(id)}" accept="image/jpeg,image/png,image/webp,image/heic" class="imp-f"></label></div>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button></div></div>`;
+    if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
+    F.forEach(async f => { const el = document.querySelector(`[data-ftimg="${CSS.escape(f.id)}"]`); if (!el) return;
+      try { if (!urlsFoto[f.id]) urlsFoto[f.id] = URL.createObjectURL(await api.arquivoFoto(f)); el.innerHTML = `<img src="${urlsFoto[f.id]}" alt="${esc(f.legenda || 'Foto')}" loading="lazy">`; }
+      catch (e) { el.innerHTML = `<span class="small">${esc(e.semRede ? 'Sem internet: a foto aparece quando o sinal voltar.' : e.message)}</span>`; } });
+  }
+  async function anexarFoto(alvo, arquivo, daCamera) {
+    const [t, id] = alvo.split(':'), r = by(t, id); if (!r || !arquivo) return;
+    const er = m => { const e = $('#ferr'), o = $('#fok'); if (e) e.textContent = m; if (o) o.textContent = ''; };
+    const andamento = m => { const e = $('#ferr'), o = $('#fok'); if (o) o.textContent = m; if (e) e.textContent = ''; };
+    if (!demo() && navigator.onLine === false) return er('Foto precisa de internet para subir. Guarde a foto no celular e anexe quando o sinal voltar: a data dela continua valendo.');
+    andamento('Conferindo a data da foto…');
+    const m = daCamera ? { dia: SQC.fotodia.hoje(), hora: new Date().getHours() } : await SQC.fotodia.lerMomentoExif(arquivo);
+    const erro = SQC.fotodia.conferir(m && m.dia, r.data, m && m.hora); if (erro) return er(erro);
+    let blob; try { andamento('Preparando a foto…'); blob = await SQC.fotodia.reduzir(arquivo); } catch (e) { return er(e.message); }
+    andamento('Enviando…');
+    try { const f = await api.enviarFoto(t, id, blob, m && m.dia, (($('#ft_leg') || {}).value || '').trim()); db.fotos = (db.fotos || []).concat([f]); urlsFoto[f.id] = URL.createObjectURL(blob); render(); abrirFotos(t, id, m && m.dia ? 'Foto anexada.' : 'Foto anexada, marcada como “data não confirmada”.'); }
+    catch (e) { er(e.semRede ? 'Sem internet agora: a foto não subiu. Tente de novo quando o sinal voltar.' : e.message); }
+  }
+
+  /* ---------- imprimir em branco, para aplicar no papel (trazido do Mulheres & Quintais) ---------- */
+  const IMPRIMIVEIS = ['agricultores', 'visitas', 'distribuicoes', 'eventos'];
+  function imprimir(html) {
+    let el = document.getElementById('impresso'); if (!el) { el = document.createElement('div'); el.id = 'impresso'; document.body.appendChild(el); }
+    el.innerHTML = html; document.body.classList.add('imprimindo');
+    const fim = () => { document.body.classList.remove('imprimindo'); el.innerHTML = ''; window.removeEventListener('afterprint', fim); };
+    window.addEventListener('afterprint', fim); window.print(); setTimeout(() => { if (!window.matchMedia || !window.matchMedia('print').matches) fim(); }, 1000);
+  }
+  const cabImp = (titulo, sub) => `<header class="pf-cab"><img src="assets/icon-192.png" alt="" width="40" height="40"><div><b>Saberes que Cultivam</b><span>IFRN Campus Apodi · TED MDA</span></div><div class="pf-t"><h1>${esc(titulo)}</h1>${sub ? `<p>${sub}</p>` : ''}</div></header>`;
+  function imprimirBranco(m) {
+    const M = MOD[m], ln = '<span class="pf-ln"></span>', cx = t => `<span class="pf-op"><span class="pf-bx"></span>${esc(t)}</span>`;
+    const campo = ([k, l, t, req, o]) => {
+      if (t === 'sec') return `<h2>${esc(l)}</h2>`;
+      if (t === 'checks') return `<div class="pf-i"><b>${esc(l)}</b><div class="pf-ops">${D.CHECK.map(c => cx(c[1])).join('')}</div></div>`;
+      if (t === 'check') return `<div class="pf-i">${cx(l)}</div>`;
+      if (t === 'select') { const ops = (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]); return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><div class="pf-ops">${ops.map(x => cx(x[1])).join('')}</div></div>`; }
+      if (t === 'ref') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
+      if (t === 'textarea') return `<div class="pf-i w"><b>${esc(l)}</b>${ln}${ln}${ln}</div>`;
+      if (t === 'date') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><span class="pf-dt">____ / ____ / ________</span></div>`;
+      return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
+    };
+    imprimir(`<section class="pf">${cabImp(M.um, `Aplicado por: ${esc(eu.nome)} &nbsp;·&nbsp; Data: ____ / ____ / ________`)}${M.oque ? `<p class="pf-o">${esc(M.oque)}</p>` : ''}<div class="pf-c">${M.campos.map(campo).join('')}</div><p class="pf-r">* obrigatório. Depois, digite no sistema: Saberes que Cultivam › ${esc(M.nome)}.</p></section>`);
+  }
+  function imprimirLista(evId) {
+    const e = by('eventos', evId); if (!e) return;
+    const linhas = Array.from({ length: 25 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+    imprimir(`<section class="pf">${cabImp('Lista de presença', `${esc(e.tipo)} · ${esc(e.tema)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}${e.municipio ? ' · ' + esc(e.municipio) : ''}`)}
+      <p class="pf-o">Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).</p>
+      <table class="pf-lp"><thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade</th><th>Município</th><th>Mulher? (S/N)</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table>
+      <p class="pf-r">Responsável: ${esc(eu.nome)} &nbsp;·&nbsp; Folha ____ de ____</p></section>`);
+  }
   function abrir(m, id, pre) {
-    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : m === 'presencas' ? { evento: pre } : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     ${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span>Vai aplicar no papel?</span><button type="button" class="b s" data-imprimir="${m}">Imprimir em branco</button></div>` : ''}
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
@@ -2180,6 +2431,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.presenca) abrirPresenca(d.presenca);
+    else if (d.pradd) { t.disabled = true; try { await adicionarPresenca(d.pradd); } finally { t.disabled = false; } }
+    else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para tirar da lista.'; return; }
+      try { await api.excluir('presencas', d.prdel); db.presencas = db.presencas.filter(x => x.id !== d.prdel); render(); abrirPresenca(prEv, 'Tirado da lista.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
+    else if (d.prcontar) { const e = by('eventos', d.prcontar), L = db.presencas.filter(x => x.evento === d.prcontar), r = Object.assign({}, e, { part: L.length, mulheres: L.filter(x => x.mulher).length });
+      const res = await gravarRegistro('eventos', r, e); render(); abrirPresenca(d.prcontar, res.ok ? 'Participantes da atividade atualizados pela lista.' : res.msg); }
+    else if (d.imprimirlista) imprimirLista(d.imprimirlista);
+    else if (d.imprimir) imprimirBranco(d.imprimir);
+    else if (d.fotos) { const [tt, id] = d.fotos.split(':'); abrirFotos(tt, id); }
+    else if (d.fotocam) { const f = await SQC.fotodia.abrirCamera(m => { $('#ferr').textContent = m; }); if (f) await anexarFoto(d.fotocam, f, true); }
+    else if (d.fotodel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para excluir a foto.'; return; }
+      const f = db.fotos.find(x => x.id === d.fotodel); if (!f) return;
+      try { await api.excluirFoto(f); db.fotos = db.fotos.filter(x => x.id !== f.id); render(); abrirFotos(f.tabela, f.registro, 'Foto excluída.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
@@ -2187,7 +2451,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); await recarregarDb(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
-      const uso = R.emUso(db, m, id).map(c => MOD[c].nome.toLowerCase());
+      const uso = R.emUso(db, m, id).map(c => ({ presencas: 'lista de presença', fotos: 'fotos' })[c] || MOD[c].nome.toLowerCase());
       if (uso.length) { t.textContent = 'Em uso em ' + uso.join(', '); t.disabled = true; return; }
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; return; }
       t.disabled = true;
@@ -2216,12 +2480,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     document.addEventListener('change', ev => {
       const e = ev.target, de = e.dataset || {};
       if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
+      if (e.id === 'ft_arq') { const a = e.files && e.files[0]; e.value = ''; anexarFoto(de.alvo, a, false).catch(x => { $('#ferr').textContent = x.message; }); return; }
       if (imp && (de.impSt !== undefined || de.impEt !== undefined || de.impRb !== undefined)) {
         if (de.impSt !== undefined) { imp.escolhas.status[de.impSt] = e.value; try { localStorage.setItem(CH_ST, JSON.stringify(imp.escolhas.status)); } catch (x) {} }
         else if (de.impEt !== undefined) imp.escolhas.etapa[de.impEt] = e.value; else imp.escolhas.rubrica[de.impRb] = e.value;
         const foco = Object.keys(de).find(k => /^imp/.test(k)), val = de[foco]; desenharImportacao();
         const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
       } if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+    // lista de presença: Enter em qualquer campo de "Adicionar à lista" adiciona (a janela não tem botão de enviar)
+    document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target && /^pr_(nome|com|mun|mul)$/.test(ev.target.id) && prEv) { ev.preventDefault(); adicionarPresenca(prEv).catch(e => { $('#ferr').textContent = e.message; }); } });
     $('#dlg').addEventListener('cancel', ev => { if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
@@ -2254,7 +2521,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, abas, _estado: () => ({ eu, db, pend, tab }) };
   if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
 })();
 ;

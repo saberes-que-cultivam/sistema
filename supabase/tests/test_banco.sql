@@ -351,4 +351,39 @@ do $$ begin
   if has_column_privilege('authenticated', 'public.membros', 'cpf', 'select') or has_column_privilege('authenticated', 'public.membros', 'renda', 'select') then raise exception 'FALHOU: leitura de CPF/renda aberta'; end if;
   if exists (select 1 from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public') then raise exception 'FALHOU: anon tem permissão em tabela'; end if;
 end $$;
+-- ===== 13: lista de presença e fotos =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare ev uuid; vi uuid; begin
+  perform public.vincular_conta();
+  insert into public.eventos (tipo, data, tema) values ('Capacitação', '2026-10-05', 'Preparo de bokashi') returning id into ev;
+  insert into public.presencas (evento, nome, comunidade, mulher) values (ev, 'Participante Exemplo', 'Sítio Exemplo', true);
+  if (select count(*) from public.presencas where evento = ev) <> 1 then raise exception 'FALHOU: equipe não gravou presença'; end if;
+  insert into public.fotos (tabela, registro, caminho, tirada_em) values ('eventos', ev, 'eventos/' || ev || '/f1.jpg', '2026-10-05');
+  insert into storage.objects (bucket_id, name) values ('evidencias', 'eventos/' || ev || '/f1.jpg');
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'visitas/' || ev || '/x.jpg'); raise exception 'FALHOU: foto com caminho de outro registro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', gen_random_uuid(), 'eventos/00000000-0000-4000-8000-000000000000/x.jpg'); raise exception 'FALHOU: foto de atividade que não existe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into storage.objects (bucket_id, name) values ('evidencias', 'outra-pasta/x.jpg'); raise exception 'FALHOU: arquivo fora das pastas de evidência';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin delete from public.eventos where id = ev; raise exception 'FALHOU: atividade com foto e presença foi excluída';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin update public.fotos set registro = gen_random_uuid() where registro = ev; raise exception 'FALHOU: foto mudou de registro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ begin
+  if exists (select 1 from public.presencas) or exists (select 1 from public.fotos) or exists (select 1 from storage.objects) then raise exception 'FALHOU: acompanhamento viu presença, foto ou arquivo'; end if;
+  begin insert into public.presencas (evento, nome) values ((select id from public.eventos limit 1), 'x'); raise exception 'FALHOU: acompanhamento gravou presença';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into storage.objects (bucket_id, name) values ('evidencias', 'eventos/x/y.jpg'); raise exception 'FALHOU: acompanhamento enviou arquivo';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+do $$ begin
+  if (select public from storage.buckets where id = 'evidencias') then raise exception 'FALHOU: pasta de evidências pública'; end if;
+end $$;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

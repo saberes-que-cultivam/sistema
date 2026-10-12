@@ -43,6 +43,7 @@
       despesas: [
         { id: 'x1', ex: 1, data: atras(25), etapa: '3.1', rubrica: 'servicos_pj', item: 'i09', descricao: 'Impressão de cartilhas (exemplo)', favorecido: 'Gráfica', doc: 'NF 0000', valor: 1800, status: 'Pago' },
         { id: 'x2', ex: 1, data: atras(10), etapa: '6.1', rubrica: 'consumo', descricao: 'Material para feira e oficinas (exemplo)', favorecido: '', doc: '', valor: 2400, status: 'Em compras na FUNCERN' }],
+      presencas: [], fotos: [],
       entregas: [
         { id: 'g1', etapa: '6.3', titulo: 'Contrato 220/2026 com a FUNCERN; 1ª parcela de R$ 200.000,00 liquidada (2026NS001323)', data: '2026-09-22', link: '', obs: 'Contrato assinado em 20/08/2026.' }]
     };
@@ -76,7 +77,7 @@
       if (eu && eu.perfil === 'Acompanhamento') {
         c.agricultores = c.agricultores.map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
-        c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = [];
+        c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = []; c.presencas = []; c.fotos = [];
       }
       if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       return c;
@@ -102,6 +103,16 @@
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    /* fotos na demonstração: a imagem fica só na memória desta página (não ocupa o armazenamento do navegador) */
+    _img: {},
+    async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
+      if (!R.podeGravar(eu, 'fotos')) throw falha('O seu perfil não tem permissão para fazer isso.');
+      if (!(db[tabela] || []).some(x => x.id === registro)) throw falha('A atividade ou visita desta foto não existe mais.');
+      const id = SQC.novoId(); this._img[id] = blob;
+      return this.salvar('fotos', { id, tabela, registro, caminho: `${tabela}/${registro}/${id}.jpg`, tirada_em: tiradaEm || null, legenda: legenda || null });
+    },
+    async arquivoFoto(f) { if (!this._img[f.id]) throw falha('Na demonstração a imagem fica só enquanto a página está aberta.'); return this._img[f.id]; },
+    async excluirFoto(f) { await this.excluir('fotos', f.id); delete this._img[f.id]; },
     /* link de cadastro, simulado neste navegador (na demonstração o "banco" é o próprio aparelho) */
     preparar() {},
     _cv(g) { const K = 'sqc-demo-convites'; let l = []; try { l = JSON.parse(ler(K)) || []; } catch (e) { l = []; } if (g) { const n = g(l); gravar(K, JSON.stringify(n)); return n; } return l; },
@@ -119,7 +130,9 @@
     async apagarExemplos() {
       ['distribuicoes', 'visitas', 'lotes', 'agricultores', 'eventos', 'entregas', 'itens', 'despesas', 'membros'].forEach(t => { db[t] = db[t].filter(r => !r.ex); });
       db.distribuicoes = db.distribuicoes.filter(x => db.lotes.some(l => l.id === x.lote) && db.agricultores.some(a => a.id === x.agricultor));
-      db.visitas = db.visitas.filter(x => db.agricultores.some(a => a.id === x.agricultor)); persistir();
+      db.visitas = db.visitas.filter(x => db.agricultores.some(a => a.id === x.agricultor));
+      db.presencas = (db.presencas || []).filter(x => db.eventos.some(e => e.id === x.evento));
+      db.fotos = (db.fotos || []).filter(x => (db[x.tabela] || []).some(r => r.id === x.registro)); persistir();
     },
     async recomecar() { const p = db.pessoas; db = semente(); db.pessoas = p; persistir(); },
     _db: () => db, _zerar() { db = null; eu = null; Object.keys(mem).forEach(k => delete mem[k]); try { G.localStorage.removeItem(CHAVE); G.localStorage.removeItem(CHAVE + '-eu'); } catch (e) {} }

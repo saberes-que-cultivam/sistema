@@ -29,7 +29,7 @@ restaurar public || restaurar extensions || true
 ERROS="$(grep -c 'error:' "$TMP/restauracao.log" || true)"
 echo "Registros restaurados:"
 FALHA=0
-for t in pessoas membros unidades lotes agricultores distribuicoes visitas eventos entregas despesas auditoria; do
+for t in pessoas membros unidades lotes agricultores distribuicoes visitas eventos presencas fotos entregas despesas auditoria; do
   n="$(psql -At -d "$BD" -c "select count(*) from public.$t" 2>/dev/null || echo ERRO)"
   printf "  %-26s %s\n" "$t" "$n"; [ "$n" = "ERRO" ] && FALHA=1
 done

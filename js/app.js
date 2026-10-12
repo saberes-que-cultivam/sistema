@@ -19,7 +19,7 @@
      que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
   let real = null;
   function semPessoal(d) {
-    const c = JSON.parse(JSON.stringify(d));
+    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = [];
     c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
     c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
     c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; return c;
@@ -93,14 +93,14 @@
         ['gasto', 'Gasto atual com insumos comprados (R$/mês)', 'number'], ['obs', 'O que foi observado', 'textarea'], ['problemas', 'Dificuldades relatadas', 'textarea']],
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome)],
         ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
-        ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
+        ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`], ['Fotos', v => evid('visitas', v), '', 'equipe']] },
     eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano. Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
         ['part', 'Participantes', 'number'], ['mulheres', 'Dos quais, mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + exChip(e)], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
-        ['Evidência', e => link(e.link)]] },
+        ['Evidência', e => link(e.link)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe']] },
     entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida.', dicas: { link: 'Onde o documento está guardado.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
       campos: [['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`])],
         ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
@@ -125,12 +125,18 @@
         ['_s2b', 'Perfil no campo', 'sec'], ['agricultor', 'É agricultor(a)? (produz alimento em quintal, roça ou lote)', 'select', 0, opt(['', 'Sim', 'Não'])], ['atua_af', 'Atua junto a agricultoras e agricultores familiares do território?', 'select', 0, opt(['', 'Sim', 'Não'])], ['zona_rural', 'Mora na zona rural?', 'select', 0, opt(['', 'Sim', 'Não'])], ['celular_internet', 'Tem celular com internet?', 'select', 0, opt(['', 'Sim', 'Não'])],
         ['_s4', 'Proteção de dados', 'sec'], ['lgpd', 'A pessoa foi informada e concorda que estes dados sejam usados só para a gestão do projeto e o pagamento da bolsa (Lei nº 13.709/2018).', 'check'],
         ['_s5', 'Desligamento', 'sec'], ['fim', 'Data do desligamento', 'date'], ['motivo', 'Motivo', 'text'], ['obs', 'Observações', 'textarea']], cols: [] },
+    presencas: { um: 'Participante', nome: 'Presença', novo: 'Adicionar participante', titulo: 'Lista de presença', desc: '', cols: [],
+      campos: [['evento', 'Atividade', 'ref', 1, 'eventos'], ['nome', 'Nome', 'text', 1], ['comunidade', 'Comunidade', 'text'], ['municipio', 'Município', 'text'], ['mulher', 'Mulher', 'check'],
+        ['agricultor', 'É uma unidade produtiva acompanhada?', 'ref', 0, 'agricultores']] },
     pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
       campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, [['Equipe', 'Equipe (registra o trabalho do projeto)'], ['Coordenação', 'Coordenação (faz tudo)'], ['Acompanhamento', 'Acompanhamento (SEAB/MDA: só consulta, sem dados pessoais)']]], ['orgao', 'Órgão ou setor (para quem acompanha)', 'text'], ['ativo', 'Acesso ativo', 'check']],
       cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : u.perfil === 'Acompanhamento' ? 'f' : ''}">${esc(u.perfil)}</span>${u.orgao ? `<div class="small">${esc(u.orgao)}</div>` : ''}`],
         ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
   };
-  const rotulo = { unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
+  /* lista de presença e fotos de cada atividade/visita (script 13). Só a equipe do projeto vê: o SEAB/MDA fica com o número de participantes */
+  const evid = (t, r) => { if (r._pendente) return '<span class="small">depois de enviar</span>'; const nf = (db.fotos || []).filter(f => f.tabela === t && f.registro === r.id).length, np = t === 'eventos' ? (db.presencas || []).filter(x => x.evento === r.id).length : null;
+    return `<span class="ev-b">${np !== null ? `<button class="b s" data-presenca="${esc(r.id)}">Lista${np ? ` (${np})` : ''}</button>` : ''}<button class="b s" data-fotos="${t}:${esc(r.id)}">Fotos${nf ? ` (${nf})` : ''}</button></span>`; };
+  const rotulo = { eventos: e => `${dt(e.data)} · ${e.tipo} · ${e.tema}`, unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
   const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['historico', 'Histórico'], ['dados', 'Dados']];
@@ -150,7 +156,7 @@
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
   function tabela(m) {
-    const M = MOD[m], pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !(c[3] === 'equipe' && fora())) }), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
@@ -284,8 +290,8 @@
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
   const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
-    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados.',
-    eventos: 'Capacitações, dias de campo, reuniões e articulações.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
+    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados. Dá para imprimir a ficha em branco e anexar fotos da visita.',
+    eventos: 'Capacitações, dias de campo, reuniões e articulações. Em cada uma: lista de presença (imprimir em branco, colher assinaturas e digitar os nomes) e fotos do dia.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
     financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso.' };
   function abrirAjuda() {
     ed = null; $('#frm').className = 'fm';
@@ -294,6 +300,7 @@
       <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${AJUDA[tab] || ''}</p>
       <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
+      <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${{ 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento' }[eu.perfil] || 'equipe'}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
       <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
      <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
@@ -719,10 +726,107 @@
     pub = null; try { history.replaceState(null, '', location.pathname); } catch (x) {}
     $('#pub').querySelector('.pub-c').outerHTML = '<div class="panel pub-c"><h1>Cadastro enviado</h1><p>Obrigado. A coordenação do projeto vai conferir os seus dados e confirmar o cadastro. Pode fechar esta página.</p></div>'; scrollTo(0, 0);
   }
+
+  /* ---------- lista de presença de uma atividade (script 13) ---------- */
+  let prUlt = {};   // comunidade e município do último nome digitado: na mesma atividade quase sempre se repetem
+  function abrirPresenca(evId, msg) {
+    const e = by('eventos', evId); if (!e) return;
+    ed = null; prEv = evId; const L = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1), pode = R.podeGravar(eu, 'presencas'), mul = L.filter(x => x.mulher).length;
+    const difere = L.length && (+e.part !== L.length || +e.mulheres !== mul);
+    $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="fm-sub">${esc(e.tipo)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}</p>
+      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe e anexe em Fotos. Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
+      <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}` : ''}.${difere ? ` Na atividade estão registrados ${R.vazio(e.part) ? 'sem número de' : num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.` : ''}</p>
+      ${L.length ? `<ol class="pr-l">${L.map(x => `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · '))}</small></span>${R.podeExcluir(eu, 'presencas', x) && !x._pendente ? `<button type="button" class="ab d" title="Tirar da lista" data-prdel="${esc(x.id)}">${IC_LIXO}<span class="so">Tirar ${esc(x.nome)} da lista</span></button>` : ''}</li>`).join('')}</ol>` : ''}
+      ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3><div class="fields"><div class="fld w"><label for="pr_nome">Nome</label><input id="pr_nome" autocomplete="off"></div>
+        <div class="fld"><label for="pr_com">Comunidade</label><input id="pr_com" value="${esc(prUlt.comunidade || '')}"></div><div class="fld"><label for="pr_mun">Município</label><input id="pr_mun" value="${esc(prUlt.municipio || e.municipio || '')}"></div>
+        <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pr_mul">Mulher</label></fieldset></div></div>
+        <div class="acts"><button type="button" class="b p" data-pradd="${esc(evId)}">Adicionar</button></div>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow"><button type="button" class="b" data-imprimirlista="${esc(evId)}">Imprimir lista em branco</button>${pode && difere ? `<button type="button" class="b" data-prcontar="${esc(evId)}">Usar o total da lista na atividade</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button></div></div>`;
+    if ($('#dlg').open) ($('#pr_nome') || $('#frm .fm-x')).focus(); else $('#dlg').showModal();
+  }
+  let prEv = null;
+  async function adicionarPresenca(evId) {
+    const v = id => ($('#' + id) || {}).value || '', r = { id: SQC.novoId(), evento: evId, nome: v('pr_nome').trim(), comunidade: v('pr_com').trim(), municipio: v('pr_mun').trim(), mulher: !!($('#pr_mul') && $('#pr_mul').checked) };
+    const msg = R.validar(db, 'presencas', r, null); if (msg) { $('#ferr').textContent = msg; $('#pr_nome').focus(); return; }
+    const res = await gravarRegistro('presencas', r, null);
+    if (!res.ok) { $('#ferr').textContent = res.msg; return; }
+    prUlt = { comunidade: r.comunidade, municipio: r.municipio };
+    abrirPresenca(evId, res.fila ? `${r.nome}: guardado neste aparelho, envia quando o sinal voltar.` : `${r.nome} entrou na lista.`); $('#pr_nome').focus();
+  }
+
+  /* ---------- fotos de uma atividade ou visita (script 13) ---------- */
+  const urlsFoto = {};   // id da foto → endereço da imagem já baixada nesta página
+  function abrirFotos(t, id, msg) {
+    const r = by(t, id); if (!r) return;
+    ed = null; const F = (db.fotos || []).filter(f => f.tabela === t && f.registro === id).sort((a, b) => (a.criado_em || '') < (b.criado_em || '') ? -1 : 1), pode = R.podeGravar(eu, 'fotos');
+    const titulo = t === 'eventos' ? esc(r.tema) : esc((by('agricultores', r.agricultor) || { nome: 'Visita' }).nome), dia = r.data;
+    $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Fotos ${t === 'eventos' ? 'da atividade' : 'da visita'}</span><h2>${titulo}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="fm-sub">${t === 'eventos' ? esc(r.tipo) + ' · ' : ''}${dt(dia)}</p>
+      <div class="fm-oque"><span>Regra da foto</span><p>Vale foto tirada no dia ${dt(dia)}. A data vem de dentro do arquivo, gravada pela câmera. Foto sem essa data (encaminhada pelo WhatsApp, captura de tela) entra marcada como “data não confirmada”. Só a equipe do projeto vê as fotos.</p></div>
+      ${F.length ? `<ul class="ft-g">${F.map(f => `<li><div class="ft-i" data-ftimg="${esc(f.id)}" role="img" aria-label="${esc(f.legenda || 'Foto')}"><span class="small">carregando…</span></div>
+        <div class="ft-d"><span>${f.tirada_em ? `<span class="chip ok">tirada em ${dt(f.tirada_em)}</span>` : '<span class="chip f">data não confirmada</span>'}</span>${f.legenda ? `<small>${esc(f.legenda)}</small>` : ''}
+        ${R.podeExcluir(eu, 'fotos', f) ? `<button type="button" class="ab d" title="Excluir foto" data-fotodel="${esc(f.id)}">${IC_LIXO}<span class="so">Excluir foto</span></button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhuma foto ainda.</p>'}
+      ${pode ? `<h3 class="fm-sec">Anexar foto</h3><div class="fields"><div class="fld w"><label for="ft_leg">Legenda (opcional)</label><input id="ft_leg" maxlength="300" placeholder="Ex.: lista de presença assinada; aplicação do biofertilizante"></div></div>
+        <div class="acts"><button type="button" class="b p" data-fotocam="${t}:${esc(id)}">Tirar foto agora</button><label class="b imp-b">Escolher foto<input type="file" id="ft_arq" data-alvo="${t}:${esc(id)}" accept="image/jpeg,image/png,image/webp,image/heic" class="imp-f"></label></div>` : ''}</div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button></div></div>`;
+    if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
+    F.forEach(async f => { const el = document.querySelector(`[data-ftimg="${CSS.escape(f.id)}"]`); if (!el) return;
+      try { if (!urlsFoto[f.id]) urlsFoto[f.id] = URL.createObjectURL(await api.arquivoFoto(f)); el.innerHTML = `<img src="${urlsFoto[f.id]}" alt="${esc(f.legenda || 'Foto')}" loading="lazy">`; }
+      catch (e) { el.innerHTML = `<span class="small">${esc(e.semRede ? 'Sem internet: a foto aparece quando o sinal voltar.' : e.message)}</span>`; } });
+  }
+  async function anexarFoto(alvo, arquivo, daCamera) {
+    const [t, id] = alvo.split(':'), r = by(t, id); if (!r || !arquivo) return;
+    const er = m => { const e = $('#ferr'), o = $('#fok'); if (e) e.textContent = m; if (o) o.textContent = ''; };
+    const andamento = m => { const e = $('#ferr'), o = $('#fok'); if (o) o.textContent = m; if (e) e.textContent = ''; };
+    if (!demo() && navigator.onLine === false) return er('Foto precisa de internet para subir. Guarde a foto no celular e anexe quando o sinal voltar: a data dela continua valendo.');
+    andamento('Conferindo a data da foto…');
+    const m = daCamera ? { dia: SQC.fotodia.hoje(), hora: new Date().getHours() } : await SQC.fotodia.lerMomentoExif(arquivo);
+    const erro = SQC.fotodia.conferir(m && m.dia, r.data, m && m.hora); if (erro) return er(erro);
+    let blob; try { andamento('Preparando a foto…'); blob = await SQC.fotodia.reduzir(arquivo); } catch (e) { return er(e.message); }
+    andamento('Enviando…');
+    try { const f = await api.enviarFoto(t, id, blob, m && m.dia, (($('#ft_leg') || {}).value || '').trim()); db.fotos = (db.fotos || []).concat([f]); urlsFoto[f.id] = URL.createObjectURL(blob); render(); abrirFotos(t, id, m && m.dia ? 'Foto anexada.' : 'Foto anexada, marcada como “data não confirmada”.'); }
+    catch (e) { er(e.semRede ? 'Sem internet agora: a foto não subiu. Tente de novo quando o sinal voltar.' : e.message); }
+  }
+
+  /* ---------- imprimir em branco, para aplicar no papel (trazido do Mulheres & Quintais) ---------- */
+  const IMPRIMIVEIS = ['agricultores', 'visitas', 'distribuicoes', 'eventos'];
+  function imprimir(html) {
+    let el = document.getElementById('impresso'); if (!el) { el = document.createElement('div'); el.id = 'impresso'; document.body.appendChild(el); }
+    el.innerHTML = html; document.body.classList.add('imprimindo');
+    const fim = () => { document.body.classList.remove('imprimindo'); el.innerHTML = ''; window.removeEventListener('afterprint', fim); };
+    window.addEventListener('afterprint', fim); window.print(); setTimeout(() => { if (!window.matchMedia || !window.matchMedia('print').matches) fim(); }, 1000);
+  }
+  const cabImp = (titulo, sub) => `<header class="pf-cab"><img src="assets/icon-192.png" alt="" width="40" height="40"><div><b>Saberes que Cultivam</b><span>IFRN Campus Apodi · TED MDA</span></div><div class="pf-t"><h1>${esc(titulo)}</h1>${sub ? `<p>${sub}</p>` : ''}</div></header>`;
+  function imprimirBranco(m) {
+    const M = MOD[m], ln = '<span class="pf-ln"></span>', cx = t => `<span class="pf-op"><span class="pf-bx"></span>${esc(t)}</span>`;
+    const campo = ([k, l, t, req, o]) => {
+      if (t === 'sec') return `<h2>${esc(l)}</h2>`;
+      if (t === 'checks') return `<div class="pf-i"><b>${esc(l)}</b><div class="pf-ops">${D.CHECK.map(c => cx(c[1])).join('')}</div></div>`;
+      if (t === 'check') return `<div class="pf-i">${cx(l)}</div>`;
+      if (t === 'select') { const ops = (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]); return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><div class="pf-ops">${ops.map(x => cx(x[1])).join('')}</div></div>`; }
+      if (t === 'ref') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
+      if (t === 'textarea') return `<div class="pf-i w"><b>${esc(l)}</b>${ln}${ln}${ln}</div>`;
+      if (t === 'date') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><span class="pf-dt">____ / ____ / ________</span></div>`;
+      return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
+    };
+    imprimir(`<section class="pf">${cabImp(M.um, `Aplicado por: ${esc(eu.nome)} &nbsp;·&nbsp; Data: ____ / ____ / ________`)}${M.oque ? `<p class="pf-o">${esc(M.oque)}</p>` : ''}<div class="pf-c">${M.campos.map(campo).join('')}</div><p class="pf-r">* obrigatório. Depois, digite no sistema: Saberes que Cultivam › ${esc(M.nome)}.</p></section>`);
+  }
+  function imprimirLista(evId) {
+    const e = by('eventos', evId); if (!e) return;
+    const linhas = Array.from({ length: 25 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+    imprimir(`<section class="pf">${cabImp('Lista de presença', `${esc(e.tipo)} · ${esc(e.tema)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}${e.municipio ? ' · ' + esc(e.municipio) : ''}`)}
+      <p class="pf-o">Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).</p>
+      <table class="pf-lp"><thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade</th><th>Município</th><th>Mulher? (S/N)</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table>
+      <p class="pf-r">Responsável: ${esc(eu.nome)} &nbsp;·&nbsp; Folha ____ de ____</p></section>`);
+  }
   function abrir(m, id, pre) {
-    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
+    const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : m === 'presencas' ? { evento: pre } : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     ${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span>Vai aplicar no papel?</span><button type="button" class="b s" data-imprimir="${m}">Imprimir em branco</button></div>` : ''}
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
@@ -940,6 +1044,19 @@
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.presenca) abrirPresenca(d.presenca);
+    else if (d.pradd) { t.disabled = true; try { await adicionarPresenca(d.pradd); } finally { t.disabled = false; } }
+    else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para tirar da lista.'; return; }
+      try { await api.excluir('presencas', d.prdel); db.presencas = db.presencas.filter(x => x.id !== d.prdel); render(); abrirPresenca(prEv, 'Tirado da lista.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
+    else if (d.prcontar) { const e = by('eventos', d.prcontar), L = db.presencas.filter(x => x.evento === d.prcontar), r = Object.assign({}, e, { part: L.length, mulheres: L.filter(x => x.mulher).length });
+      const res = await gravarRegistro('eventos', r, e); render(); abrirPresenca(d.prcontar, res.ok ? 'Participantes da atividade atualizados pela lista.' : res.msg); }
+    else if (d.imprimirlista) imprimirLista(d.imprimirlista);
+    else if (d.imprimir) imprimirBranco(d.imprimir);
+    else if (d.fotos) { const [tt, id] = d.fotos.split(':'); abrirFotos(tt, id); }
+    else if (d.fotocam) { const f = await SQC.fotodia.abrirCamera(m => { $('#ferr').textContent = m; }); if (f) await anexarFoto(d.fotocam, f, true); }
+    else if (d.fotodel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para excluir a foto.'; return; }
+      const f = db.fotos.find(x => x.id === d.fotodel); if (!f) return;
+      try { await api.excluirFoto(f); db.fotos = db.fotos.filter(x => x.id !== f.id); render(); abrirFotos(f.tabela, f.registro, 'Foto excluída.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
@@ -947,7 +1064,7 @@
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); await recarregarDb(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
-      const uso = R.emUso(db, m, id).map(c => MOD[c].nome.toLowerCase());
+      const uso = R.emUso(db, m, id).map(c => ({ presencas: 'lista de presença', fotos: 'fotos' })[c] || MOD[c].nome.toLowerCase());
       if (uso.length) { t.textContent = 'Em uso em ' + uso.join(', '); t.disabled = true; return; }
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; return; }
       t.disabled = true;
@@ -976,12 +1093,15 @@
     document.addEventListener('change', ev => {
       const e = ev.target, de = e.dataset || {};
       if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
+      if (e.id === 'ft_arq') { const a = e.files && e.files[0]; e.value = ''; anexarFoto(de.alvo, a, false).catch(x => { $('#ferr').textContent = x.message; }); return; }
       if (imp && (de.impSt !== undefined || de.impEt !== undefined || de.impRb !== undefined)) {
         if (de.impSt !== undefined) { imp.escolhas.status[de.impSt] = e.value; try { localStorage.setItem(CH_ST, JSON.stringify(imp.escolhas.status)); } catch (x) {} }
         else if (de.impEt !== undefined) imp.escolhas.etapa[de.impEt] = e.value; else imp.escolhas.rubrica[de.impRb] = e.value;
         const foco = Object.keys(de).find(k => /^imp/.test(k)), val = de[foco]; desenharImportacao();
         const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
       } if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+    // lista de presença: Enter em qualquer campo de "Adicionar à lista" adiciona (a janela não tem botão de enviar)
+    document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target && /^pr_(nome|com|mun|mul)$/.test(ev.target.id) && prEv) { ev.preventDefault(); adicionarPresenca(prEv).catch(e => { $('#ferr').textContent = e.message; }); } });
     $('#dlg').addEventListener('cancel', ev => { if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
     $('#dlg').addEventListener('close', () => { ed = null; aplicarEspera(); });
     // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
@@ -1014,6 +1134,6 @@
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, abas, _estado: () => ({ eu, db, pend, tab }) };
   if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
 })();

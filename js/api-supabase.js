@@ -29,9 +29,11 @@
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
     membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
-    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status']
+    despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status'],
+    presencas: ['evento', 'nome', 'comunidade', 'municipio', 'mulher', 'agricultor'],
+    fotos: ['tabela', 'registro', 'caminho', 'tirada_em', 'legenda']
   };
-  const BOOL = ['ativo', 'kit', 'lgpd', 'socio'].concat(D.CHECK.map(c => c[0]));
+  const BOOL = ['ativo', 'kit', 'lgpd', 'socio', 'mulher'].concat(D.CHECK.map(c => c[0]));
   /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
      e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
   let semCompleto = false;
@@ -53,6 +55,7 @@
     for (let de = 0; de < 100000;) {
       let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
       if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
+      if (error && (tabela === 'presencas' || tabela === 'fotos') && (error.code === '42P01' || error.code === 'PGRST205' || new RegExp(tabela).test(String(error.message)))) { SQC.apiSupabase.semEvidencias = true; return []; }   // falta rodar o script 13
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
       if (error) throw erro(error);
       tudo = tudo.concat(data || []); de += (data || []).length;
@@ -64,14 +67,15 @@
   /* prazo em cada chamada ao servidor (trazido do Mulheres & Quintais, 12/10/2026): com sinal que engana (rede "conectada"
      que não responde) a chamada esperava para sempre e o botão ficava em "Salvando…". Passou de 30 s, conta como falta de
      internet: o lançamento vai para a fila do aparelho e é enviado depois. */
-  SQC.prazoRede = 30000;
+  SQC.prazoRede = 30000; SQC.prazoArquivo = 120000;
   function fetchComPrazo(url, op) {
     if (typeof AbortController === 'undefined') return fetch(url, op);
     const ctl = new AbortController(); let esgotou = false;
-    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, SQC.prazoRede);
+    const arquivo = /\/storage\/v1\/object/.test(String((url && url.url) || url)) && op && op.method && op.method !== 'GET', prazo = arquivo ? SQC.prazoArquivo : SQC.prazoRede;   // foto: 2 minutos
+    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, prazo);
     if (op && op.signal) { if (op.signal.aborted) ctl.abort(); else op.signal.addEventListener('abort', () => ctl.abort(), { once: true }); }   // quem chamou também pode cancelar
     return fetch(url, Object.assign({}, op, { signal: ctl.signal }))
-      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(SQC.prazoRede / 1000) + ' segundos'); throw e; })
+      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(prazo / 1000) + ' segundos'); throw e; })
       .finally(() => clearTimeout(t));
   }
   SQC.fetchComPrazo = fetchComPrazo;
@@ -79,6 +83,19 @@
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
     preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
+    /* ----- fotos de evidência (script 13): arquivo no Storage, pasta privada "evidencias"; a lista fica na tabela fotos ----- */
+    async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
+      const id = SQC.novoId(), caminho = `${tabela}/${registro}/${id}.jpg`, pasta = sb.storage.from('evidencias');
+      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false });
+      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error); }
+      try { return await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true }); }
+      catch (e) { await pasta.remove([caminho]).catch(() => {}); throw e; }   // a lista recusou: o arquivo não fica solto
+    },
+    async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho); if (error) throw erro(error); return data; },
+    async excluirFoto(f) {
+      const rm = await sb.storage.from('evidencias').remove([f.caminho]); if (rm.error) throw erro(rm.error);
+      await this.excluir('fotos', f.id);
+    },
     /* ----- link de cadastro da equipe ----- */
     async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
       const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });
@@ -152,7 +169,7 @@
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
         const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && t === 'membros' ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos') ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // dados reservados da equipe: só a coordenação recebe, por função própria do banco
         if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {

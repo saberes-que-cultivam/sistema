@@ -20,6 +20,11 @@ select 'CPF e dados reservados da equipe fechados',
             when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'membros' and column_name = 'cpf') then 'ainda sem os campos (rode o 10)'
             when has_column_privilege('authenticated', 'public.membros', 'cpf', 'select') then 'ABERTO: rode o 10 de novo agora' else 'ok' end
 union all
+select 'lista de presença e fotos (13)',
+       case when to_regclass('public.presencas') is null or to_regclass('public.fotos') is null then 'FALTA: rode o 13'
+            when not exists (select 1 from storage.buckets where id = 'evidencias') then 'FALTA a pasta de fotos: rode o 13 de novo'
+            when (select public from storage.buckets where id = 'evidencias') then 'ABERTA: a pasta de fotos não pode ser pública; rode o 13 de novo' else 'ok' end
+union all
 select 'coordenação ativa',
        case when exists (select 1 from public.pessoas where perfil = 'Coordenação' and ativo) then 'ok' else 'FALTA: rode o 02 com o seu e-mail' end
 union all
