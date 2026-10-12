@@ -37,7 +37,9 @@
       const todos = await tx('readonly', l => l ? l.getAll() : { result: [...memoria.values()] });
       return (todos || []).filter(x => !dono || x.dono === dono).sort((a, b) => a.criado - b.criado);
     },
+    async ler(id) { return await tx('readonly', l => l ? l.get(id) : { result: memoria.get(id) }); },
     async salvar(item) {
+      if (!item.versao) item.versao = Date.now() + '-' + Math.random().toString(36).slice(2);   // cada lançamento tem versão própria
       if (!item.criado) { const antes = await tx('readonly', l => l ? l.get(item.id) : { result: memoria.get(item.id) }); item.criado = (antes && antes.criado) || Date.now(); }
       await tx('readwrite', l => { if (l) l.put(item); else memoria.set(item.id, item); });
       return item;
@@ -54,9 +56,13 @@
       try {
         for (const it of await F.listar(dono)) {
           if (it.erro && !it.reenviar) { erros++; continue; }
-          try { await api.salvar(it.tabela, it.dados, it.op || {}); await F.remover(it.id); enviados++; }
+          // enquanto este envio corria, a pessoa pode ter corrigido o mesmo registro (mesma chave, versão nova):
+          // aí o item da fila é o novo e não pode ser apagado nem sobrescrito pelo resultado do antigo
+          const atual = async () => { const x = await F.ler(it.id); return !!x && x.versao === it.versao; };
+          try { await api.salvar(it.tabela, it.dados, it.op || {}); if (await atual()) await F.remover(it.id); enviados++; }
           catch (e) {
             if (e.semRede) break;
+            if (!(await atual())) continue;
             it.erro = e.message || 'Não foi possível enviar. Tente de novo.'; it.reenviar = false; erros++;
             await F.salvar(it);
           }

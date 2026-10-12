@@ -77,3 +77,16 @@ test('tipografia: nenhum tamanho de letra solto no CSS (tudo sai da escala --t-*
   assert.doesNotMatch(css + html, /DM Serif|Plus Jakarta|Bricolage|Figtree|IBM Plex/);
   assert.doesNotMatch(fs.readFileSync(path.join(raiz, 'js', 'app.js'), 'utf8'), /font-size|style="[^"]*font/, 'tamanho de letra não se define nas telas');
 });
+
+test('auditoria 12/10: correção lançada enquanto a versão antiga era enviada não se perde', async () => {
+  const SQC = carregar(), F = SQC.fila; const recebidos = []; let liberar;
+  const api = { salvar: async (t, d) => { recebidos.push(d.v); if (d.v === 1) await new Promise(r => { liberar = r; }); } };
+  await F.salvar({ id: 'visitas:z', tabela: 'visitas', dados: { id: 'z', v: 1 }, op: {}, dono: 'eu' });
+  const envio = F.sincronizar(api, 'eu');
+  while (!liberar) await new Promise(r => setTimeout(r, 1));
+  await F.salvar({ id: 'visitas:z', tabela: 'visitas', dados: { id: 'z', v: 2 }, op: {}, dono: 'eu' });   // a pessoa corrigiu no meio do envio
+  liberar(); await envio;
+  const resta = await F.listar('eu');
+  assert.strictEqual(resta.length, 1); assert.strictEqual(resta[0].dados.v, 2);
+  await F.sincronizar(api, 'eu'); assert.deepStrictEqual(recebidos, [1, 2]); assert.strictEqual((await F.listar('eu')).length, 0);
+});

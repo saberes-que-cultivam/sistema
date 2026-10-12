@@ -326,4 +326,29 @@ do $$ begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
+-- ===== 12: e-mail trocado por engano e corrigido de volta: a própria pessoa volta a entrar =====
+update public.pessoas set email = 'outra@teste.br' where email = 'e1@teste.br' and nome = 'Outra pessoa';
+update public.pessoas set email = 'e1@teste.br' where id = 'aaaaaaaa-0000-4000-8000-000000000002';
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000002', 'e1@teste.br');
+set role authenticated;
+do $$ declare r public.pessoas; begin
+  r := public.vincular_conta();
+  if r.id is distinct from 'aaaaaaaa-0000-4000-8000-000000000002'::uuid then raise exception 'FALHOU: e-mail corrigido de volta continuou trancado'; end if;
+end $$;
+reset role;
+-- a mesma conta continua recusada para qualquer outro cadastro
+update public.pessoas set email = 'e1-de-novo@teste.br' where id = 'aaaaaaaa-0000-4000-8000-000000000002';
+update public.pessoas set email = 'e1@teste.br', ativo = true where nome = 'Outra pessoa';
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000002', 'e1@teste.br');
+set role authenticated;
+do $$ declare r public.pessoas; begin
+  r := public.vincular_conta();
+  if r.id is not null then raise exception 'FALHOU: conta bloqueada se ligou a outro cadastro depois do 12'; end if;
+end $$;
+reset role;
+-- CPF e dados reservados da equipe fechados para quem não é coordenação (o 07 rodado de novo não pode ter reaberto: o testar.sh roda o 10 depois)
+do $$ begin
+  if has_column_privilege('authenticated', 'public.membros', 'cpf', 'select') or has_column_privilege('authenticated', 'public.membros', 'renda', 'select') then raise exception 'FALHOU: leitura de CPF/renda aberta'; end if;
+  if exists (select 1 from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public') then raise exception 'FALHOU: anon tem permissão em tabela'; end if;
+end $$;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

@@ -8,4 +8,8 @@ create function auth.uid() returns uuid language sql stable as
 create function auth.jwt() returns jsonb language sql stable as
   $$ select jsonb_build_object('email', current_setting('request.jwt.claim.email', true)) $$;
 grant usage on schema public, auth to authenticated, anon;
+-- como o Supabase: tudo o que for criado em public nasce liberado para anon e authenticated; os scripts têm de fechar
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on functions to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;
 grant execute on all functions in schema auth to authenticated, anon;

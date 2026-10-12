@@ -1,7 +1,8 @@
 -- =====================================================================
 -- Saberes que Cultivam — 01: banco, regras de acesso (RLS), auditoria e login
 -- Onde rodar: painel do Supabase > SQL Editor > New query > cole tudo > Run.
--- Pode rodar de novo sem medo: não apaga dados.
+-- Rode uma vez, no banco novo. ATENÇÃO: depois de rodar o 04, não rode o 01 de novo — ele recria as regras antigas
+-- (o acompanhamento voltaria a ver dados pessoais). Se rodou por engano, rode de novo do 04 em diante, em ordem.
 --
 -- Como funciona o acesso:
 --   * Só entra quem a coordenação cadastrou na tabela "pessoas" (pelo e-mail).

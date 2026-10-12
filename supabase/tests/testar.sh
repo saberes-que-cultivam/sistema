@@ -20,7 +20,7 @@ rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null
 rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null      # rodar duas vezes não pode dar erro
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
-for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
+for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
 rodar "$P -f $DIR/00_verificar.sql" >/dev/null
 rodar "$P -f $DIR/test_banco.sql" | tail -3
 # cópia e restauração: copia o banco de teste, restaura num banco novo e confere se voltou tudo (linhas, regras de acesso, gatilhos e verificações)

@@ -34,6 +34,8 @@ wait
 rodar "$PSQL -f $DIR/estresse_confere.sql" 2>&1 | sed -E 's/^psql:[^ ]* WARNING: */   /'
 echo "4) volume: 10 vezes o tamanho previsto do projeto"
 rodar "$PSQL -f $DIR/estresse_volume.sql" 2>&1 | grep -E '^---|Time:|linhas_auditoria|^ +[0-9]+ \|' | sed 's/^/   /'
+# o passo 3 deixa uma das duas coordenações desativada (qual delas depende de quem ganhou a corrida): reativa as duas para a carga medir só o banco
+rodar "$Q -c \"update public.pessoas set perfil = 'Coordenação', ativo = true where email in ('estresse1@teste.br','estresse2@teste.br');\"" >/dev/null 2>&1
 echo "5) carga crescente: N pessoas gravando uma visita e lendo o painel ao mesmo tempo (o Postgres de teste aceita 100 conexões)"
 echo "   pessoas | gravadas | recusadas | tempo total | por pessoa"
 for n in 1 5 10 25 50 75 100 150 200; do

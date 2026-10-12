@@ -38,11 +38,13 @@
   const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
   const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
   /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
-  const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; }) });
+  const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); x._sr = true; return x; }) });   // _sr: "sem os reservados" — não pode ser regravado
   /* só as colunas da tabela; campo vazio vira nulo (o banco não aceita '' em número e data) */
   function limpar(tabela, o) {
     const r = { id: o.id };
-    COLUNAS[tabela].forEach(k => { if (k === 'item' && semItem) return; if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
+    // membro vindo da cópia do aparelho não tem CPF, endereço etc.: nunca manda esses campos, senão o banco os apagaria
+    const pula = tabela === 'membros' && o._sr ? R.CAMPOS_RESERVADOS : [];
+    COLUNAS[tabela].forEach(k => { if (k === 'item' && semItem) return; if (pula.includes(k)) return; if (k in o) r[k] = BOOL.includes(k) ? !!o[k] : (o[k] === '' || o[k] === undefined ? null : o[k]); });
     return r;
   }
   /* o Supabase devolve no máximo 1.000 linhas por pedido: busca em partes até acabar */

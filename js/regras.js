@@ -90,12 +90,15 @@
   function valorPlanilha(x) {
     if (typeof x === 'number') return x; let t = String(x == null ? '' : x).replace(/[R$\s]/g, '');
     if (/,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');   // "1.500" é mil e quinhentos, não 1,5
     const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
   }
+  /* data que não existe (31/02, mês 22) volta vazia: a linha é apontada como erro em vez de parar a gravação no meio */
+  const dataExiste = (a, m, d) => { const x = new Date(Date.UTC(+a, +m - 1, +d)); return x.getUTCFullYear() === +a && x.getUTCMonth() === +m - 1 && x.getUTCDate() === +d; };
   function dataPlanilha(x) {
     const t = String(x == null ? '' : x).trim(); let m;
-    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t))) return `${m[1]}-${m[2]}-${m[3]}`;
-    if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t))) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t))) return dataExiste(m[1], m[2], m[3]) ? `${m[1]}-${m[2]}-${m[3]}` : '';
+    if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t))) return dataExiste(m[3], m[2], m[1]) ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : '';
     if (/^\d+(\.\d+)?$/.test(t) && +t > 20000 && +t < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.floor(+t) * 864e5).toISOString().slice(0, 10);   // número de série do Excel
     return '';
   }
@@ -128,7 +131,8 @@
   /* como cada status da fundação entra na conta, quando a coordenação ainda não escolheu */
   function destinoStatus(txt) {
     const s = nrm(txt);
-    return /cancel|recus|reprov|indefer|devolv|estorn/.test(s) ? 'Ignorar' : /\bpago\b|\bpaga\b|finaliz|conclu|liquid|quitad/.test(s) ? 'Pago' : 'Comprometido';
+    if (/\b(nao|sem|aguardando|pendente|a) (pago|paga|pagamento|pagar)\b|devolv/.test(s)) return 'Comprometido';   // "Não pago", "Devolvida para correção": ainda vale como comprometido
+    return /cancel|recus|reprov|indefer|estorn/.test(s) ? 'Ignorar' : /\bpago\b|\bpaga\b|finaliz|conclu|liquid|quitad/.test(s) ? 'Pago' : 'Comprometido';
   }
   /* escolhas = { status: { texto: 'Pago' | 'Comprometido' | 'Ignorar' }, etapa: { grupo: id }, rubrica: { grupo: id } }
      Devolve o que seria feito, sem gravar nada: a tela mostra, a coordenação confirma. */
@@ -142,9 +146,10 @@
       const st = status[s.statusTxt] = status[s.statusTxt] || { txt: s.statusTxt, n: 0, total: 0, destino: dest }; st.n++; st.total += s.valor;
       if (dest === 'Ignorar') { linhas.push({ s, ant, acao: ant ? 'remove' : 'ignora' }); return; }
       const chave = nrm(s.rubricaTxt) + ' | ' + nrm(s.detalhe), auto = rubricaDaFuncern(s.rubricaTxt, s.detalhe, s.tipo);
-      const rubrica = er[chave] || (ant && ant.rubrica) || auto;
+      const g0 = grupos[chave];   // linha nova num grupo que já tem rubrica/etapa escolhida (em importação anterior) herda a do grupo
+      const rubrica = er[chave] || (ant && ant.rubrica) || auto || (g0 && g0.rubrica) || '';
       const igual = db.despesas.filter(d => numSol(d) && d.rubrica === rubrica && nrm(d.descricao).endsWith('· ' + nrm(s.detalhe))).sort((a, b) => a.data < b.data ? 1 : -1)[0];
-      const etapa = ee[chave] || (ant && ant.etapa) || (igual && igual.etapa) || (rubrica === 'doa' ? '6.3' : '');
+      const etapa = ee[chave] || (ant && ant.etapa) || (igual && igual.etapa) || (rubrica === 'doa' ? '6.3' : '') || (g0 && g0.rubrica === rubrica && g0.etapa) || '';
       const g = grupos[chave] = grupos[chave] || { chave, rubricaTxt: s.rubricaTxt, detalhe: s.detalhe, rubricaAuto: auto, rubrica, etapa, n: 0, total: 0 }; g.n++; g.total += s.valor;
       const item = ant && ant.item && D.DESEMBOLSO.itens.some(i => i.id === ant.item && i.rubrica === rubrica) ? ant.item : itemDaFuncern(rubrica, s.detalhe);
       const reg = { id: ant ? ant.id : null, data: s.data, etapa, rubrica, item: item || '', descricao: [String(s.tipo).replace(/^Solicitação de /i, ''), s.detalhe].filter((x, i, a) => x && a.indexOf(x) === i).join(' · ') || 'Solicitação',
@@ -153,7 +158,7 @@
       linhas.push({ s, ant, reg, grupo: chave, acao: !ant ? 'nova' : mudou ? 'atualiza' : 'igual' });
     });
     const G = Object.values(grupos), conta = a => linhas.filter(l => l.acao === a).length, vale = linhas.filter(l => l.reg);
-    return { linhas, grupos: G, status: Object.values(status), faltam: G.filter(g => !g.rubrica || !g.etapa).length,
+    return { linhas, grupos: G, status: Object.values(status), faltam: G.filter(g => !g.rubrica || !g.etapa).length + vale.filter(l => (!l.reg.rubrica || !l.reg.etapa) && !G.some(g => g.chave === l.grupo && (!g.rubrica || !g.etapa))).length,
       novas: conta('nova'), atualizadas: conta('atualiza'), iguais: conta('igual'), removidas: conta('remove'), ignoradas: conta('ignora'),
       pago: vale.filter(l => l.reg.status === 'Pago').reduce((t, l) => t + l.reg.valor, 0), comprometido: vale.filter(l => l.reg.status !== 'Pago').reduce((t, l) => t + l.reg.valor, 0),
       foraDaPlanilha: db.despesas.filter(d => numSol(d) && !vistos.has(numSol(d))).length, manuais: db.despesas.filter(d => !numSol(d)).length };
@@ -344,6 +349,7 @@
     if (r.nascimento && (r.nascimento < '1900-01-02' || r.nascimento >= iso(new Date()))) return 'Confira a data de nascimento.';
     if (r.nascimento && r.inicio && r.nascimento >= r.inicio) return 'A data de nascimento não pode ser depois do início da bolsa.';
     if (r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)) return 'Confira o e-mail.';
+    if (r.telefone && !/^\d{10,11}$/.test(soDigitos(r.telefone).replace(/^55(?=\d{10,11}$)/, ''))) return 'Confira o telefone: DDD e número, com 10 ou 11 algarismos.';
     if (r.renda !== '' && r.renda != null && !(Number(r.renda) >= 0)) return 'A renda precisa ser um número positivo.';
     if (r.pessoas_casa !== '' && r.pessoas_casa != null && !(Number.isInteger(Number(r.pessoas_casa)) && r.pessoas_casa >= 1 && r.pessoas_casa <= 40)) return 'Pessoas na casa: informe um número de 1 a 40.';
     return '';
@@ -367,7 +373,7 @@
   function mensagemErro(e) {
     const m = String((e && (e.message || e.error_description || e.msg)) || e || ''), c = e && e.code;
     if (c === 'P0001') return m;   // mensagem escrita por nós no banco
-    if (c === '23503') return 'Este registro está em uso em outro cadastro e não pode ser excluído.';
+    if (c === '23503') return /insert|update/i.test(m) ? 'Este registro aponta para um cadastro que não existe mais (lote, unidade ou agricultor excluído). Confira e escolha de novo.' : 'Este registro está em uso em outro cadastro e não pode ser excluído.';
     if (c === '23505') return 'Já existe um registro igual a este.';
     if (c === '22P02') return 'Algum número foi digitado com vírgula ou letra onde só cabe número inteiro. Confira e tente de novo.';
     if (c === '23514' || c === '23502') return 'Algum campo ficou em branco ou com valor fora do permitido. Confira e tente de novo.';

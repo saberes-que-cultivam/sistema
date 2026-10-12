@@ -3,7 +3,8 @@
 -- e a data do desligamento quando a pessoa sai (o registro fica como histórico).
 -- Quem vê: só a equipe do projeto. O perfil de acompanhamento (SEAB/MDA) não lê esta tabela.
 -- Quem grava e exclui: só a Coordenação.
--- Precisa do 05_acompanhamento.sql já rodado. Pode rodar de novo sem problema: não apaga nem altera dados.
+-- Precisa do 05_acompanhamento.sql já rodado. Não apaga dados, mas ATENÇÃO: se rodar o 07 de novo depois do 10,
+-- rode o 10 logo em seguida (o 07 reabre a leitura de CPF, endereço e renda para toda a equipe; o 10 fecha).
 create table if not exists public.membros (
   id uuid primary key default gen_random_uuid(),
   funcao text not null check (funcao in ('coordenacao','auxiliar','discente')),

@@ -152,6 +152,9 @@ td .small{margin-top:2px}
 @media (max-width:640px){
   td.a{white-space:normal}
   td.a .b{margin-top:4px}
+  /* no celular a tabela rola para o lado: Editar e Excluir ficam presos à direita, sempre à vista */
+  .scroll td.a,.scroll table:has(td.a) thead th:last-child{position:sticky;right:0;z-index:1;box-shadow:-10px 0 10px -10px rgba(0,0,0,.28)}
+  .scroll td.a{background:var(--surface)} .scroll table:has(td.a) thead th:last-child{background:var(--topo)}
   .g-row{grid-template-columns:190px 1fr 52px}
 }
 
@@ -263,6 +266,7 @@ td .small{margin-top:2px}
   .rb-v{text-align:left} .rb-v::before{content:attr(data-r);display:block;font:600 var(--t-xs) var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .rb-c{padding-left:14px}
   .rb-tot{grid-template-columns:1fr 1fr;padding:12px 14px} .rb-tot span:not(:first-child){text-align:left} .rb-tot span:first-child{grid-column:1/-1}
+  .rb-tot span[data-r]::before{content:attr(data-r);display:block;font-weight:500;color:var(--txt-2)}
 }
 @media print{.dica,.rg .cr{display:none}}
 
