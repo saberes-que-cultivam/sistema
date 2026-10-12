@@ -61,10 +61,24 @@
     return tudo;
   }
 
+  /* prazo em cada chamada ao servidor (trazido do Mulheres & Quintais, 12/10/2026): com sinal que engana (rede "conectada"
+     que não responde) a chamada esperava para sempre e o botão ficava em "Salvando…". Passou de 30 s, conta como falta de
+     internet: o lançamento vai para a fila do aparelho e é enviado depois. */
+  SQC.prazoRede = 30000;
+  function fetchComPrazo(url, op) {
+    if (typeof AbortController === 'undefined') return fetch(url, op);
+    const ctl = new AbortController(); let esgotou = false;
+    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, SQC.prazoRede);
+    if (op && op.signal) { if (op.signal.aborted) ctl.abort(); else op.signal.addEventListener('abort', () => ctl.abort(), { once: true }); }   // quem chamou também pode cancelar
+    return fetch(url, Object.assign({}, op, { signal: ctl.signal }))
+      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(SQC.prazoRede / 1000) + ' segundos'); throw e; })
+      .finally(() => clearTimeout(t));
+  }
+  SQC.fetchComPrazo = fetchComPrazo;
   SQC.apiSupabase = {
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
-    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } }); },
+    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
     /* ----- link de cadastro da equipe ----- */
     async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
       const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });

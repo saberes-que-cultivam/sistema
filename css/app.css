@@ -958,3 +958,18 @@ a.b{display:inline-flex;align-items:center;justify-content:center;text-decoratio
 .pub-c{border-radius:20px;overflow:hidden;padding:0} div.pub-c{padding:32px} .pub-c h1{font-size:var(--t-2xl);margin:0} .pub-c>p{margin:12px 0 0;font-size:var(--t-base);color:var(--txt-2)}
 .pub-c .fm-corpo{max-height:none;overflow:visible} .pub-c .fm-pe .b.p{width:100%;height:52px;font-size:var(--t-lg)}
 @media (prefers-reduced-motion:reduce){.esc{transition:none}}
+
+/* ditado por voz (js/voz.js) */
+.voz-caixa{display:grid;gap:6px;min-width:0}
+.voz-caixa textarea{width:100%}
+.voz-barra{display:flex;justify-content:flex-end}
+.btn-voz{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--txt-2);font:600 var(--t-sm)/1 var(--body);cursor:pointer}
+.btn-voz:hover{border-color:var(--accent);color:var(--accent)}
+.btn-voz.gravando{background:var(--bad);border-color:var(--bad);color:#fff}
+.voz-ponto{width:9px;height:9px;border-radius:50%;background:#fff;animation:voz-pulso 1s ease-in-out infinite}
+@keyframes voz-pulso{50%{opacity:.3;transform:scale(.75)}}
+.voz-caixa.ouvindo textarea{border-color:var(--bad)}
+@media (prefers-reduced-motion:reduce){.voz-ponto{animation:none}}
+/* máscaras (js/mascaras.js): aviso embaixo do campo */
+.dica-masc{color:var(--bad)} .dica-masc .b{margin-left:6px}
+input[aria-invalid="true"]{border-color:var(--bad)}

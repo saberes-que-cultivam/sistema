@@ -837,10 +837,24 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return tudo;
   }
 
+  /* prazo em cada chamada ao servidor (trazido do Mulheres & Quintais, 12/10/2026): com sinal que engana (rede "conectada"
+     que não responde) a chamada esperava para sempre e o botão ficava em "Salvando…". Passou de 30 s, conta como falta de
+     internet: o lançamento vai para a fila do aparelho e é enviado depois. */
+  SQC.prazoRede = 30000;
+  function fetchComPrazo(url, op) {
+    if (typeof AbortController === 'undefined') return fetch(url, op);
+    const ctl = new AbortController(); let esgotou = false;
+    const t = setTimeout(() => { esgotou = true; ctl.abort(); }, SQC.prazoRede);
+    if (op && op.signal) { if (op.signal.aborted) ctl.abort(); else op.signal.addEventListener('abort', () => ctl.abort(), { once: true }); }   // quem chamou também pode cancelar
+    return fetch(url, Object.assign({}, op, { signal: ctl.signal }))
+      .catch(e => { if (esgotou) throw new TypeError('Failed to fetch: o servidor não respondeu em ' + Math.round(SQC.prazoRede / 1000) + ' segundos'); throw e; })
+      .finally(() => clearTimeout(t));
+  }
+  SQC.fetchComPrazo = fetchComPrazo;
   SQC.apiSupabase = {
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
-    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } }); },
+    preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
     /* ----- link de cadastro da equipe ----- */
     async convites() {   // null = o banco ainda não tem a tabela (falta rodar o script 11)
       const { data, error } = await sb.from('convites').select('id,funcao,status,dados,expira_em,preenchido_em,criado_em').in('status', ['aberto', 'preenchido']).order('criado_em', { ascending: false });
@@ -1068,6 +1082,159 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-acao="sessao-continuar"]'); if (b) { tocar(true); esconderAviso(); } });
 
   SQC.sessao = { LIMITE, AVISO, iniciar, parar, tocar, esquecer, ultimo, venceu, falta, conferir, fmt, semRede };
+})();
+;
+/* ===== mascaras.js ===== */
+/* Saberes que Cultivam — máscaras de digitação: CPF, celular e e-mail, em todos os formulários (cadastro e link de cadastro).
+   Trazido do sistema Mulheres & Quintais (12/10/2026). O banco continua guardando o CPF só com números (regras.normalizarMembro). */
+(function () {
+  const SQC = (window.SQC = window.SQC || {});
+  const dig = v => String(v || '').replace(/\D/g, '');
+  const fmtCPF = d => { d = d.slice(0, 11);
+    return d.length > 9 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+      : d.length > 3 ? `${d.slice(0, 3)}.${d.slice(3)}` : d; };
+  const fmtTel = d => { d = d.slice(0, 11); if (!d) return '';
+    if (d.length <= 2) return `(${d}`;
+    const meio = d.length === 11 ? 5 : 4, ddd = d.slice(0, 2), r = d.slice(2);
+    return r.length > meio ? `(${ddd}) ${r.slice(0, meio)}-${r.slice(meio)}` : `(${ddd}) ${r}`; };
+  const TIPOS = { cpf: { fmt: fmtCPF, max: 14, ph: '000.000.000-00', modo: 'numeric' }, tel: { fmt: fmtTel, max: 15, ph: '(00) 00000-0000', modo: 'tel' } };
+  const tipoDe = el => !el || el.tagName !== 'INPUT' || el.readOnly ? null : el.id === 'f_cpf' || el.dataset.mascara === 'cpf' ? 'cpf'
+    : el.id === 'f_telefone' || el.type === 'tel' || el.dataset.mascara === 'tel' ? 'tel' : null;
+  const emailValido = v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+
+  // aplica a máscara mantendo o cursor depois do mesmo número de dígitos
+  function aplicar(el, t) {
+    const pos = el.selectionStart == null ? el.value.length : el.selectionStart, antes = dig(el.value.slice(0, pos)).length, novo = TIPOS[t].fmt(dig(el.value));
+    if (novo === el.value) return;
+    el.value = novo;
+    let n = 0, p = 0; while (p < novo.length && n < antes) { if (/\d/.test(novo[p])) n++; p++; }
+    try { if (document.activeElement === el) el.setSelectionRange(p, p); } catch (e) { /* campo sem cursor */ }
+  }
+  /* prepara os campos que acabaram de aparecer: formata o que veio do cadastro, põe exemplo e teclado numérico */
+  function preparar(raiz) {
+    (raiz || document).querySelectorAll('input').forEach(el => { const t = tipoDe(el); if (!t || el.dataset.mascaraOk) return;
+      el.dataset.mascaraOk = '1'; el.maxLength = TIPOS[t].max; el.inputMode = TIPOS[t].modo; if (!el.placeholder) el.placeholder = TIPOS[t].ph; if (el.value) aplicar(el, t); });
+  }
+  const limparDica = el => { const d = el.parentElement && el.parentElement.querySelector('.dica-masc'); if (d) d.remove(); el.removeAttribute('aria-invalid'); };
+  document.addEventListener('input', ev => {
+    const el = ev.target, t = tipoDe(el);
+    if (t) { aplicar(el, t); limparDica(el); return; }
+    if (el && el.tagName === 'INPUT' && el.type === 'email') {   // e-mail: sem espaços e em minúsculas
+      const pos = el.selectionStart, v = el.value.replace(/\s+/g, '').toLowerCase();
+      if (v !== el.value) { el.value = v; try { el.setSelectionRange(pos, pos); } catch (e) {} }
+      limparDica(el);
+    }
+  });
+  // erros comuns de digitação no final do e-mail (gmial.com, hotmail.con…)
+  const DOMINIOS = { 'gmial.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gamil.com': 'gmail.com', 'gnail.com': 'gmail.com', 'gmaill.com': 'gmail.com',
+    'gmail.co': 'gmail.com', 'gmail.con': 'gmail.com', 'gmail.cm': 'gmail.com', 'gmail.om': 'gmail.com', 'gmail.com.br': 'gmail.com', 'gmail.cpm': 'gmail.com', 'gmaul.com': 'gmail.com',
+    'hotmal.com': 'hotmail.com', 'hotmai.com': 'hotmail.com', 'hotmial.com': 'hotmail.com', 'hotmail.con': 'hotmail.com', 'hotmail.co': 'hotmail.com', 'hotmil.com': 'hotmail.com',
+    'outlok.com': 'outlook.com', 'outloo.com': 'outlook.com', 'outlook.con': 'outlook.com', 'yahoo.con': 'yahoo.com', 'yaho.com': 'yahoo.com', 'yahoo.com.b': 'yahoo.com.br',
+    'icloud.con': 'icloud.com', 'bol.com': 'bol.com.br', 'uol.com': 'uol.com.br', 'ifrn.edu': 'ifrn.edu.br', 'escolar.ifrn.edu': 'escolar.ifrn.edu.br' };
+  function corrigirEmail(v) {
+    const m = String(v || '').toLowerCase().match(/^([a-z0-9._%+-]+)@([a-z0-9.-]+)$/); if (!m) return null;
+    const dom = DOMINIOS[m[2]] || (/\.con$/.test(m[2]) ? m[2].replace(/\.con$/, '.com') : null);
+    return dom ? m[1] + '@' + dom : null;
+  }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // ao sair do campo: confere CPF, celular e e-mail e avisa na hora (o Salvar confere de novo)
+  document.addEventListener('focusout', ev => {
+    const el = ev.target; if (!el || el.tagName !== 'INPUT' || el.readOnly || !el.value) return;
+    const t = tipoDe(el); let msg = '';
+    if (t === 'cpf' && SQC.regras && !SQC.regras.cpfValido(el.value)) msg = 'CPF inválido: confira os 11 números.';
+    if (t === 'tel' && dig(el.value).length < 10) msg = 'Celular incompleto: DDD e número.';
+    if (el.type === 'email' && !emailValido(el.value)) msg = 'E-mail incompleto ou com erro (exemplo: nome@gmail.com).';
+    else if (el.type === 'email') { const c = corrigirEmail(el.value); if (c) msg = `Confira o e-mail: não seria <b>${esc(c)}</b>? <button type="button" class="b s sug-email" data-email="${esc(c)}">Usar ${esc(c)}</button>`; }
+    limparDica(el);
+    if (msg) { el.setAttribute('aria-invalid', 'true'); el.insertAdjacentHTML('afterend', `<span class="fm-dica dica-masc" role="alert">${msg}</span>`); }
+  });
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('.sug-email'); if (!b) return;
+    const inp = b.closest('.fld') && b.closest('.fld').querySelector('input[type=email]'); if (!inp) return;
+    inp.value = b.dataset.email; limparDica(inp); inp.focus();
+  });
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => preparar()).observe(document.documentElement, { childList: true, subtree: true });
+  SQC.mascaras = { fmtCPF, fmtTel, corrigirEmail, preparar };
+})();
+;
+/* ===== voz.js ===== */
+/* Saberes que Cultivam — ditado por voz nos campos de texto (observações da visita, relato de problema…).
+   Trazido do sistema Mulheres & Quintais (12/10/2026), sem a parte de "organizar o texto" (que dependia de um serviço externo).
+   Usa o reconhecimento de fala do próprio navegador (Chrome/Android e Safari/iPhone), em português; o texto vai aparecendo
+   no campo e a pessoa revisa antes de salvar. Sem suporte no navegador o botão não aparece (o microfone do teclado continua valendo).
+   Atenção: no Chrome o áudio passa pelo serviço de fala do Google; por isso o botão não aparece no link de cadastro público. */
+(function () {
+  const SQC = (window.SQC = window.SQC || {});
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const ICONE = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>';
+  let ativo = null;   // { rec, ta, btn, base, finais, parcial, erro }
+
+  /* comandos falados simples: "vírgula", "ponto final", "nova linha" */
+  const ajustar = t => t.replace(/\s*\bv[íi]rgula\b/gi, ',').replace(/\s*\bponto final\b/gi, '.').replace(/\s*\bponto de interroga[çc][ãa]o\b/gi, '?')
+    .replace(/\s*\b(nova linha|pr[óo]xima linha|par[áa]grafo)\b\s*/gi, '\n');
+  const maiuscula = (antes, t) => { t = t.replace(/([.!?]\s+|\n\s*)(\p{Ll})/gu, (m, p, c) => p + c.toUpperCase());
+    return (!antes.trim() || /[.!?\n]\s*$/.test(antes)) ? t.replace(/^(\s*)(\S)/, (m, e, c) => e + c.toUpperCase()) : t; };
+  const juntar = (a, b) => !a ? b : (/[\s\n]$/.test(a) || /^[,.?\n]/.test(b)) ? a + b : a + ' ' + b;
+  const avisar = m => { if (m && SQC.app && SQC.app.toast) SQC.app.toast(m); };
+
+  function escrever() {
+    const a = ativo; if (!a) return;
+    a.ta.value = juntar(a.base, a.finais + (a.parcial ? (a.finais ? ' ' : '') + a.parcial : '')).replace(/ +\n/g, '\n');
+    a.ta.scrollTop = a.ta.scrollHeight;
+  }
+  function parar(msg) {
+    const a = ativo; if (!a) return; ativo = null;
+    a.ta.value = juntar(a.base, a.finais).replace(/ +\n/g, '\n').replace(/[ ]+$/, '');
+    if (a.ta.value && !/[.!?]\s*$/.test(a.ta.value) && a.finais) a.ta.value += '.';
+    try { a.rec.stop(); } catch (e) {}
+    a.btn.classList.remove('gravando'); a.btn.innerHTML = ICONE + '<span>Falar</span>'; a.btn.setAttribute('aria-pressed', 'false');
+    const c = a.ta.closest('.voz-caixa'); if (c) c.classList.remove('ouvindo');
+    avisar(msg);
+  }
+  function comecar(ta, btn) {
+    if (ativo) { const mesmo = ativo.ta === ta; parar(); if (mesmo) return; }
+    const rec = new SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = true;
+    const a = ativo = { rec, ta, btn, base: ta.value, finais: '', parcial: '', erro: null };
+    rec.onresult = ev => {
+      let parcial = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ajustar(ev.results[i][0].transcript);
+        if (ev.results[i].isFinal) a.finais = juntar(a.finais, maiuscula(juntar(a.base, a.finais), t.replace(/^ +| +$/g, '')));
+        else parcial += t;
+      }
+      a.parcial = parcial.trim(); escrever();
+    };
+    rec.onerror = ev => { a.erro = ev.error; };
+    rec.onend = () => {
+      if (ativo !== a) return;
+      if (!a.erro) { try { rec.start(); return; } catch (e) {} }   // o navegador para sozinho no silêncio: continua até a pessoa tocar em Parar
+      const m = { 'not-allowed': 'O microfone está bloqueado. Libere o microfone para este site nas permissões do navegador.',
+        'service-not-allowed': 'O microfone está bloqueado. Libere o microfone para este site nas permissões do navegador.',
+        network: 'Para ditar, o navegador precisa de internet. Sem internet, use o microfone do teclado do celular.',
+        'audio-capture': 'Não achei o microfone do aparelho.' }[a.erro];
+      parar(m || (a.erro && a.erro !== 'no-speech' && a.erro !== 'aborted' ? 'O ditado parou. Toque em Falar para continuar.' : null));
+    };
+    try { rec.start(); } catch (e) { ativo = null; return; }
+    btn.classList.add('gravando'); btn.innerHTML = '<i class="voz-ponto" aria-hidden="true"></i><span>Parar</span>'; btn.setAttribute('aria-pressed', 'true');
+    const c = ta.closest('.voz-caixa'); if (c) c.classList.add('ouvindo');
+    ta.focus();
+  }
+  /* põe o botão "Falar" embaixo de cada campo de texto longo que aparecer (formulários são desenhados na hora) */
+  function preparar(raiz) {
+    if (!SR) return;
+    (raiz || document).querySelectorAll('textarea:not([readonly]):not([disabled]):not([data-voz-ok])').forEach(ta => {
+      ta.dataset.vozOk = '1'; if (ta.closest('#pub')) return;   // link de cadastro público: sem ditado (o áudio sairia para o serviço de fala)
+      const caixa = document.createElement('div'); caixa.className = 'voz-caixa'; ta.parentNode.insertBefore(caixa, ta); caixa.appendChild(ta);
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-voz'; btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-label', 'Ditar por voz neste campo'); btn.innerHTML = ICONE + '<span>Falar</span>';
+      btn.addEventListener('click', () => comecar(ta, btn));
+      const barra = document.createElement('div'); barra.className = 'voz-barra'; barra.appendChild(btn); caixa.appendChild(barra);
+    });
+  }
+  if (SR && typeof MutationObserver !== 'undefined') new MutationObserver(() => preparar()).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('submit', () => { if (ativo) parar(); }, true);
+  document.addEventListener('close', () => { if (ativo) parar(); }, true);   // fechou a janela: o microfone desliga
+  SQC.voz = { suportado: !!SR, parar, preparar };
 })();
 ;
 /* ===== app.js ===== */
@@ -1798,7 +1965,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
-    $('#frm').className = 'fm'; ed.foto = fotoForm(); ed.avisado = false;
+    $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
+    ed.foto = fotoForm(); ed.avisado = false;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
   }
   /* retrato do formulário: se mudou e a pessoa tenta fechar, avisa antes de jogar fora o que foi digitado */
@@ -2086,7 +2254,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, _estado: () => ({ eu, db, pend, tab }) };
   if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
 })();
 ;

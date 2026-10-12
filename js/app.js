@@ -725,7 +725,8 @@
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
-    $('#frm').className = 'fm'; ed.foto = fotoForm(); ed.avisado = false;
+    $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
+    ed.foto = fotoForm(); ed.avisado = false;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
   }
   /* retrato do formulário: se mudou e a pessoa tenta fechar, avisa antes de jogar fora o que foi digitado */
@@ -1013,6 +1014,6 @@
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, _estado: () => ({ eu, db, pend, tab }) };
   if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
 })();

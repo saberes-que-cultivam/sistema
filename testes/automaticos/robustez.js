@@ -72,7 +72,7 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await q.goto(link); await q.reload(); await q.waitForSelector('#pub:not([hidden])'); ok(!(await q.$('#fpub')), 'link de cadastro: o mesmo link não abre de novo depois de usado'); ok(!q.erros.length, 'link de cadastro: sem erro de script'); await q.close();
     await p.reload(); await p.waitForSelector('#app:not([hidden])'); await p.click('[data-tab="equipe"]'); await p.waitForSelector('[data-cvaprovar]');
     ok(await n(p, 'membros') === antes, 'link de cadastro: enviar não cria cadastro sozinho'); await semXss(p, 'convite pendente');
-    await p.click('[data-cvaprovar]'); await p.waitForSelector('#dlg[open] #f_cpf'); ok(await p.inputValue('#f_cpf') === '52998224725' && await p.inputValue('#f_nome') === X, 'link de cadastro: a coordenação confere os dados como texto'); await p.click('#fsalvar'); await fechado(p); await p.waitForTimeout(200);
+    await p.click('[data-cvaprovar]'); await p.waitForSelector('#dlg[open] #f_cpf'); ok(await p.inputValue('#f_cpf') === '529.982.247-25' && await p.inputValue('#f_nome') === X, 'link de cadastro: a coordenação confere os dados como texto'); await p.click('#fsalvar'); await fechado(p); await p.waitForTimeout(200);
     ok(await n(p, 'membros') === antes + 1 && !(await p.$('[data-cvaprovar]')), 'link de cadastro: aprovado vira cadastro e o convite some'); await semXss(p, 'cadastro aprovado');
     /* ---------- 3. planilha com conteúdo malicioso e linhas inválidas ---------- */
     await p.click('[data-tab="financeiro"]'); antes = await n(p, 'despesas'); await p.setInputFiles('#imp_arq', path.join(__dirname, '..', 'unit', 'dados', 'solicitacoes_maliciosa.xlsx')); await p.waitForSelector('#dlg[open] [data-impok]');
