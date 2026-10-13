@@ -1014,12 +1014,26 @@ input[aria-invalid="true"]{border-color:var(--bad)}
 .authbox{position:relative}
 .ent-ap{position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--txt-2);font:600 var(--t-sm)/1 var(--body);cursor:pointer}
 .ent-ap.ligado{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-.ap-chave{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--ink);font:inherit;cursor:pointer;min-height:64px}
-.ap-txt{display:grid;gap:2px} .ap-txt small{color:var(--txt-2);font-size:var(--t-sm)}
-.ap-trilho{position:relative;width:52px;height:30px;border-radius:999px;background:var(--line)}
-.ap-trilho span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
-.ap-chave[aria-checked="true"] .ap-trilho{background:var(--accent)} .ap-chave[aria-checked="true"] .ap-trilho span{transform:translateX(22px)}
-.ap-temas{display:flex;flex-wrap:wrap;gap:8px}
+/* janela "Aparência da tela": compacta, no meio da página também no celular (não ocupa a tela toda como os formulários) */
+dialog.dlg-ap{width:min(600px,calc(100% - 32px));height:fit-content;max-height:calc(100dvh - 32px);border:1px solid var(--line);border-radius:20px}
+dialog.dlg-ap form.fm{height:fit-content;max-height:calc(100dvh - 32px)}
+dialog.dlg-ap .fm-corpo{flex:none;gap:18px;padding-block:22px 24px}
+.ap-chave{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;color:var(--ink);font:inherit;cursor:pointer;min-height:72px}
+.ap-ic{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--accent-soft);color:var(--accent)}
+.ap-ic svg{width:24px;height:24px}
+.ap-txt{display:grid;gap:4px} .ap-txt b{font-size:var(--t-lg)} .ap-txt small{color:var(--txt-2);font-size:var(--t-sm);line-height:1.45}
+.ap-trilho{position:relative;width:56px;height:32px;border-radius:999px;background:var(--line);flex:none}
+.ap-trilho span{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.ap-chave[aria-checked="true"] .ap-trilho{background:var(--accent)} .ap-chave[aria-checked="true"] .ap-trilho span{transform:translateX(24px)}
+.ap-bloco{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;display:grid;gap:14px}
+.ap-bloco h3{margin:0;font-size:var(--t-lg)} .ap-bloco p{margin:0;color:var(--txt-2);font-size:var(--t-sm);line-height:1.5}
+.ap-seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.ap-seg button{min-height:48px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--ink);font:500 var(--t-md)/1 var(--body);cursor:pointer}
+.ap-seg button:first-child{border-left:0}
+.ap-seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:700}
+.ap-seg button:disabled{opacity:.45;cursor:not-allowed}
+.ap-seg button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.ap-nota{margin:0;color:var(--txt-2);font-size:var(--t-sm);line-height:1.5}
 @media (prefers-reduced-motion:reduce){.ap-trilho span{transition:none}}
 /* Modo sol: preto no branco, bordas escuras e grossas, letra um ponto maior. Sempre claro (aparencia.js põe data-theme="light"). */
 :root[data-sol]{

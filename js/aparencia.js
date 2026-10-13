@@ -28,15 +28,15 @@
   const ICONE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>';
   /* conteúdo da janela "Aparência da tela" (a janela é a mesma das outras: #dlg) */
   function janela() {
-    const v = ler(), opc = k => `<button type="button" class="b${v.tema === k ? ' p' : ''}" data-ap-tema="${k}" aria-pressed="${v.tema === k}"${v.sol ? ' disabled' : ''}>${TEMAS[k]}</button>`;
+    const v = ler(), opc = k => `<button type="button" data-ap-tema="${k}" aria-pressed="${v.tema === k}"${v.sol ? ' disabled' : ''}>${TEMAS[k]}</button>`;
     return `<div class="fm-cab"><div><span class="fm-eye">Neste aparelho</span><h2>Aparência da tela</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
-     <div class="fm-corpo">
+     <div class="fm-corpo ap-corpo">
       <button type="button" class="ap-chave" data-ap-sol role="switch" aria-checked="${v.sol}"><span class="ap-ic" aria-hidden="true">${ICONE}</span>
-       <span class="ap-txt"><b>Modo sol</b><small>Para o campo, com sol forte: letra preta em fundo branco, bordas escuras e letra maior.</small></span><span class="ap-trilho" aria-hidden="true"><span></span></span></button>
-      <h3 class="fm-sec">Tema</h3><div class="ap-temas" role="group" aria-label="Tema">${Object.keys(TEMAS).map(opc).join('')}</div>
-      <p class="aj-p">${v.sol ? 'Com o modo sol ligado a tela fica sempre clara. Desligue o modo sol para escolher o tema.' : 'Automático segue o celular. O escuro é bom à noite e gasta menos bateria em alguns celulares, mas no sol é difícil de ler.'}</p>
-      <p class="aj-p">A escolha fica guardada neste aparelho e continua valendo depois de sair do sistema. No sol, deixe também o brilho do celular no máximo.</p></div>
-     <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Pronto</button></div></div>`;
+       <span class="ap-txt"><b>Modo sol</b><small>Para usar no campo, com sol forte: letra preta em fundo branco, bordas escuras e letra maior.</small></span><span class="ap-trilho" aria-hidden="true"><span></span></span></button>
+      <section class="ap-bloco" aria-labelledby="ap-tema-t"><h3 id="ap-tema-t">Tema</h3>
+       <div class="ap-seg" role="group" aria-labelledby="ap-tema-t">${Object.keys(TEMAS).map(opc).join('')}</div>
+       <p>${v.sol ? 'Com o modo sol ligado a tela fica sempre clara. Desligue o modo sol para escolher o tema.' : 'Automático segue o celular (claro de dia, escuro se o celular estiver no modo escuro). O escuro é bom à noite e gasta menos bateria em alguns celulares, mas no sol é difícil de ler.'}</p></section>
+      <p class="ap-nota">A escolha fica guardada neste aparelho e continua valendo depois de sair do sistema. Dica: no sol, deixe também o brilho do celular no máximo.</p></div>`;
   }
   aplicar();
   SQC.aparencia = { ler, aplicar, mudar, janela, ICONE, TEMAS, CHAVE };
