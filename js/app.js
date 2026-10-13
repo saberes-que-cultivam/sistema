@@ -219,7 +219,7 @@
     const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
-    return `${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas.</span></div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+    return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas.</span></div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
    <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
@@ -300,6 +300,7 @@
       <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${AJUDA[tab] || ''}</p>
       <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
+      <h3 class="fm-sec">Sol forte</h3><p class="aj-p">Toque no botão do sol, no alto da tela, e ligue o <b>modo sol</b>: letra preta em fundo branco e maior. Ali também se escolhe tema claro ou escuro. Vale só neste aparelho.</p>
       <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${{ 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento' }[eu.perfil] || 'equipe'}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
       <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
      <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
@@ -981,6 +982,16 @@
       const alvo = $('#a_senha') || $('#a_email'); if (alvo) { alvo.setAttribute('aria-invalid', 'true'); alvo.setAttribute('aria-describedby', 'aerr'); alvo.focus(); if (alvo.select) alvo.select(); }
     }
   }
+  /* sair e entrar de novo (trazido do Mulheres & Quintais, v261): ao sair (botão, 15 minutos sem uso ou fechar a página) guarda a aba e a
+     altura da tela de QUEM saiu; se a MESMA pessoa entrar de novo neste aparelho em até 7 dias, volta para o mesmo lugar. Outra pessoa
+     começa do início. Só o nome da aba e a altura: nenhum dado do projeto. */
+  const CHAVE_VOLTAR = 'sqc-voltar';
+  const guardarLugar = () => { try { if (eu && eu.id && !real) localStorage.setItem(CHAVE_VOLTAR, JSON.stringify({ quem: eu.id, aba: tab, y: Math.round(window.scrollY || 0), em: Date.now() })); } catch (e) { /* aparelho bloqueia */ } };
+  function voltarAoLugar() {
+    let v = null; try { v = JSON.parse(localStorage.getItem(CHAVE_VOLTAR) || 'null'); localStorage.removeItem(CHAVE_VOLTAR); } catch (e) { v = null; }
+    if (!v || !eu || v.quem !== eu.id || !(Date.now() - v.em < 7 * 864e5) || !abas().some(t => t[0] === v.aba)) { if (v && eu && v.quem !== eu.id) tab = 'painel'; return 0; }   // outra pessoa: começa do início
+    tab = v.aba; return +v.y > 0 ? +v.y : 0;
+  }
   async function aposEntrar() {
     $('#auth').hidden = true; $('#carregando').hidden = false; $('#carregando-txt').textContent = 'Carregando os dados…';
     try { await recarregarDb(); }
@@ -988,20 +999,41 @@
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = []; });
     pend = demo() ? [] : await SQC.fila.listar(eu.id); aplicarFila(); hist = null;
     $('#carregando').hidden = true; $('#app').hidden = false;
+    const y = location.hash && TABS.some(x => x[0] === location.hash.slice(1)) ? 0 : voltarAoLugar();   // link com a aba no endereço vale mais
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
-    render();
+    render(); if (y) requestAnimationFrame(() => window.scrollTo(0, y));
     if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => sair(EXP), temConexao: () => api.temConexao() }); sincronizar(); }
   }
   async function sair(msg) {
+    guardarLugar();   // antes de esquecer a aba: a mesma pessoa volta para cá quando entrar de novo
     if ($('#dlg').open) $('#dlg').close();
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
-    eu = null; db = null; real = null; hist = null; convites = undefined; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');
+    eu = null; db = null; real = null; hist = null; convites = undefined; filas = undefined; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
   async function atualizarPorBaixo() { try { espera = { db: await api.carregar(), pend: demo() ? [] : await SQC.fila.listar(eu.id) }; } catch (e) { /* fica como está */ } }
   function aplicarEspera() { if (!espera || !eu) return; trocarDb(espera.db); pend = espera.pend; espera = null; aplicarFila(); render(); }
+  /* "falta enviar" (script 14): com internet, o aparelho informa só a contagem do que guarda sem enviar. A coordenação vê na Visão geral. */
+  const aparelho = () => { let a = ''; try { a = localStorage.getItem('sqc-aparelho') || ''; if (!a) { a = SQC.novoId(); localStorage.setItem('sqc-aparelho', a); } } catch (e) { a = a || 'sem-armazenamento'; } return a; };
+  async function informarFila() {
+    if (!eu || demo() || fora() || !api.informarFila || navigator.onLine === false) return;
+    const desde = pend.length ? new Date(Math.min(...pend.map(p => p.criado || Date.now()))).toISOString() : null;
+    try { await api.informarFila(aparelho(), pend.length, pend.filter(p => p.erro).length, desde); } catch (e) { /* é só aviso: não atrapalha */ }
+  }
+  let filas;   // undefined = ainda não carregou; null = o banco não tem (falta o script 14)
+  async function carregarFilas() { try { filas = await api.listarFila(); } catch (e) { filas = []; } if (tab === 'painel') render(); }
+  function faltaEnviar() {
+    if (!coord() || real) return '';
+    if (filas === undefined) { filas = []; carregarFilas(); return ''; }
+    if (!filas || !filas.length) return '';
+    const dias = d => Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
+    return `<section class="panel fe" aria-label="Lançamentos que ainda não foram enviados"><div class="fe-cab"><h2>Falta enviar</h2><p>Lançamentos feitos sem internet que ainda estão guardados no celular de alguém. O sistema sabe só quantos são, não o que são.</p></div>
+      <ul class="fe-l">${filas.map(f => { const d = f.desde ? dias(f.desde) : 0, velho = d >= 2;
+        return `<li class="${velho ? 'velho' : ''}"><b>${esc(f.nome)}</b>${f.ex ? exChip(f) : ''}<span>${f.quantos} lançamento${f.quantos === 1 ? '' : 's'} guardado${f.quantos === 1 ? '' : 's'}${f.recusados ? ` · <b>${f.recusados} recusado${f.recusados === 1 ? '' : 's'} pelo servidor</b>` : ''}</span>
+          <small>${f.desde ? (d === 0 ? 'desde hoje' : `há ${d} dia${d === 1 ? '' : 's'}`) : ''}${velho ? ' · peça para a pessoa abrir o sistema com internet' : ''}</small></li>`; }).join('')}</ul></section>`;
+  }
   async function sincronizar(avisar) {
     if (!eu || demo() || sincronizando || navigator.onLine === false) { if (avisar) toast('Ainda sem internet.'); return; }
     sincronizando = true;
@@ -1010,6 +1042,7 @@
       const novo = await api.carregar(); const fila = await SQC.fila.listar(eu.id);
       if ($('#dlg').open) { espera = { db: novo, pend: fila }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
       else { trocarDb(novo); pend = fila; aplicarFila(); render(); }
+      informarFila(); if (coord()) filas = undefined;   // a lista da coordenação busca de novo na próxima vez que o painel aparecer
       if (r.enviados) toast(r.enviados + ' lançamento(s) enviado(s).');
       else if (avisar) toast(r.erros ? 'Há lançamento que o servidor não aceitou. Corrija ou descarte.' : 'Nada para enviar.');
     } catch (e) { if (avisar) toast(e.message); }
@@ -1044,6 +1077,9 @@
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.aparencia !== undefined) { ed = null; $('#frm').className = 'fm'; $('#frm').innerHTML = SQC.aparencia.janela(); if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal(); }
+    else if (d.apSol !== undefined) { SQC.aparencia.mudar('sol', !SQC.aparencia.ler().sol); $('#frm').innerHTML = SQC.aparencia.janela(); $('#frm [data-ap-sol]').focus(); }
+    else if (d.apTema) { SQC.aparencia.mudar('tema', d.apTema); $('#frm').innerHTML = SQC.aparencia.janela(); $(`#frm [data-ap-tema="${d.apTema}"]`).focus(); }
     else if (d.presenca) abrirPresenca(d.presenca);
     else if (d.pradd) { t.disabled = true; try { await adicionarPresenca(d.pradd); } finally { t.disabled = false; } }
     else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para tirar da lista.'; return; }
@@ -1114,6 +1150,7 @@
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false; if (e === 'online') sincronizar(); } }));
     try { const t = localStorage.getItem('sqc-aba'); if (t && TABS.some(x => x[0] === t)) tab = t; } catch (e) {}
     if (location.hash && TABS.some(x => x[0] === location.hash.slice(1))) tab = location.hash.slice(1);
+    window.addEventListener('pagehide', guardarLugar);   // fechou ou recarregou a página logado: volta ao mesmo lugar
     // abriu por um link de cadastro da equipe: mostra só o formulário público, sem entrar em conta nenhuma
     const mc = /^#c=(.*)$/.exec(location.hash || ''); if (mc) { if (api.preparar) api.preparar(); return telaConvite(mc[1]); }
     try {

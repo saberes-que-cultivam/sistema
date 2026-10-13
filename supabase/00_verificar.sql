@@ -25,6 +25,8 @@ select 'lista de presença e fotos (13)',
             when not exists (select 1 from storage.buckets where id = 'evidencias') then 'FALTA a pasta de fotos: rode o 13 de novo'
             when (select public from storage.buckets where id = 'evidencias') then 'ABERTA: a pasta de fotos não pode ser pública; rode o 13 de novo' else 'ok' end
 union all
+select 'falta enviar dos celulares (14)', case when to_regclass('public.fila_celular') is null then 'FALTA: rode o 14' else 'ok' end
+union all
 select 'coordenação ativa',
        case when exists (select 1 from public.pessoas where perfil = 'Coordenação' and ativo) then 'ok' else 'FALTA: rode o 02 com o seu e-mail' end
 union all

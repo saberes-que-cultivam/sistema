@@ -83,6 +83,16 @@
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
     preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
+    /* ----- "falta enviar" (script 14): o aparelho informa só a contagem do que guarda sem enviar; a coordenação vê a lista ----- */
+    async informarFila(aparelho, quantos, recusados, desde) {
+      const { error } = await sb.rpc('informar_fila', { p_aparelho: aparelho, p_quantos: quantos, p_recusados: recusados, p_desde: desde });
+      if (error && !(error.code === 'PGRST202' || error.code === '42883')) throw erro(error);   // sem o script 14: não informa e segue
+    },
+    async listarFila() {   // null = o banco ainda não tem (falta o script 14)
+      const { data, error } = await sb.rpc('listar_fila_celular');
+      if (error && (error.code === 'PGRST202' || error.code === '42883')) return null;
+      if (error) throw erro(error); return data || [];
+    },
     /* ----- fotos de evidência (script 13): arquivo no Storage, pasta privada "evidencias"; a lista fica na tabela fotos ----- */
     async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
       const id = SQC.novoId(), caminho = `${tabela}/${registro}/${id}.jpg`, pasta = sb.storage.from('evidencias');

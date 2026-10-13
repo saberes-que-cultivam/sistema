@@ -386,4 +386,41 @@ reset role;
 do $$ begin
   if (select public from storage.buckets where id = 'evidencias') then raise exception 'FALHOU: pasta de evidências pública'; end if;
 end $$;
+-- ===== 14: falta enviar =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ begin
+  perform public.informar_fila('aparelho-equipe-1', 3, 1, now() - interval '3 days');
+  perform public.informar_fila('aparelho-equipe-2', 2, 0, now() - interval '1 hour');
+  if exists (select 1 from public.listar_fila_celular()) then raise exception 'FALHOU: equipe viu a lista de quem tem registro parado'; end if;
+  begin perform 1 from public.fila_celular; raise exception 'FALHOU: equipe leu a tabela direto';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ begin
+  perform public.informar_fila('aparelho-mda-0001', 5, 0, now());
+  if exists (select 1 from public.listar_fila_celular()) then raise exception 'FALHOU: acompanhamento viu a lista'; end if;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+do $$ declare r record; begin
+  select * into r from public.listar_fila_celular() where nome = 'Equipe Dois';
+  if r.quantos <> 5 or r.recusados <> 1 or r.desde > now() - interval '2 days' then raise exception 'FALHOU: soma dos dois aparelhos (% / % / %)', r.quantos, r.recusados, r.desde; end if;
+  if (select count(*) from public.listar_fila_celular()) <> 1 then raise exception 'FALHOU: o acompanhamento entrou na lista'; end if;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+select public.informar_fila('aparelho-equipe-1', 0, 0, null); select public.informar_fila('aparelho-equipe-2', 0, 0, null);
+reset role;
+do $$ begin if exists (select 1 from public.fila_celular) then raise exception 'FALHOU: zero não limpou a contagem'; end if; end $$;
+set role anon;
+do $$ begin
+  begin perform public.informar_fila('aparelho-anon-01', 1, 0, now()); raise exception 'FALHOU: anônimo informou fila';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

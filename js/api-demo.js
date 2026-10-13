@@ -103,6 +103,11 @@
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
     async auditoria() { return []; },
+    async informarFila() {},
+    async listarFila() {   // demonstração: um exemplo fixo, para a coordenação ver como aparece
+      if (!eu || eu.perfil !== 'Coordenação') return [];
+      return [{ pessoa: 'p-equipe', nome: 'Equipe (demonstração)', quantos: 3, recusados: 1, desde: new Date(Date.now() - 3 * 864e5).toISOString(), informado_em: new Date(Date.now() - 2 * 3600e3).toISOString(), ex: 1 }];
+    },
     /* fotos na demonstração: a imagem fica só na memória desta página (não ocupa o armazenamento do navegador) */
     _img: {},
     async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {

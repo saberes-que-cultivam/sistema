@@ -10,7 +10,8 @@ let cssFontes = '';
 if (process.env.FONTES) { const B = process.env.FONTES + '/node_modules/@fontsource/', f = p => 'data:font/woff2;base64,' + fs.readFileSync(B + p).toString('base64');
   cssFontes = [600, 700].map(w => `@font-face{font-family:"Lora";font-weight:${w};src:url(${f(`lora/files/lora-latin-${w}-normal.woff2`)})}`).concat([400, 500, 600, 700, 800].map(w => `@font-face{font-family:"Manrope";font-weight:${w};src:url(${f(`manrope/files/manrope-latin-${w}-normal.woff2`)})}`)).join('\n'); }
 const medir = () => {
-  const ESCALA = [12, 13, 14, 15, 16, 18, 22, 28], prob = [], tons = {}, vw = window.innerWidth;
+  const ESCALA = document.documentElement.hasAttribute('data-sol') ? [12, 13, 14, 15, 16, 17, 19, 23, 29] : [12, 13, 14, 15, 16, 18, 22, 28], prob = [],   // modo sol: a escala é um ponto maior (o 12 fica só no eixo dos gráficos)
+  tons = {}, vw = window.innerWidth;
   const cor = s => { let m = s.match(/rgba?\(([^)]+)\)/); if (m) { const p = m[1].split(/[ ,/]+/).map(Number); return [p[0], p[1], p[2], p[3] == null ? 1 : p[3]]; } m = s.match(/color\(srgb ([^)]+)\)/); if (m) { const p = m[1].split(/[ /]+/).map(Number); return [p[0] * 255, p[1] * 255, p[2] * 255, p[3] == null ? 1 : p[3]]; } return null; };
   const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
   const fundo = el => { for (let e = el; e; e = e.parentElement) { const st = getComputedStyle(e), c = cor(st.backgroundColor); if (c && c[3] > 0.98) return c; if (st.backgroundImage !== 'none' && e !== el) return null; } return [255, 255, 255, 1]; };
@@ -43,6 +44,7 @@ const medir = () => {
   const b = await chromium.launch({ executablePath: process.env.CHROME || undefined }); let total = 0; const visto = new Set();
   for (const larg of [390, 1440]) {
     const ctx = await b.newContext({ viewport: { width: larg, height: 900 }, serviceWorkers: 'block', colorScheme: process.env.ESCURO ? 'dark' : 'light' });
+    if (process.env.SOL) await ctx.addInitScript(() => { try { localStorage.setItem('sqc-aparencia', JSON.stringify({ sol: true })); } catch (e) {} });   // SOL=1: confere o modo sol
     await ctx.route(/fonts\.googleapis\.com/, r => r.fulfill({ contentType: 'text/css', body: cssFontes })); await ctx.route(/supabase\.co/, r => r.abort());
     const rel = async (p, onde) => { await p.waitForTimeout(250); await p.evaluate(() => document.fonts.ready); const m = await p.evaluate(medir); m.prob.forEach(x => { const k = larg + ' ' + x; if (!visto.has(k)) { visto.add(k); total++; console.log(`[${larg}px · ${onde}] ${x}`); } }); if (FOTOS) await p.screenshot({ path: `${FOTOS}/tipo-${larg}-${onde.replace(/\W+/g, '_')}.png`, fullPage: !(await p.$('dialog[open]')) }); };
     // entrada de verdade (configuração do projeto, sem falar com o servidor)
@@ -57,5 +59,5 @@ const medir = () => {
     await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForSelector('.dx-topo'); await p.click('[data-tab="painel"]'); await rel(p, 'painel SEAB-MDA'); await p.click('[data-tab="dados"]'); await rel(p, 'dados SEAB-MDA');
     await ctx.close();
   }
-  await b.close(); if (total) { console.error(`TIPOGRAFIA: ${total} problema(s)`); process.exit(1); } console.log('TIPOGRAFIA: TUDO CERTO em 390 px e 1440 px (escala, mínimo de 12 px, corte, fonte, itálico, maiúsculas e contraste)');
+  await b.close(); if (total) { console.error(`TIPOGRAFIA: ${total} problema(s)`); process.exit(1); } console.log((process.env.SOL ? '[modo sol] ' : process.env.ESCURO ? '[escuro] ' : '') + 'TIPOGRAFIA: TUDO CERTO em 390 px e 1440 px (escala, mínimo de 12 px, corte, fonte, itálico, maiúsculas e contraste)');
 })().catch(e => { console.error(String(e.message || e)); process.exit(1); });

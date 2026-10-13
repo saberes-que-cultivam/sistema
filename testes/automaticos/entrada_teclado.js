@@ -31,7 +31,7 @@ const foco = p => p.evaluate(() => { const e = document.activeElement; if (!e ||
   return { nome: e.id || (e.dataset.olho ? 'olho' : e.dataset.auth ? 'lk_' + e.dataset.auth : e.tagName.toLowerCase()), dentro: !!e.closest('#auth'), anel: s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, afast: parseFloat(s.outlineOffset), cor: s.outlineColor,
     visivel: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight + 1 }; });
 const caixa = p => p.evaluate(() => JSON.stringify(['.authbox', '#fauth', '#abotao', '#a_email'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x + scrollX, r.y + scrollY, r.width, r.height].map(Math.round); })));
-const ORDEM = ['tab_entrar', 'tab_primeiro', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'summary'];
+const ORDEM = ['tab_entrar', 'tab_primeiro', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'summary', 'ap_entrada'];   // ap_entrada: "Modo sol", por último para não atrasar quem só quer entrar
 
 async function roteiro(b, largura, altura) {
   console.log(`\n== ${largura} × ${altura} ==`);

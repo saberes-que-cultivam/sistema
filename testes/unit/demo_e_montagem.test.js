@@ -72,7 +72,10 @@ test('tipografia: nenhum tamanho de letra solto no CSS (tudo sai da escala --t-*
   const soltos = (css.match(/font(-size)?:[^;}]*/g) || []).filter(d => /\d(px|pt|rem|em)\b/.test(d.replace(/var\([^)]*\)/g, '')));
   assert.deepStrictEqual(soltos, [], 'use var(--t-...) em vez de tamanho solto');
   const escala = css.match(/--t-(2xs|xs|sm|md|base|lg|xl|2xl|3xl):\s*(\d+)px/g).map(x => +x.match(/(\d+)px/)[1]);
-  assert.deepStrictEqual(escala, [12, 12, 13, 14, 15, 16, 18, 22, 28]); assert.ok(Math.min(...escala) >= 12);
+  assert.deepStrictEqual(escala.slice(0, 9), [12, 12, 13, 14, 15, 16, 18, 22, 28]); assert.ok(Math.min(...escala) >= 12);
+  // modo sol (aparencia.js): a única outra escala permitida, e cada degrau é um pouco MAIOR que o normal, nunca menor
+  const sol = escala.slice(9); assert.strictEqual(sol.length, 9, 'só a escala do modo sol pode redefinir --t-*'); sol.forEach((v, i) => assert.ok(v > escala[i] && v <= escala[i] + 2, 'degrau ' + i));
+  assert.match(css, /:root\[data-sol\]\{[^}]*--t-base:16px/);
   const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8'); assert.match(html, /family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap/); assert.match(html, /rel="preconnect" href="https:\/\/fonts\.googleapis\.com"/);
   assert.doesNotMatch(css + html, /DM Serif|Plus Jakarta|Bricolage|Figtree|IBM Plex/);
   assert.doesNotMatch(fs.readFileSync(path.join(raiz, 'js', 'app.js'), 'utf8'), /font-size|style="[^"]*font/, 'tamanho de letra não se define nas telas');
