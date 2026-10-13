@@ -23,13 +23,17 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.waitForFunction(() => (SQC.app._estado().db.presencas || []).length === 1 && /entrou na lista/.test((document.querySelector('#fok') || {}).textContent || ''));
   ok(await p.inputValue('#pr_com') === 'Sítio Exemplo' && await p.evaluate(() => document.activeElement.id) === 'pr_nome', 'Enter adiciona, repete a comunidade e volta ao campo do nome');
   await p.fill('#pr_nome', 'Participante Dois (exemplo)'); await p.click('[data-pradd]'); await p.waitForFunction(() => SQC.app._estado().db.presencas.length === 2);
+  await p.fill('#pr_nome', 'Participante Dois (exemplo)'); await p.click('[data-pradd]'); ok((await p.textContent('#ferr')).includes('já está nesta lista') && (await db()).presencas.length === 2, 'nome repetido na mesma lista é avisado e não grava');
+  await p.fill('#pr_nome', 'Participante Três (exemplo)'); await p.press('#pr_nome', 'Enter'); await p.press('#pr_nome', 'Enter'); await p.press('#pr_nome', 'Enter'); await p.waitForTimeout(300);
+  ok((await db()).presencas.filter(x => x.nome === 'Participante Três (exemplo)').length === 1, 'Enter apertado várias vezes grava uma vez só');
+  await p.click('.pr-l li:has-text("Participante Três") [data-prdel]'); await p.click('.pr-l li:has-text("Participante Três") [data-prdel]'); await p.waitForFunction(() => SQC.app._estado().db.presencas.length === 2);
   await p.fill('#pr_nome', 'Jo'); await p.click('[data-pradd]'); ok((await p.textContent('#ferr')).includes('nome'), 'nome curto demais é recusado');
   ok((await p.textContent('#frm')).includes('2 pessoas na lista, das quais 1 mulher'), 'contagem da lista com mulheres');
-  await p.click('[data-prcontar]'); await p.waitForFunction(() => +SQC.app._estado().db.eventos.find(e => e.id === 'e2').part === 2);
+  await p.click('[data-prcontar]'); ok((await p.textContent('[data-prcontar]')).includes('Confirmar'), '“Usar o total da lista” pede confirmação'); await p.click('[data-prcontar]'); await p.waitForFunction(() => +SQC.app._estado().db.eventos.find(e => e.id === 'e2').part === 2);
   ok((await db()).eventos.find(e => e.id === 'e2').mulheres === 1, '“Usar o total da lista” atualiza participantes e mulheres da atividade');
-  await p.click('[data-imprimirlista="e2"]'); const imp = await p.evaluate(() => window._impresso);
+  await p.evaluate(() => { window._impresso = null; }); await p.click('[data-imprimirlista="e2"]'); await p.waitForFunction(() => window._impresso); const imp = await p.evaluate(() => window._impresso);
   ok(imp.includes('Lista de presença') && (imp.match(/<tr>/g) || []).length === 26 && imp.includes('Assinatura'), 'lista de presença em branco com 25 linhas e assinatura');
-  ok(await p.evaluate(() => !document.body.classList.contains('imprimindo') && !document.getElementById('impresso').innerHTML), 'depois de imprimir a tela volta ao normal');
+  ok(await p.evaluate(() => !document.body.classList.contains('imprimindo') && getComputedStyle(document.getElementById('impresso')).display === 'none'), 'depois de imprimir a tela volta ao normal (a folha fica escondida até a próxima impressão)');
   const del = await p.$('[data-prdel]'); await del.click(); await del.click(); await p.waitForFunction(() => SQC.app._estado().db.presencas.length === 1);
   ok(true, 'lixeira tira da lista com dois toques');
   await p.keyboard.press('Escape');
@@ -50,13 +54,14 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-fotos="eventos:e2"]'); await p.waitForSelector('[data-fotodel]'); const fd = await p.$('[data-fotodel]'); await fd.click(); await fd.click();
   await p.waitForFunction(() => SQC.app._estado().db.fotos.length === 1); ok(true, 'foto excluída com dois toques'); await p.keyboard.press('Escape');
   // imprimir em branco
-  await p.click('[data-tab="visitas"]'); await p.click('[data-new="visitas"]'); await p.click('[data-imprimir="visitas"]');
+  await p.click('[data-tab="visitas"]'); await p.click('[data-new="visitas"]'); await p.evaluate(() => { window._impresso = null; }); await p.click('[data-imprimir="visitas"]'); await p.waitForFunction(() => window._impresso);
   const iv = await p.evaluate(() => window._impresso); ok(iv.includes('Visita') && iv.includes('Aplicado por') && !iv.includes('Maria das Dores'), 'visita em branco para o papel, sem dado de ninguém');
   await p.keyboard.press('Escape');
   // SEAB/MDA não vê lista nem fotos
   await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForSelector('.dx-topo'); await p.click('[data-tab="eventos"]');
   ok(!(await p.$('[data-presenca]')) && !(await p.$('[data-fotos]')) && !(await p.textContent('#view')).includes('Lista e fotos'), 'SEAB/MDA não vê a coluna Lista e fotos');
   ok((await db()).presencas.length === 0 && (await db()).fotos.length === 0, 'SEAB/MDA não recebe nomes nem fotos');
+  ok((await db()).eventos.every(e => !('link' in e) && !('obs' in e)) && !(await p.textContent('#view')).includes('Evidência'), 'SEAB/MDA não recebe o link nem as observações das atividades (auditoria 13/10)');
   ok(!erros.length, 'sem erro de script' + (erros.length ? ': ' + erros.join(' | ') : ''));
   await b.close(); console.log('EVIDÊNCIAS: TUDO CERTO');
 })().catch(e => { console.error(e.message); process.exit(1); });

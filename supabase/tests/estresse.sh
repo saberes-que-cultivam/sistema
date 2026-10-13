@@ -52,4 +52,22 @@ orf=$(rodar "$Q -At -c \"select (select count(*) from public.visitas v where not
 [ "$orf" = "0" ] || { echo "   FALHOU: $orf registro(s) sem dono depois da carga"; exit 1; }
 vivo=$(rodar "$Q -At -c \"select 1\""); [ "$vivo" = "1" ] || { echo "   FALHOU: o banco não respondeu depois da carga"; exit 1; }
 echo "   depois da carga: banco respondendo, nenhum registro sem dono"
+echo "6) corridas achadas na auditoria de 13/10 (script 15)"
+# foto gravando enquanto outra pessoa exclui a atividade: uma das duas tem de ser recusada (antes, a foto ficava órfã)
+orf=0
+for r in 1 2 3; do
+  E=$(rodar "$Q -At -c \"$(jwt 3) insert into public.eventos (tipo, data, tema) values ('Reunião','2026-10-01','Corrida $r') returning id;\"" | tail -1)
+  C="eventos/$E/$(cat /proc/sys/kernel/random/uuid).jpg"
+  rodar "$Q -c \"$(jwt 3) begin; insert into public.fotos (tabela, registro, caminho) values ('eventos', '$E', '$C'); select pg_sleep(1.5); commit;\"" >/dev/null 2>&1 &
+  sleep 0.4; rodar "$Q -c \"$(jwt 1) delete from public.eventos where id = '$E';\"" >/dev/null 2>&1 || true; wait || true
+  n=$(rodar "$Q -At -c \"select count(*) from public.fotos f where f.registro = '$E' and not exists (select 1 from public.eventos e where e.id = f.registro)\""); orf=$((orf + n))
+done
+[ "$orf" = "0" ] || { echo "   FALHOU: $orf foto(s) órfã(s) depois de excluir a atividade ao mesmo tempo"; exit 1; }
+echo "   foto x exclusão da atividade ao mesmo tempo: nenhuma foto órfã em 3 rodadas"
+# 40 pedidos de link de cadastro ao mesmo tempo: o limite de 20 abertos tem de valer
+rodar "$Q -c \"update public.convites set status = 'cancelado' where status = 'aberto';\"" >/dev/null 2>&1
+for i in $(seq 1 40); do rodar "$Q -c \"$(jwt 1) select public.criar_convite('discente');\"" >/dev/null 2>&1 & done; wait || true
+n=$(rodar "$Q -At -c \"select count(*) from public.convites where status = 'aberto' and expira_em > now()\"")
+[ "$n" -le 20 ] || { echo "   FALHOU: $n links abertos (limite 20)"; exit 1; }
+echo "   40 pedidos de link ao mesmo tempo: $n abertos (limite 20)"
 echo "ESTRESSE DO BANCO: TUDO CERTO"

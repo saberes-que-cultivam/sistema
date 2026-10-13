@@ -30,8 +30,14 @@
   /* ---------- unidades de produção e unidades produtivas ---------- */
   const nCheck = u => D.CHECK.filter(c => u[c[0]]).length;
   const proximoPasso = u => (D.CHECK.find(c => !u[c[0]]) || [0, 'concluída'])[1];
-  const visitasDe = (db, id) => db.visitas.filter(v => v.agricultor === id).sort((a, b) => a.data < b.data ? 1 : -1);
-  const recebeu = (db, id) => db.distribuicoes.filter(d => d.agricultor === id);
+  /* agrupado uma vez por lista (antes filtrava a lista inteira para cada agricultor: lento com volume). A lista nova invalida sozinha. */
+  let porAgr = new WeakMap();
+  const novoDesenho = () => { porAgr = new WeakMap(); };   // a tela chama no começo de cada desenho: a lista pode ter mudado no lugar
+  const grupo = (lista, ordenar) => { let c = porAgr.get(lista); if (c && c.n === lista.length && c.u === lista[lista.length - 1]) return c.m; const m = new Map();
+    lista.forEach(x => { const k = x.agricultor; if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+    if (ordenar) m.forEach(l => l.sort((a, b) => a.data < b.data ? 1 : -1)); porAgr.set(lista, { m, n: lista.length, u: lista[lista.length - 1] }); return m; };
+  const visitasDe = (db, id) => (grupo(db.visitas, true).get(id) || []).slice();
+  const recebeu = (db, id) => (grupo(db.distribuicoes, false).get(id) || []).slice();
   /* "acompanhada" (Meta 4): recebeu bioinsumo e teve ao menos uma visita de monitoramento */
   const acompanhada = (db, a) => recebeu(db, a.id).length > 0 && visitasDe(db, a.id).length > 0;
 
@@ -392,5 +398,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

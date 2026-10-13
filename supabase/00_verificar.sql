@@ -27,6 +27,21 @@ select 'lista de presença e fotos (13)',
 union all
 select 'falta enviar dos celulares (14)', case when to_regclass('public.fila_celular') is null then 'FALTA: rode o 14' else 'ok' end
 union all
+select 'correções da auditoria de 13/10 (15)',
+       case when to_regclass('public.visitas_pagina') is null or to_regprocedure('public.eventos_acompanhamento()') is null then 'FALTA: rode o 15'
+            when (select qual from pg_policies where schemaname = 'public' and tablename = 'eventos' and policyname = 'eventos_ler') not like '%sou_equipe%'
+              then 'VOLTOU ATRÁS: o 05 ou o 13 foi rodado depois do 15; rode o 15 de novo' else 'ok' end
+union all
+select 'regras da pasta de fotos',
+       case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
+            when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'
+                          and (coalesce(qual, '') || coalesce(with_check, '')) like '%evidencias%') then 'CONFIRA: há regra criada pelo painel que mexe na pasta evidencias'
+            when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and ('anon' = any(roles) or 'public' = any(roles))) then 'CONFIRA: há regra de arquivos para quem não entrou (anon/public)'
+            else 'ok' end
+union all
+select 'contagem dos celulares fechada', case when to_regclass('public.fila_celular') is null then 'ainda sem a tabela (rode o 14)'
+       when has_table_privilege('authenticated', 'public.fila_celular', 'select') then 'ABERTA: rode o 14 de novo' else 'ok' end
+union all
 select 'coordenação ativa',
        case when exists (select 1 from public.pessoas where perfil = 'Coordenação' and ativo) then 'ok' else 'FALTA: rode o 02 com o seu e-mail' end
 union all

@@ -18,7 +18,7 @@
   const avisar = m => { if (m && SQC.app && SQC.app.toast) SQC.app.toast(m); };
 
   function escrever() {
-    const a = ativo; if (!a) return;
+    const a = ativo; if (!a) return; if (!a.ta.isConnected) return parar();
     a.ta.value = juntar(a.base, a.finais + (a.parcial ? (a.finais ? ' ' : '') + a.parcial : '')).replace(/ +\n/g, '\n');
     a.ta.scrollTop = a.ta.scrollHeight;
   }
@@ -47,6 +47,7 @@
     rec.onerror = ev => { a.erro = ev.error; };
     rec.onend = () => {
       if (ativo !== a) return;
+      if (!a.ta.isConnected) return parar();   // o formulário foi trocado: não volta a ouvir
       if (!a.erro) { try { rec.start(); return; } catch (e) {} }   // o navegador para sozinho no silêncio: continua até a pessoa tocar em Parar
       const m = { 'not-allowed': 'O microfone está bloqueado. Libere o microfone para este site nas permissões do navegador.',
         'service-not-allowed': 'O microfone está bloqueado. Libere o microfone para este site nas permissões do navegador.',
@@ -66,7 +67,7 @@
       ta.dataset.vozOk = '1'; if (ta.closest('#pub')) return;   // link de cadastro público: sem ditado (o áudio sairia para o serviço de fala)
       const caixa = document.createElement('div'); caixa.className = 'voz-caixa'; ta.parentNode.insertBefore(caixa, ta); caixa.appendChild(ta);
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-voz'; btn.setAttribute('aria-pressed', 'false');
-      btn.setAttribute('aria-label', 'Ditar por voz neste campo'); btn.innerHTML = ICONE + '<span>Falar</span>';
+      btn.setAttribute('aria-label', 'Falar: ditar por voz neste campo'); btn.innerHTML = ICONE + '<span>Falar</span>';
       btn.addEventListener('click', () => comecar(ta, btn));
       const barra = document.createElement('div'); barra.className = 'voz-barra'; barra.appendChild(btn); caixa.appendChild(barra);
     });

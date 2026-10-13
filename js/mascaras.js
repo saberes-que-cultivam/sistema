@@ -6,11 +6,13 @@
   const fmtCPF = d => { d = d.slice(0, 11);
     return d.length > 9 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
       : d.length > 3 ? `${d.slice(0, 3)}.${d.slice(3)}` : d; };
-  const fmtTel = d => { d = d.slice(0, 11); if (!d) return '';
+  // +55 e 0 de operadora/DDD na frente saem antes de formatar: "+55 84 99999-8888" e "084 99999-8888" viram (84) 99999-8888
+  const fmtTel = d => { if (/^55\d{10,11}$/.test(d)) d = d.slice(2); else if (/^0\d{10,11}$/.test(d)) d = d.slice(1); d = d.slice(0, 11); if (!d) return '';
     if (d.length <= 2) return `(${d}`;
     const meio = d.length === 11 ? 5 : 4, ddd = d.slice(0, 2), r = d.slice(2);
     return r.length > meio ? `(${ddd}) ${r.slice(0, meio)}-${r.slice(meio)}` : `(${ddd}) ${r}`; };
-  const TIPOS = { cpf: { fmt: fmtCPF, max: 14, ph: '000.000.000-00', modo: 'numeric' }, tel: { fmt: fmtTel, max: 15, ph: '(00) 00000-0000', modo: 'tel' } };
+  // limite folgado: colar "CPF: 529.982.247-25" ou "+55 (84) 99999-8888" não pode ser cortado antes de a máscara limpar
+  const TIPOS = { cpf: { fmt: fmtCPF, max: 24, ph: '000.000.000-00', modo: 'numeric' }, tel: { fmt: fmtTel, max: 24, ph: '(00) 00000-0000', modo: 'tel' } };
   const tipoDe = el => !el || el.tagName !== 'INPUT' || el.readOnly ? null : el.id === 'f_cpf' || el.dataset.mascara === 'cpf' ? 'cpf'
     : el.id === 'f_telefone' || el.type === 'tel' || el.dataset.mascara === 'tel' ? 'tel' : null;
   const emailValido = v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);

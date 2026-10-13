@@ -974,7 +974,7 @@ a.b{display:inline-flex;align-items:center;justify-content:center;text-decoratio
 .dica-masc{color:var(--bad)} .dica-masc .b{margin-left:6px}
 input[aria-invalid="true"]{border-color:var(--bad)}
 /* lista de presença e fotos (script 13) */
-.ev-b{display:inline-flex;flex-wrap:wrap;gap:6px}
+.ev-b{display:inline-flex;flex-wrap:wrap;gap:6px} .ev-b .b{min-height:40px}
 .pr-t{margin:12px 0}
 .pr-l{margin:0 0 8px;padding-left:22px;display:grid;gap:6px}
 .pr-l li{padding:6px 0;border-bottom:1px solid var(--line)}

@@ -38,7 +38,13 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT; chmod 700 "$TMP"
 echo "Copiando o banco…"
 # public = dados do sistema; auth = logins (sem eles a equipe teria de criar senha de novo);
 # storage = a LISTA dos arquivos, se houver (os arquivos em si são o passo 2 do LEIA-ME).
-pg_dump "$BANCO" --format=custom --no-owner --no-privileges \
+# a senha vai para o pg_dump pelo ambiente (PGPASSWORD), não pela linha de comando: assim não aparece na lista de processos do computador
+if [[ "$BANCO" =~ ^postgres(ql)?://([^:@/]+)(:([^@]*))?@([^:/?]+)(:([0-9]+))?/([^?]*) ]]; then
+  export PGUSER="${BASH_REMATCH[2]}" PGPASSWORD="$(printf '%b' "${BASH_REMATCH[4]//%/\\x}")" PGHOST="${BASH_REMATCH[5]}" PGPORT="${BASH_REMATCH[7]:-5432}" PGDATABASE="${BASH_REMATCH[8]:-postgres}"
+  case "$PGHOST" in localhost|127.0.0.1) ;; *) export PGSSLMODE="${PGSSLMODE:-require}";; esac
+else echo "Não entendi o endereço. Copie de novo do painel (Connect > Session pooler)."; exit 1; fi
+unset BANCO
+pg_dump --format=custom --no-owner --no-privileges \
   --schema=public --schema=auth --schema=storage --file="$TMP/sqc.dump"
 
 # 3) conferência: a cópia abre e tem as tabelas principais

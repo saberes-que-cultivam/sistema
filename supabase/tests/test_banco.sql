@@ -354,16 +354,21 @@ end $$;
 -- ===== 13: lista de presença e fotos =====
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
 set role authenticated;
-do $$ declare ev uuid; vi uuid; begin
+do $$ declare ev uuid; vi uuid; cam text; begin
   perform public.vincular_conta();
   insert into public.eventos (tipo, data, tema) values ('Capacitação', '2026-10-05', 'Preparo de bokashi') returning id into ev;
   insert into public.presencas (evento, nome, comunidade, mulher) values (ev, 'Participante Exemplo', 'Sítio Exemplo', true);
   if (select count(*) from public.presencas where evento = ev) <> 1 then raise exception 'FALHOU: equipe não gravou presença'; end if;
-  insert into public.fotos (tabela, registro, caminho, tirada_em) values ('eventos', ev, 'eventos/' || ev || '/f1.jpg', '2026-10-05');
-  insert into storage.objects (bucket_id, name) values ('evidencias', 'eventos/' || ev || '/f1.jpg');
-  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'visitas/' || ev || '/x.jpg'); raise exception 'FALHOU: foto com caminho de outro registro';
+  cam := 'eventos/' || ev || '/' || gen_random_uuid() || '.jpg';
+  begin insert into storage.objects (bucket_id, name) values ('evidencias', cam); raise exception 'FALHOU: arquivo enviado antes da linha da foto (15)';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
-  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', gen_random_uuid(), 'eventos/00000000-0000-4000-8000-000000000000/x.jpg'); raise exception 'FALHOU: foto de atividade que não existe';
+  insert into public.fotos (tabela, registro, caminho, tirada_em) values ('eventos', ev, cam, '2026-10-05');
+  insert into storage.objects (bucket_id, name) values ('evidencias', cam);
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'eventos/' || ev || '/../x.jpg'); raise exception 'FALHOU: caminho fora do formato (15)';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'visitas/' || ev || '/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: foto com caminho de outro registro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', '00000000-0000-4000-8000-000000000000', 'eventos/00000000-0000-4000-8000-000000000000/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: foto de atividade que não existe';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   begin insert into storage.objects (bucket_id, name) values ('evidencias', 'outra-pasta/x.jpg'); raise exception 'FALHOU: arquivo fora das pastas de evidência';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
@@ -377,6 +382,8 @@ select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
 set role authenticated;
 do $$ begin
   if exists (select 1 from public.presencas) or exists (select 1 from public.fotos) or exists (select 1 from storage.objects) then raise exception 'FALHOU: acompanhamento viu presença, foto ou arquivo'; end if;
+  if exists (select 1 from public.eventos) then raise exception 'FALHOU: acompanhamento leu eventos direto, com link e observação (15)'; end if;
+  if not exists (select 1 from public.eventos_acompanhamento() where tema = 'Preparo de bokashi') then raise exception 'FALHOU: acompanhamento não recebeu as atividades pela função (15)'; end if;
   begin insert into public.presencas (evento, nome) values ((select id from public.eventos limit 1), 'x'); raise exception 'FALHOU: acompanhamento gravou presença';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   begin insert into storage.objects (bucket_id, name) values ('evidencias', 'eventos/x/y.jpg'); raise exception 'FALHOU: acompanhamento enviou arquivo';
@@ -386,6 +393,16 @@ reset role;
 do $$ begin
   if (select public from storage.buckets where id = 'evidencias') then raise exception 'FALHOU: pasta de evidências pública'; end if;
 end $$;
+-- ===== 15: limite de aparelhos e data mínima no "falta enviar" =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare i integer; begin
+  for i in 1..10 loop perform public.informar_fila('aparelho-limite-' || lpad(i::text, 2, '0'), 1, 0, '0001-01-01'); end loop;
+  begin perform public.informar_fila('aparelho-limite-11', 1, 0, now()); raise exception 'FALHOU: 11º aparelho aceito';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  for i in 1..10 loop perform public.informar_fila('aparelho-limite-' || lpad(i::text, 2, '0'), 0, 0, null); end loop;
+end $$;
+reset role;
 -- ===== 14: falta enviar =====
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
 set role authenticated;

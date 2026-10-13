@@ -95,15 +95,22 @@
     },
     /* ----- fotos de evidência (script 13): arquivo no Storage, pasta privada "evidencias"; a lista fica na tabela fotos ----- */
     async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
+      // script 15: primeiro a linha (o banco só aceita arquivo com o caminho exato de uma linha sua), depois o arquivo.
+      // Se o arquivo não subir, a linha sai; assim nunca sobra arquivo solto no Storage.
       const id = SQC.novoId(), caminho = `${tabela}/${registro}/${id}.jpg`, pasta = sb.storage.from('evidencias');
-      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false });
-      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error); }
-      try { return await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true }); }
-      catch (e) { await pasta.remove([caminho]).catch(() => {}); throw e; }   // a lista recusou: o arquivo não fica solto
+      const linha = await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true });
+      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '0' });
+      if (up.error) {
+        await this.excluir('fotos', id).catch(() => {});
+        const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error);
+      }
+      return linha;
     },
-    async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho); if (error) throw erro(error); return data; },
+    async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho);
+      if (error && /not found|404|Object not found/i.test(String(error.message || error.statusCode || ''))) throw erro({ code: 'P0001', message: 'O arquivo desta foto não chegou ao servidor. Exclua e envie de novo.' });
+      if (error) throw erro(error); return data; },
     async excluirFoto(f) {
-      const rm = await sb.storage.from('evidencias').remove([f.caminho]); if (rm.error) throw erro(rm.error);
+      const rm = await sb.storage.from('evidencias').remove([f.caminho]); if (rm.error && !/not found/i.test(String(rm.error.message))) throw erro(rm.error);
       await this.excluir('fotos', f.id);
     },
     /* ----- link de cadastro da equipe ----- */
@@ -179,7 +186,8 @@
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
         const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos') ? [] : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        const evFora = async () => { const { data, error } = await sb.rpc('eventos_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return todas('eventos'); if (error) throw erro(error); return data || []; };
+        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos') ? [] : fora && t === 'eventos' ? evFora() : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // dados reservados da equipe: só a coordenação recebe, por função própria do banco
         if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {

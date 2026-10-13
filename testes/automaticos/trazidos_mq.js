@@ -18,6 +18,10 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.waitForSelector('#f_cpf');
   await p.type('#f_cpf', '52998224725'); ok(await p.inputValue('#f_cpf') === '529.982.247-25', 'CPF ganha pontos e traço enquanto digita');
   await p.type('#f_telefone', '84999990000'); ok(await p.inputValue('#f_telefone') === '(84) 99999-0000', 'celular ganha DDD entre parênteses');
+  await p.fill('#f_telefone', ''); await p.type('#f_telefone', '+55 84 99999-8888'); ok(await p.inputValue('#f_telefone') === '(84) 99999-8888', 'celular com +55 na frente não estraga (auditoria 13/10)');
+  await p.fill('#f_telefone', '084 99999-8888'); await p.dispatchEvent('#f_telefone', 'input'); ok(await p.inputValue('#f_telefone') === '(84) 99999-8888', 'celular com 0 na frente não estraga');
+  await p.fill('#f_cpf', 'CPF: 529.982.247-25'); await p.dispatchEvent('#f_cpf', 'input'); ok(await p.inputValue('#f_cpf') === '529.982.247-25', 'CPF colado com texto antes fica certo');
+  await p.fill('#f_cpf', ''); await p.fill('#f_telefone', ''); await p.type('#f_telefone', '84999990000');
   await p.fill('#f_email', ''); await p.type('#f_email', 'Fulana @Gmial.com'); ok(await p.inputValue('#f_email') === 'fulana@gmial.com', 'e-mail sem espaço e em minúsculas');
   await p.focus('#f_nome'); ok((await p.textContent('#frm')).includes('fulana@gmail.com'), 'sugere corrigir gmial.com');
   await p.click('.sug-email'); ok(await p.inputValue('#f_email') === 'fulana@gmail.com', 'um toque usa o e-mail corrigido');

@@ -32,11 +32,12 @@
     } catch (e) { return null; }
   }
   function procurarTiff(v) {
-    for (let i = 0, n = v.byteLength - 8; i < n; i++) {
+    let tentativas = 0;   // arquivo forjado com o cabeçalho repetido milhares de vezes travava a tela: no máximo 50 tentativas
+    for (let i = 0, n = v.byteLength - 8; i < n && tentativas < 50; i++) {
       const a = v.getUint8(i);
       if ((a === 0x49 && v.getUint8(i + 1) === 0x49 && v.getUint8(i + 2) === 0x2A && v.getUint8(i + 3) === 0)
         || (a === 0x4D && v.getUint8(i + 1) === 0x4D && v.getUint8(i + 2) === 0 && v.getUint8(i + 3) === 0x2A)) {
-        let r = null; try { r = lerTiff(v, i, v.byteLength); } catch (e) { r = null; }
+        tentativas++; let r = null; try { r = lerTiff(v, i, v.byteLength); } catch (e) { r = null; }
         if (r) return r;
       }
     }
@@ -53,7 +54,7 @@
     const ifd0 = ifd(u32(t + 4)), ptr = ifd0.find(x => x.tag === 0x8769), exif = ptr ? ifd(ptr.val) : [];
     const bruto = texto(exif.find(x => x.tag === 0x9003)) || texto(exif.find(x => x.tag === 0x9004)) || texto(ifd0.find(x => x.tag === 0x0132));
     const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):\d{2}:\d{2}$/.exec(bruto || '');
-    if (!m || m[1] === '0000') return null;
+    if (!m || m[1] === '0000' || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31 || +m[4] > 23) return null;   // data impossível = sem data
     return { dia: m[1] + '-' + m[2] + '-' + m[3], hora: +m[4] };
   }
 
@@ -93,7 +94,9 @@
       j.innerHTML = '<div class="cam-caixa"><video autoplay playsinline muted></video><p class="small">Enquadre e toque em Tirar foto. A foto fica com a data de agora.</p><div class="frow"><button type="button" class="b" data-cam="cancelar">Cancelar</button><button type="button" class="b p" data-cam="tirar">Tirar foto</button></div></div>';
       const video = j.querySelector('video'); video.srcObject = fluxo;
       (document.querySelector('dialog[open]') || document.body).appendChild(j); j.querySelector('[data-cam=tirar]').focus();
-      const fechar = r => { fluxo.getTracks().forEach(t => t.stop()); j.remove(); document.removeEventListener('keydown', tecla, true); pronto(r); };
+      let fechou = false;
+      const fechar = r => { if (fechou) return; fechou = true; fluxo.getTracks().forEach(t => t.stop()); j.remove(); document.removeEventListener('keydown', tecla, true); pronto(r); };
+      const dlg = j.closest('dialog'); if (dlg) dlg.addEventListener('close', () => fechar(null), { once: true });   // a janela fechou por outro caminho (saída automática, voltar): a câmera desliga
       const tecla = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); fechar(null); } };
       document.addEventListener('keydown', tecla, true);
       j.addEventListener('click', ev => {

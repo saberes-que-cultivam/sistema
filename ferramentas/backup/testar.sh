@@ -37,4 +37,4 @@ n="$(psql -At -d "$BD" -c "select count(*) from auth.users" 2>/dev/null || echo 
 # (os logins dependem de peças internas do Supabase; se não abrirem aqui, a cópia deles continua no arquivo)
 [ "$(psql -At -d "$BD" -c "select count(*) from public.pessoas where perfil='Coordenação' and ativo" 2>/dev/null || echo 0)" -ge 1 ] || FALHA=1
 if [ "$FALHA" = 0 ]; then echo "RESTAURAÇÃO OK ($ERROS avisos de objetos próprios do Supabase, esperados). Confira se os números batem com o 00_verificar.sql."
-else echo "RESTAURAÇÃO FALHOU. Veja $TMP/restauracao.log (copiado para ./restauracao.log)"; cp "$TMP/restauracao.log" ./restauracao.log; exit 1; fi
+else echo "RESTAURAÇÃO FALHOU. Erros (só a primeira linha de cada, sem os dados das linhas):"; grep -E "error:" "$TMP/restauracao.log" | cut -c1-200 | head -20; exit 1; fi

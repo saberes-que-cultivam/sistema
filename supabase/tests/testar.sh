@@ -20,8 +20,10 @@ rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null
 rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null      # rodar duas vezes não pode dar erro
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
-for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
-rodar "$P -f $DIR/00_verificar.sql" >/dev/null
+for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
+V="$(rodar "$P -At -f $DIR/00_verificar.sql")"
+V="$(echo "$V" | grep -v "^coordenação ativa")"   # banco de teste ainda sem pessoas neste ponto
+if echo "$V" | grep -E "FALTA|ABERT|VOLTOU|CONFIRA" >/dev/null; then echo " 00_verificar acusou problema:"; echo "$V" | grep -E "FALTA|ABERT|VOLTOU|CONFIRA"; exit 1; fi
 rodar "$P -f $DIR/test_banco.sql" | tail -3
 # cópia e restauração: copia o banco de teste, restaura num banco novo e confere se voltou tudo (linhas, regras de acesso, gatilhos e verificações)
 conta() { rodar "psql -At -h $SOCK -p $PORTA -d $1 -c \"select (select count(*) from public.pessoas)||'/'||(select count(*) from public.despesas)||'/'||(select count(*) from public.membros)||'/'||(select count(*) from public.auditoria)||' regras='||(select count(*) from pg_policies where schemaname='public')||' gatilhos='||(select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','auth') and not t.tgisinternal)||' verificacoes='||(select count(*) from pg_constraint k join pg_namespace n on n.oid=k.connamespace where n.nspname='public')\""; }
