@@ -76,7 +76,11 @@ test('tipografia: nenhum tamanho de letra solto no CSS (tudo sai da escala --t-*
   // modo sol (aparencia.js): a única outra escala permitida, e cada degrau é um pouco MAIOR que o normal, nunca menor
   const sol = escala.slice(9); assert.strictEqual(sol.length, 9, 'só a escala do modo sol pode redefinir --t-*'); sol.forEach((v, i) => assert.ok(v > escala[i] && v <= escala[i] + 2, 'degrau ' + i));
   assert.match(css, /:root\[data-sol\]\{[^}]*--t-base:16px/);
-  const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8'); assert.match(html, /family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap/); assert.match(html, /rel="preconnect" href="https:\/\/fonts\.googleapis\.com"/);
+  const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8');
+  // fontes do próprio sistema: Manrope 400–800 e Lora 600–700, guardadas para usar sem internet
+  [400, 500, 600, 700, 800].forEach(w => { assert.match(css, new RegExp(`font-family:"Manrope";font-style:normal;font-weight:${w};font-display:swap;src:url\\(\\.\\./assets/fontes/manrope-latin-${w}-normal\\.woff2\\)`)); assert.ok(fs.existsSync(path.join(raiz, 'assets', 'fontes', `manrope-latin-${w}-normal.woff2`))); });
+  [600, 700].forEach(w => assert.ok(fs.existsSync(path.join(raiz, 'assets', 'fontes', `lora-latin-${w}-normal.woff2`))));
+  assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic/);
   assert.doesNotMatch(css + html, /DM Serif|Plus Jakarta|Bricolage|Figtree|IBM Plex/);
   assert.doesNotMatch(fs.readFileSync(path.join(raiz, 'js', 'app.js'), 'utf8'), /font-size|style="[^"]*font/, 'tamanho de letra não se define nas telas');
 });

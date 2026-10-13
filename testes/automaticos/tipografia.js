@@ -1,4 +1,4 @@
-/* Conferência do padrão tipográfico em 390 px e em 1440 px, medindo o que o navegador desenhou (não o que o CSS diz).
+/* Conferência do padrão tipográfico em 320, 390, 768, 1024 e 1440 px (celular e tablet com tela de toque; RAPIDO=1 só 390 e 1440), medindo o que o navegador desenhou (não o que o CSS diz).
    Confere em todas as abas, na entrada e nas janelas: tamanho fora da escala, texto menor que 12 px, texto cortado,
    fonte que não é Manrope (fora a marca, em Lora), itálico, maiúsculas fora do sobretítulo e de cabeçalho de tabela, e contraste abaixo de 4,5:1.
    Uso:  node ferramentas/servidor_teste.js 8766 &   e depois   node testes/automaticos/tipografia.js
@@ -40,10 +40,12 @@ const medir = () => {
   });
   return { prob: [...new Set(prob)], tons: Object.keys(tons).length };
 };
+const LARGURAS = process.env.RAPIDO ? [390, 1440] : [320, 390, 768, 1024, 1440];
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROME || undefined }); let total = 0; const visto = new Set();
-  for (const larg of [390, 1440]) {
-    const ctx = await b.newContext({ viewport: { width: larg, height: 900 }, serviceWorkers: 'block', colorScheme: process.env.ESCURO ? 'dark' : 'light' });
+  for (const larg of LARGURAS) {
+    const toque = larg < 1440;   // celular e tablet: tela de toque (alvos de 44 px, tabela em cartões abaixo de 640)
+    const ctx = await b.newContext({ viewport: { width: larg, height: larg >= 1024 ? 768 : 900 }, hasTouch: toque, isMobile: toque && larg < 1024, serviceWorkers: 'block', colorScheme: process.env.ESCURO ? 'dark' : 'light' });
     if (process.env.SOL) await ctx.addInitScript(() => { try { localStorage.setItem('sqc-aparencia', JSON.stringify({ sol: true })); } catch (e) {} });   // SOL=1: confere o modo sol
     await ctx.route(/fonts\.googleapis\.com/, r => r.fulfill({ contentType: 'text/css', body: cssFontes })); await ctx.route(/supabase\.co/, r => r.abort());
     const rel = async (p, onde) => { await p.waitForTimeout(250); await p.evaluate(() => document.fonts.ready); const m = await p.evaluate(medir); m.prob.forEach(x => { const k = larg + ' ' + x; if (!visto.has(k)) { visto.add(k); total++; console.log(`[${larg}px · ${onde}] ${x}`); } }); if (FOTOS) await p.screenshot({ path: `${FOTOS}/tipo-${larg}-${onde.replace(/\W+/g, '_')}.png`, fullPage: !(await p.$('dialog[open]')) }); };
@@ -59,5 +61,5 @@ const medir = () => {
     await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForSelector('.dx-topo'); await p.click('[data-tab="painel"]'); await rel(p, 'painel SEAB-MDA'); await p.click('[data-tab="dados"]'); await rel(p, 'dados SEAB-MDA');
     await ctx.close();
   }
-  await b.close(); if (total) { console.error(`TIPOGRAFIA: ${total} problema(s)`); process.exit(1); } console.log((process.env.SOL ? '[modo sol] ' : process.env.ESCURO ? '[escuro] ' : '') + 'TIPOGRAFIA: TUDO CERTO em 390 px e 1440 px (escala, mínimo de 12 px, corte, fonte, itálico, maiúsculas e contraste)');
+  await b.close(); if (total) { console.error(`TIPOGRAFIA: ${total} problema(s)`); process.exit(1); } console.log((process.env.SOL ? '[modo sol] ' : process.env.ESCURO ? '[escuro] ' : '') + 'TIPOGRAFIA: TUDO CERTO em ' + LARGURAS.join(', ') + ' px (escala, mínimo de 12 px, corte, fonte, itálico, maiúsculas e contraste)');
 })().catch(e => { console.error(String(e.message || e)); process.exit(1); });

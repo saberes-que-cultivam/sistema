@@ -1,5 +1,13 @@
 /* Saberes que Cultivam — visual (claro e escuro). Cores em variáveis no :root; troque lá, não nos componentes. */
 /* Layout: barra de abas fixa no topo, uma área de trabalho por aba; painel = resumo → atenção → cronograma → indicadores */
+/* fontes do próprio sistema (assets/fontes, licença OFL): abrem sem internet e não esperam o Google */
+@font-face{font-family:"Manrope";font-style:normal;font-weight:400;font-display:swap;src:url(../assets/fontes/manrope-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:500;font-display:swap;src:url(../assets/fontes/manrope-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:600;font-display:swap;src:url(../assets/fontes/manrope-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:700;font-display:swap;src:url(../assets/fontes/manrope-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Manrope";font-style:normal;font-weight:800;font-display:swap;src:url(../assets/fontes/manrope-latin-800-normal.woff2) format("woff2")}
+@font-face{font-family:"Lora";font-style:normal;font-weight:600;font-display:swap;src:url(../assets/fontes/lora-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Lora";font-style:normal;font-weight:700;font-display:swap;src:url(../assets/fontes/lora-latin-700-normal.woff2) format("woff2")}
 :root{
   --bg:#EEF2EC; --surface:#FFFFFF; --sunken:#E3E9E1; --line:#CBD5C9;
   --ink:#18241C; --muted:#56655A;
@@ -1058,3 +1066,96 @@ dialog.dlg-ap .fm-corpo{flex:none;gap:18px;padding-block:22px 24px}
 .fe-l li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:8px 10px;border-radius:8px;background:var(--sunken)}
 .fe-l li small{flex-basis:100%;color:var(--txt-2);font-size:var(--t-sm)}
 .fe-l li.velho{background:var(--bad-soft)} .fe-l li.velho small{color:var(--bad);font-weight:600}
+
+/* =====================================================================
+   RESPONSIVIDADE (auditoria de 13/10/2026): celular de 320 px a tablet deitado.
+   Vem por último de propósito: ajusta as regras acima sem espalhar exceções pelo arquivo.
+   ===================================================================== */
+/* A1 · grades que exigiam 320 px por coluna estouravam em telas de 320 */
+.two{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+.eq-l{grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr))}
+.ae-c{min-width:0}
+.two.fin-2{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}   /* o Financeiro mantém a proporção própria (a regra acima não pode valer para ele) */
+@media (max-width:980px){.two.fin-2{grid-template-columns:1fr}}
+/* A2 · a caixa que rola segura o que tem posição absoluta dentro (o "Ações" do leitor de tela escapava) */
+.scroll{position:relative}
+/* A3 · Editar e Excluir presos à direita sempre que a tabela rola (antes só até 640 px; no tablet sumiam) */
+@media (max-width:1180px){
+  .scroll td.a,.scroll table:has(td.a) thead th:last-child{position:sticky;right:0;z-index:1;box-shadow:-10px 0 10px -10px rgba(0,0,0,.28)}
+  .scroll td.a{background:var(--surface)} .scroll table:has(td.a) thead th:last-child{background:var(--topo)}
+}
+/* A4 · no celular, as tabelas com ações viram cartões: cada célula com o nome da coluna em cima */
+@media (max-width:640px){
+  .scroll:has(table.tc){overflow-x:visible}
+  table.tc,table.tc tbody{display:block;width:100%}
+  table.tc thead{display:none}
+  table.tc tr{display:grid;gap:8px;position:relative;padding:14px 72px 14px 16px;border-bottom:1px solid var(--line)}
+  table.tc td{display:block;padding:0;border:0;text-align:left;white-space:normal;min-width:0}
+  table.tc td::before{content:attr(data-r);display:block;margin-bottom:2px;font:600 var(--t-xs)/1.3 var(--body);color:var(--txt-2)}
+  table.tc td:first-child{font-size:var(--t-md)}
+  table.tc td.a{position:absolute;top:12px;right:12px;box-shadow:none;background:none}
+  table.tc td.a .ac{flex-direction:column}
+  table.tc td.a::before{content:none}
+  table.tc td.n{text-align:left}
+}
+/* A5 · 360 px ou menos: "Modo sol" da entrada sai de cima do título */
+@media (max-width:360px){.ent-ap{position:static;align-self:flex-end;order:-1}}
+/* A6 · tablet e celular deitado: cabeçalho numa linha só (o subtítulo quebra em duas linhas) */
+@media (min-width:641px) and (max-width:1100px){
+  header.top .wrap{flex-wrap:nowrap} header.top .wrap>div:first-child{min-width:0}
+  header.top .sub{line-height:1.35;text-wrap:balance}   /* quebra em linhas, sem esconder o número do plano */
+}
+@media (max-height:500px) and (orientation:landscape){header.top{padding-block:8px}.ng-r{display:none}nav .wrap{padding-top:4px}}
+/* A7 · menu de abas que rola: borda esmaecida do lado em que ainda há abas */
+#tabs.mais-dir{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+#tabs.mais-esq{-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px);mask-image:linear-gradient(90deg,transparent,#000 36px)}
+#tabs.mais-esq.mais-dir{-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
+@media (min-width:981px) and (max-width:1100px){.ng{padding:0 7px}}
+/* A10 · "Ver como SEAB/MDA": o aviso com "Voltar à minha visão" fica preso no alto também no celular */
+@media (max-width:980px){.banner.sim{position:sticky;top:0;z-index:6}}
+/* B1/B2 · celular deitado ou teclado aberto: janela em tela cheia, cabeçalho e rodapé enxutos, só o miolo rola */
+@media (max-height:500px){
+  dialog:not(.dlg-ap){width:100%;max-width:100%;max-height:100%;height:100%;border-radius:0;border:0}
+  dialog:not(.dlg-ap) form.fm{max-height:100dvh;height:100%} dialog:not(.dlg-ap) .fm-corpo{flex:1}
+  .fm-cab{padding-block:8px} .fm-cab .fm-eye{display:none} .fm-pe{padding-block:8px}
+  .imp-barra{display:none}
+}
+/* B3 · ficha da unidade produtiva no padrão das janelas */
+.ficha .pc-cab{display:flex;gap:12px;align-items:center;min-width:0} .ficha .pc-cab h2{margin:0}
+.ficha .fm-pe .frow{flex-wrap:wrap}
+@media (max-width:640px){.ficha dl.kv{grid-template-columns:minmax(0,1fr);gap:0} .ficha dl.kv dt{max-width:none;margin-top:10px} .ficha dl.kv dd{text-align:left;margin:0} .ficha .fm-pe .frow .b{flex:1 1 45%}}
+/* B4 · 400 px ou menos: a janela Aparência dá a largura toda ao texto do modo sol */
+@media (max-width:400px){.ap-chave{grid-template-columns:minmax(0,1fr) auto}.ap-ic{display:none}}
+/* B5 · rodapé das janelas: botões lado a lado no celular estreito */
+@media (max-width:400px){.fm-pe .frow{flex-wrap:wrap}.fm-pe .frow .b{flex:1 1 40%}}
+/* E · tablet deitado: metas e próximos marcos lado a lado a partir de 900 px; janela com o miolo rolando */
+@media (min-width:900px) and (max-width:1100px){.mm{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr)}}
+dialog{max-height:min(90dvh,900px)} dialog form.fm{max-height:inherit}
+@media (max-width:640px){dialog:not(.dlg-ap){max-height:100%}}
+/* C · bordas do iPhone (notch e barra de gestos) */
+.wrap{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
+.fm-pe{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+.pe{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+@media (max-width:640px){.fm-cab{padding-top:calc(20px + env(safe-area-inset-top))} header.top #net{bottom:calc(12px + env(safe-area-inset-bottom))}}
+/* D · alvos de toque de pelo menos 44 px em tela de toque (no mouse continua compacto) */
+@media (pointer:coarse){
+  nav button{min-height:44px}
+  .tb,.fm-x{width:44px;height:44px}
+  .ab{width:44px;height:44px} td.a .ac{gap:8px}
+  button.b,label.b,.ev-b .b,.btn-voz,.ent-ap,.seg.peq button{min-height:44px}
+  button.b.s{min-height:40px}
+  .dx-como summary,details>summary{padding-block:12px}
+  fieldset label{min-height:44px;display:flex;align-items:center;gap:10px}
+  .aj-p a{display:inline-block;padding-block:12px}
+}
+/* D3 · realce de linha só com mouse (no toque ficava "grudado") */
+@media (hover:none){tbody tr:hover{background:none}}
+/* F1 · sem internet: aviso visível na barra e dentro das janelas */
+@media (max-width:640px){header.top #net{padding:6px 14px;font-size:var(--t-sm);box-shadow:0 4px 14px rgba(0,0,0,.18)}}
+html.sem-rede .fm-pe::before{content:"Sem internet: o que você salvar fica guardado neste aparelho e sobe quando o sinal voltar.";display:block;padding:8px 12px;border-radius:8px;background:var(--ferment-soft);color:var(--ferment-ink, var(--ink));font:600 var(--t-sm)/1.4 var(--body)}
+/* F3 · marca no celular estreito */
+@media (max-width:380px){header.top .marca-nome{font-size:var(--t-lg)}}
+/* F4 · impressão do painel sem botões nem avisos */
+@media print{.at-acao,.banner,.fe,button,.imp-barra{display:none !important}}
+/* H1 · sessão vencida: a tela com dados fica coberta enquanto o sistema confere a conexão */
+html.bloq #view,html.bloq dialog{visibility:hidden}

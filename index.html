@@ -3,18 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- Política de conteúdo: só roda código deste endereço e só conversa com o Supabase e as fontes (segunda barreira contra código injetado). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://lrkrqglqvocqxixibtmk.supabase.co wss://lrkrqglqvocqxixibtmk.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<!-- Política de conteúdo: só roda código deste endereço e só conversa com o Supabase (segunda barreira contra código injetado). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://lrkrqglqvocqxixibtmk.supabase.co wss://lrkrqglqvocqxixibtmk.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="robots" content="noindex">
 <title>Saberes que Cultivam</title>
-<meta name="theme-color" content="#27663A">
+<meta name="theme-color" content="#1B3324" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#121814" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="stylesheet" href="css/app.css">
-<!-- Fontes do Google sem travar a abertura: se não responderem, a tela abre com as fontes do aparelho. -->
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<!-- Fontes guardadas no próprio sistema (assets/fontes, licença OFL): não dependem do Google e ficam no aparelho para usar sem internet. -->
+<link rel="preload" href="assets/fontes/manrope-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fontes/manrope-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
 <section id="auth" hidden>

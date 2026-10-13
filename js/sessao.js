@@ -47,12 +47,14 @@
     if (f > 0) { mostrarAviso(f); return; }
     if (conferindo || agora() < esperarAte) return;
     conferindo = true;
+    // passou do prazo: a tela com dados fica coberta enquanto confere a conexão (com sinal fraco pode levar segundos)
+    document.documentElement.classList.add('bloq');
     try {
       const ok = cfg.temConexao ? await cfg.temConexao() : true;
-      if (!ok) { esconderAviso(); esperarAte = agora() + 30000; return; }
-      if (!cfg || !cfg.ativo() || !venceu(ultimo())) return;   // usou enquanto conferia
+      if (!ok) { document.documentElement.classList.remove('bloq'); esconderAviso(); esperarAte = agora() + 30000; return; }
+      if (!cfg || !cfg.ativo() || !venceu(ultimo())) { document.documentElement.classList.remove('bloq'); return; }
       esconderAviso(); parar(); cfg.aoVencer();
-    } finally { conferindo = false; }
+    } finally { conferindo = false; setTimeout(() => document.documentElement.classList.remove('bloq'), 50); }
   }
   function parar() { if (timer) clearInterval(timer); timer = null; }
   /* cfg: { ativo(): há alguém logado?, aoVencer(): sai do sistema } */
