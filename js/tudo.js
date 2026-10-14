@@ -2417,7 +2417,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const IC_SETA = '<svg class="seta" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
   /* campo da entrada: rótulo ligado ao campo, mensagem de erro própria (ligada por aria-describedby quando aparece) e, na senha, botão de mostrar */
   const campoA = (id, rotulo, tipo, ac) => `<div class="cp"><label for="${id}">${rotulo}</label><div class="cp-c">
-    <input id="${id}" name="${id}" type="${tipo}" autocomplete="${ac}" required${tipo === 'email' ? ' inputmode="email" autocapitalize="none" spellcheck="false"' : ''}>${tipo === 'password' ? `<button type="button" class="cp-olho" data-olho="${id}" aria-label="Mostrar senha" aria-pressed="false">${IC_OLHO}</button>` : ''}</div>
+    <input id="${id}" name="${id}" type="${tipo}" autocomplete="${ac}" required${tipo === 'email' ? ' inputmode="email" autocapitalize="none" spellcheck="false" placeholder="seu@email.com" maxlength="254"' : ''}>${tipo === 'password' ? `<button type="button" class="cp-olho" data-olho="${id}" aria-label="Mostrar senha" aria-pressed="false">${IC_OLHO}</button>` : ''}</div>
     <p class="cp-e" id="e_${id}" hidden></p></div>`;
   const avisoA = (msg, ok) => `<p class="ac-erro" id="aerr" role="alert"${msg ? '' : ' hidden'}>${msg ? IC_ERRO + '<span>' + esc(msg) + '</span>' : ''}</p><p class="ac-ok" id="aok" role="status"${ok ? '' : ' hidden'}>${esc(ok || '')}</p>`;
   function painelAcesso(msg, ok) {
