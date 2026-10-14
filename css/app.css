@@ -617,7 +617,7 @@ ul.ent-uf i{width:24px;height:24px;font:700 var(--t-2xs)/1 var(--body);font-styl
 @media (max-width:1100px){.ent{padding:48px 32px;gap:24px 48px;grid-template-columns:minmax(0,1fr) minmax(360px,432px)}#auth .authbox{padding:32px}}
 @media (max-width:860px){
   #auth{align-items:flex-start}
-  .ent{grid-template-columns:minmax(0,1fr);grid-template-areas:"topo" "cartao" "base";max-width:560px;padding:40px 24px 48px;gap:32px}
+  .ent{grid-template-columns:minmax(0,1fr);grid-template-areas:"topo" "cartao" "base";max-width:none;padding:40px 40px 48px;gap:32px}   /* tablet em pé: largura toda, margem de 40 px (como no Mulheres & Quintais) */
   .ent-topo{align-self:auto} .ent-marca{margin-bottom:16px} .ent-h{max-width:none} .ent-h::after{margin-top:16px}
   .ent-d{font-size:var(--t-lg)}
 }
@@ -1159,3 +1159,17 @@ html.sem-rede .fm-pe::before{content:"Sem internet: o que você salvar fica guar
 @media print{.at-acao,.banner,.fe,button,.imp-barra{display:none !important}}
 /* H1 · sessão vencida: a tela com dados fica coberta enquanto o sistema confere a conexão */
 html.bloq #view,html.bloq dialog{visibility:hidden}
+
+/* Rodapé da tela de entrada (13/10/2026, como no Mulheres & Quintais): marca, instituições e LGPD, sem botões.
+   A tela de entrada vira coluna: o conteúdo fica no meio do espaço que sobra e o rodapé no fim da página. */
+#auth{flex-direction:column;align-items:stretch}
+#auth>.ent{margin-block:auto}
+.pe.pe-ent{position:relative;margin-top:0;padding-block:22px calc(22px + env(safe-area-inset-bottom))}
+.pe-ent .pe-m b{font-size:var(--t-lg)} .pe-ent .pe-m img{width:36px;height:36px}
+.pe-ent .pe-i{font-size:var(--t-sm)} .pe-ent .pe-a p{margin:0}
+.pe-ent .wrap{max-width:1200px;padding-inline:40px;grid-template-columns:auto auto 1fr;gap:16px 32px}   /* mesmas margens do conteúdo da entrada */
+.pe-ent .pe-a p{max-width:42ch}
+@media (max-width:1100px){.pe-ent .wrap{padding-inline:32px}}
+@media (max-width:1023px){.pe-ent .wrap{grid-template-columns:auto 1fr}.pe-ent .pe-i{justify-self:end;text-align:right}.pe-ent .pe-a{grid-column:1/-1;align-items:flex-start;padding-top:14px;border-top:1px solid var(--topo-linha)}.pe-ent .pe-a p{text-align:left;max-width:none}}
+@media (max-width:860px){.pe-ent .wrap{padding-inline:40px}}
+@media (max-width:640px){.pe-ent .wrap{grid-template-columns:1fr;justify-items:center;text-align:center;padding-inline:16px}.pe-ent .pe-m{flex-direction:column;gap:8px}.pe-ent .pe-a{align-items:center}.pe-ent .pe-a p{text-align:center;max-width:none}}
