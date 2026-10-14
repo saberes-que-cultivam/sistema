@@ -25,7 +25,7 @@ const PERFIS = {
       'No sol forte, toque no botão do sol, no alto da tela, e ligue o modo sol: letra preta em fundo branco e maior.',
       'Lançamento parado no celular aparece para a coordenação como “Falta enviar” (só a quantidade, nunca o conteúdo). Abra o sistema com internet para enviar.'] },
   acompanhamento: { perfil: 'Acompanhamento', titulo: 'Manual do acompanhamento (SEAB/MDA)',
-    papel: 'O acompanhamento consulta a execução física do projeto em tempo real, sem alterar nada: metas e cronograma, biofábricas, lotes, distribuição e formação. Não aparecem nomes nem dados pessoais de agricultoras e agricultores, nem a equipe: as unidades produtivas são numeradas e as visitas aparecem sem texto livre. A parte financeira fica com a gestão do projeto. Esse corte é feito no banco de dados, não só na tela.',
+    papel: 'O acompanhamento consulta a execução física do projeto em tempo real, sem alterar nada: metas e cronograma, biofábricas, lotes, distribuição e formação. Não aparecem nomes nem dados pessoais de agricultoras e agricultores, nem a equipe: as unidades produtivas aparecem numeradas e as visitas entram só nas contagens. A parte financeira fica com a gestão do projeto. Esse corte é feito no banco de dados, não só na tela.',
     extras: ['As metas mostram o que a equipe registrou no sistema, em tempo real. O relatório oficial do projeto é o que a coordenação envia.',
       'Para trocar a sua senha: na Visão geral, no aviso “Acesso de acompanhamento”, toque em “Trocar a minha senha”.',
       'Dúvidas sobre os números: fale com a coordenação do projeto.'] }
@@ -45,13 +45,13 @@ const PERFIS = {
     await p.goto(URL_); await p.waitForSelector('#auth:not([hidden])'); await p.waitForTimeout(300); const entrada = await foto();
     demoLigada = true; await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload(); await p.waitForSelector('[data-demo]');
     await p.click(`[data-demo="${P.perfil}"]`); await p.waitForSelector('.dx-topo');
-    const { abas, ajuda } = await p.evaluate(() => ({ abas: SQC.app.abas(), ajuda: SQC.app.AJUDA }));
+    const { abas, ajuda } = await p.evaluate(() => ({ abas: SQC.app.abas(), ajuda: Object.assign({}, SQC.app.AJUDA, SQC.app._estado().eu.perfil === 'Acompanhamento' ? SQC.app.AJUDA_FORA : {}) }));
     const telas = [];
     for (const [k, nome] of abas) { await p.click(`[data-tab="${k}"]`); await p.waitForTimeout(250); await p.evaluate(() => scrollTo(0, 0)); telas.push({ nome, texto: ajuda[k] || '', img: await foto() }); }
     // um formulário aberto, para quem registra
     if (P.perfil !== 'Acompanhamento') {
       await p.click('[data-tab="eventos"]'); await p.click('[data-new="eventos"]'); await p.waitForSelector('#dlg[open]');
-      telas.push({ nome: 'Registrar uma atividade', texto: 'Toque em “Nova atividade”, preencha e salve. “Imprimir em branco” gera a folha para aplicar no papel. Depois de salvar, a atividade ganha os botões Lista (presença) e Fotos na tabela.', img: await foto() });
+      telas.push({ nome: 'Registrar uma atividade', texto: 'Toque em “Registrar atividade”, preencha e salve. “Imprimir em branco” gera a folha para aplicar no papel. Depois de salvar, a atividade ganha os botões Lista (presença) e Fotos na tabela.', img: await foto() });
       await p.keyboard.press('Escape');
     }
     await ctx.close();

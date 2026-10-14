@@ -46,6 +46,12 @@ const W = +(process.env.LARG || 1280);
   await p.reload(); await p.waitForSelector('.dx-topo'); await p.keyboard.press('Tab');
   ok(await p.evaluate(() => document.activeElement.hasAttribute('data-pular')), 'primeiro Tab: "Pular para o conteúdo"');
   await p.keyboard.press('Enter'); ok(await p.evaluate(() => document.activeElement.id === 'view'), 'Enter leva o foco ao conteúdo');
+  // foco depois de redesenhar: Enter numa aba e o próximo Tab segue para a aba seguinte; Esc numa janela e o foco volta ao botão
+  await p.focus('#tabs [data-tab="equipe"]'); await p.keyboard.press('Enter'); await p.waitForTimeout(250);
+  ok(await p.evaluate(() => document.activeElement.matches('#tabs [data-tab="equipe"]')), 'Enter numa aba: o foco fica na aba escolhida');
+  await p.keyboard.press('Tab'); ok(await p.evaluate(() => document.activeElement.matches('#tabs [data-tab="financeiro"]')), 'o próximo Tab vai para a aba seguinte (não recomeça do topo)');
+  await p.click('#tabs [data-tab="eventos"]'); await p.waitForTimeout(200); await p.focus('[data-new="eventos"]'); await p.keyboard.press('Enter'); await p.waitForSelector('#dlg[open]'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  ok(await p.evaluate(() => document.activeElement.matches('[data-new="eventos"]')), 'Esc fecha a janela e o foco volta ao botão que a abriu');
   await p.click('#tabs [data-tab="financeiro"]'); await p.waitForTimeout(250); await p.focus('[data-rg]'); await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowRight');
   ok(await p.evaluate(() => !document.querySelector('[data-dica]').hidden && /Previsto/.test(document.querySelector('[data-dica]').textContent) && /Previsto/.test(document.getElementById('rg-voz').textContent)), 'setas no gráfico mostram e leem o mês');
   for (const [aba, abre, nome] of [['eventos', '[data-new="eventos"]', 'formulário'], ['eventos', '[data-presenca]', 'lista de presença'], ['eventos', '[data-fotos]', 'fotos'], ['painel', '#tabs + * [data-ajuda], [data-ajuda]', 'ajuda'], ['painel', '[data-meus]', 'meus dados']]) {

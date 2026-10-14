@@ -10,10 +10,15 @@
   /* ---------- utilidades ---------- */
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const num = (v, d = 0) => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const FMT_NUM = {}, num = (v, d = 0) => (FMT_NUM[d] = FMT_NUM[d] || new Intl.NumberFormat('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })).format(+v || 0);
   const brl = R.brl, dt = R.dt, pd = R.pd, iso = R.iso;
   const hoje = () => new Date();
-  const by = (t, id) => db[t].find(r => r.id === id);
+  /* busca por id com índice por tabela, refeito quando a lista muda (antes era uma varredura da lista a cada linha desenhada) */
+  const IDX = new WeakMap();
+  //  guarda a POSIÇÃO de cada id e confere na hora: registro trocado no mesmo lugar (edição) é achado novo; lista que mudou de tamanho ou ordem refaz o índice
+  const by = (t, id) => { const L = db[t]; if (!L) return undefined; let m = IDX.get(L), i = m && m.get(id);
+    if (i !== undefined && L[i] && L[i].id === id) return L[i];
+    m = new Map(); L.forEach((r, k) => m.set(r.id, k)); IDX.set(L, m); i = m.get(id); return i === undefined ? undefined : L[i]; };
   const coord = () => !!eu && eu.perfil === 'Coordenação';
   /* pré-visualização "ver como o SEAB/MDA vê": a coordenação enxerga o sistema com o perfil de acompanhamento, com os mesmos cortes
      que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
@@ -43,7 +48,7 @@
   const optRubrica = () => D.RUBRICAS.map(r => [r.id, r.nome]);
   const nomeRubrica = id => (D.RUBRICAS.find(r => r.id === id) || {}).nome || '';
   const MOD = {
-    unidades: { um: 'Unidade de produção de bioinsumos', oque: 'Biofábrica do projeto. As duas que contam para a Meta 2 do TED são as dos territórios; as outras são de apoio. Marque cada passo da implantação conforme for acontecendo.', dicas: { sigla: 'Aparece no código de todos os lotes desta unidade. Não mude depois de criar lotes.', parceiro: 'Associação, cooperativa, prefeitura ou escola. Bem público não pode ser doado a pessoa física.' }, nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Etapas de implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
+    unidades: { um: 'Unidade de produção de bioinsumos', oque: 'Biofábrica do projeto. As duas que contam para a Meta 2 do TED são as dos territórios; as outras são de apoio. Marque cada passo da implantação conforme for acontecendo.', dicas: { sigla: 'Aparece no código de todos os lotes desta unidade. Não mude depois de criar lotes.', parceiro: 'Associação, cooperativa, prefeitura ou escola. Bem público não pode ser doado a pessoa física.' }, nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Passos da implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
       campos: [['_s1', 'Identificação', 'sec'], ['nome', 'Nome', 'text', 1], ['sigla', 'Sigla (2 a 4 letras, usada no código dos lotes)', 'text', 1], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
         ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)],
         ['modelo', 'Modelo', 'select', 0, opt(['A definir', 'Área aberta com cobertura (compostagem e biofertilizantes)', 'Microrganismos isolados'])],
@@ -55,13 +60,13 @@
         ['Parceiro', u => esc(u.parceiro) || '<span class="chip f">a definir</span>'],
         ['Itens estimados', u => { const s = db.itens.filter(i => i.unidade === u.id).reduce((t, i) => t + (+i.valor || 0), 0); return `${brl(s)}${u.conta === 'Sim' ? `<div class="small">de ${brl(D.TETO_UNIDADE)}</div>` : ''}`; }, 'n']] },
     itens: { um: 'Item de aquisição', oque: 'Bem ou material a comprar pela FUNCERN para uma unidade de produção.', dicas: { rubrica: 'A rubrica do plano em que a compra vai entrar.' }, nome: 'Itens', titulo: 'Itens e aquisições das unidades', desc: `Cada item passa por orçamento, compra pela FUNCERN e entrega. O teto do plano é ${brl(D.TETO_UNIDADE)} por unidade.`, novo: 'Novo item',
-      campos: [['unidade', 'Unidade', 'ref', 1, 'unidades'], ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor estimado (R$)', 'number'],
+      campos: [['unidade', 'Biofábrica', 'ref', 1, 'unidades'], ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor estimado (R$)', 'number'],
         ['rubrica', 'Rubrica do plano', 'select', 0, () => [['', '']].concat(optRubrica())],
         ['status', 'Situação', 'select', 0, opt(['A definir', 'Orçamento enviado', 'Em compras na FUNCERN', 'Entregue'])], ['data', 'Data do envio do orçamento', 'date']],
       cols: [['Item', i => esc(i.descricao) + exChip(i) + (i.rubrica ? `<div class="small">${esc(nomeRubrica(i.rubrica))}</div>` : '')], ['Unidade', i => esc((by('unidades', i.unidade) || {}).nome)],
         ['Situação', i => `<span class="chip ${i.status === 'Entregue' ? 'ok' : i.status === 'A definir' ? '' : 'f'}">${esc(i.status)}</span>`], ['Enviado em', i => dt(i.data)], ['Valor', i => brl(i.valor), 'n']] },
     lotes: { um: 'Lote de produção', oque: 'Uma batelada de bioinsumo. O código é gerado ao salvar. Só lote marcado como “Pronto” pode ser distribuído.', dicas: { dias: 'Preenchido pelo tipo; ajuste se o seu preparo for diferente.', obs: 'O que você observou ao conferir: é o registro de qualidade do lote.' }, nome: 'Lotes', titulo: 'Lotes de produção', desc: 'Um lote por batelada. O código é gerado pela sigla da unidade e pelo tipo. O saldo desconta o que já foi distribuído.', novo: 'Novo lote',
-      campos: [['_s1', 'Produção', 'sec'], ['unidade', 'Unidade', 'ref', 1, 'unidades'], ['tipo', 'Tipo de bioinsumo', 'select', 1, opt(Object.keys(D.TIPOS))], ['inicio', 'Início do preparo', 'date', 1],
+      campos: [['_s1', 'Produção', 'sec'], ['unidade', 'Biofábrica', 'ref', 1, 'unidades'], ['tipo', 'Tipo de bioinsumo', 'select', 1, opt(Object.keys(D.TIPOS))], ['inicio', 'Início do preparo', 'date', 1],
         ['dias', 'Dias até ficar pronto', 'number'], ['qtd', 'Quantidade produzida', 'number', 1], ['med', 'Medida', 'select', 0, opt(['kg', 'L'])],
         ['_s2', 'Acompanhamento do lote', 'sec'], ['status', 'Situação', 'select', 0, opt(['Em preparo', 'Maturando', 'Pronto', 'Descartado'])], ['responsavel', 'Responsável', 'text'],
         ['insumos', 'Ingredientes e proporções', 'textarea'], ['obs', 'Qualidade (cheiro, temperatura, pH, aspecto)', 'textarea']],
@@ -80,7 +85,7 @@
         ['Linha de base', a => a.diag ? `<span class="chip ok">${dt(a.diag)}</span><div class="small">${brl(a.gasto0)}/mês · químico: ${esc(a.quimico || '—')}</div>` : '<span class="chip bad">falta</span>'],
         ['Kit', a => a.kit ? `<span class="chip ok">${dt(a.kitdata)}</span>` : '<span class="chip">não</span>'],
         ['Acompanhamento', a => { const r = recebeu(a.id).length, v = visitasDe(a.id); return `<span class="chip ${acompanhada(a) ? 'ok' : ''}">${r} entrega(s) · ${v.length} visita(s)</span>${v[0] ? `<div class="small">última ${dt(v[0].data)}</div>` : ''}`; }]] },
-    distribuicoes: { um: 'Entrega de bioinsumo', oque: 'Liga um lote a quem recebeu. O sistema desconta do saldo do lote e não deixa entregar mais do que existe.', nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega',
+    distribuicoes: { um: 'Entrega de bioinsumo', oque: 'Liga um lote a quem recebeu. O sistema desconta do saldo do lote e não deixa entregar mais do que existe.', nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega de bioinsumo',
       campos: [['data', 'Data', 'date', 1], ['lote', 'Lote (só os prontos)', 'ref', 1, 'lotes', l => l.status === 'Pronto'], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['qtd', 'Quantidade', 'number', 1],
         ['cultura', 'Cultura que vai receber', 'text'], ['area', 'Área de aplicação (ha)', 'number'], ['forma', 'Forma de aplicação', 'select', 0, opt(['No solo', 'Foliar', 'Na cova ou sulco', 'Tratamento de sementes', 'Outro'])]],
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Lote', d => { const l = by('lotes', d.lote) || {}; return `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span><div class="small">${esc(l.tipo)}</div>`; }],
@@ -96,7 +101,7 @@
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
     eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano. Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['', 'Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
-        ['part', 'Participantes', 'number'], ['mulheres', 'Dos quais, mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
+        ['part', 'Participantes', 'number'], ['mulheres', 'Quantas são mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + exChip(e)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe'], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
@@ -128,14 +133,18 @@
     presencas: { um: 'Participante', nome: 'Presença', novo: 'Adicionar participante', titulo: 'Lista de presença', desc: '', cols: [],
       campos: [['evento', 'Atividade', 'ref', 1, 'eventos'], ['nome', 'Nome', 'text', 1], ['comunidade', 'Comunidade', 'text'], ['municipio', 'Município', 'text'], ['mulher', 'Mulher', 'check'],
         ['agricultor', 'É uma unidade produtiva acompanhada?', 'ref', 0, 'agricultores']] },
-    pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (painel, biofábricas, lotes, atividades, entregas, financeiro e relatórios), não grava nada e não vê nome nem dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
+    pessoas: { um: 'Acesso ao sistema', oque: 'Quem pode entrar. Coordenação faz tudo; Equipe registra o trabalho de campo e de produção, mas não lança despesa nem cadastra acesso.', dicas: { email: 'É o login. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada, e confirma pelo e-mail que recebe.', ativo: 'Desmarque para tirar o acesso sem apagar o histórico.', perfil: 'Acompanhamento vê o andamento em tempo real (visão geral, biofábricas, lotes, distribuição e formação), não grava nada, não vê valores nem nome ou dado pessoal de agricultor.', orgao: 'Exemplo: SEAB/MDA. Aparece ao lado do nome.' }, nome: 'Acessos', titulo: 'Pessoas com acesso', desc: 'A coordenação cadastra o nome e o e-mail de quem pode entrar. A pessoa cria a própria senha em “Primeiro acesso”, na tela de entrada. Para tirar o acesso de alguém, desmarque “Acesso ativo”.', novo: 'Novo acesso', restrito: 1, semExcluir: 1,
       campos: [['nome', 'Nome', 'text', 1], ['email', 'E-mail', 'email', 1], ['perfil', 'Perfil', 'select', 1, [['Equipe', 'Equipe (registra o trabalho do projeto)'], ['Coordenação', 'Coordenação (faz tudo)'], ['Acompanhamento', 'Acompanhamento (SEAB/MDA: só consulta, sem dados pessoais)']]], ['orgao', 'Órgão ou setor (para quem acompanha)', 'text'], ['ativo', 'Acesso ativo', 'check']],
       cols: [['Nome', u => esc(u.nome)], ['E-mail', u => `<span class="mono">${esc(u.email)}</span>`], ['Perfil', u => `<span class="chip ${u.perfil === 'Coordenação' ? 'ok' : u.perfil === 'Acompanhamento' ? 'f' : ''}">${esc(u.perfil)}</span>${u.orgao ? `<div class="small">${esc(u.orgao)}</div>` : ''}`],
         ['Situação', u => u.ativo === false ? '<span class="chip bad">desativado</span>' : (demo() || u.auth_id ? '<span class="chip ok">ativo</span>' : '<span class="chip f">ainda não criou a senha</span>')]] }
   };
   /* lista de presença e fotos de cada atividade/visita (script 13). Só a equipe do projeto vê: o SEAB/MDA fica com o número de participantes */
-  const evid = (t, r) => { if (r._pendente) return '<span class="small">depois de enviar</span>'; const nf = (db.fotos || []).filter(f => f.tabela === t && f.registro === r.id).length, np = t === 'eventos' ? (db.presencas || []).filter(x => x.evento === r.id).length : null;
-    return `<span class="ev-b">${np !== null ? `<button class="b s" data-presenca="${esc(r.id)}">Lista${np ? ` (${np})` : ''}</button>` : ''}<button class="b s" data-fotos="${t}:${esc(r.id)}">Fotos${nf ? ` (${nf})` : ''}</button></span>`; };
+  const CONTA = new WeakMap(), contar = (L, chave) => { let c = CONTA.get(L); if (!c || c.n !== L.length) { c = { n: L.length, m: new Map() }; L.forEach(x => { const k = chave(x); c.m.set(k, (c.m.get(k) || 0) + 1); }); CONTA.set(L, c); } return c.m; };
+  const evid = (t, r) => { if (r._pendente) return '<span class="small">depois de enviar</span>'; const nf = contar(db.fotos || [], f => f.tabela + ':' + f.registro).get(t + ':' + r.id) || 0, np = t === 'eventos' ? contar(db.presencas || [], x => x.evento).get(r.id) || 0 : null;
+    const qt = (n, um, varios) => n ? `<span class="evb-n" aria-hidden="true">${n}</span><span class="so"> (${n} ${n === 1 ? um : varios})</span>` : `<span class="so"> (nenhum ainda)</span>`;
+    return `<span class="ev-b">${np !== null ? `<button type="button" class="evb" data-presenca="${esc(r.id)}" title="Lista de presença">${IC_LISTA}<span>Lista</span>${qt(np, 'nome', 'nomes')}</button>` : ''}<button type="button" class="evb" data-fotos="${t}:${esc(r.id)}" title="Fotos">${IC_CAMERA}<span>Fotos</span>${qt(nf, 'foto', 'fotos')}</button></span>`; };
+  const IC_LISTA = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.500 11.500h7M8.500 15.500h5"/></svg>';
+  const IC_CAMERA = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.600-2.400h6.800L17 8h3v11H4z"/><circle cx="12" cy="13.500" r="3.500"/></svg>';
   const rotulo = { eventos: e => `${dt(e.data)} · ${e.tipo} · ${e.tema}`, unidades: u => u.nome, lotes: l => `${l.codigo || 'código ao enviar'} · ${l.tipo} · saldo ${num(saldo(l))} ${l.med}${l.status !== 'Pronto' ? ' · ' + l.status : ''}`, agricultores: a => `${a.nome}${a.comunidade ? ' · ' + a.comunidade : ''}` };
 
   /* ---------- telas ---------- */
@@ -166,7 +175,7 @@
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
- <div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}<th><span class="so">Ações</span></th></tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}<td class="a">${acoes(r)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? ` Use “${M.novo}”.` : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
+ <div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rows.map(r => `<tr>${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? (m === 'despesas' ? ' Use “Importar planilha da FUNCERN” ou “Lançar à mão”.' : ` Use “${M.novo}”.`) : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
   }
   const finTabela = (F, titulo) => `<table><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td>${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td><td class="n">${brl(r.prev)}</td><td class="n">${brl(r.comp)}</td><td class="n">${brl(r.pago)}</td><td class="n">${brl(r.saldo)}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="n">${brl(R.soma(F, 'prev'))}</td><td class="n">${brl(R.soma(F, 'comp'))}</td><td class="n">${brl(R.soma(F, 'pago'))}</td><td class="n">${brl(R.soma(F, 'saldo'))}</td></tr></tbody></table>`;
   const parcelasTxt = () => D.PARCELAS.map((p, i) => p.recebida ? `<dt>${i + 1}ª parcela, liquidada à FUNCERN em ${dt(p.data)}</dt><dd>${brl(p.valor)}</dd>` : `<dt>${i + 1}ª parcela, prevista para ${mesAno(p.previsao)}</dt><dd>${brl(p.valor)}</dd>`).join('');
@@ -182,7 +191,8 @@
     return `<${el} class="dx-kpi k${k}"${vai ? ` type="button" data-tab="${aba}" title="Abrir ${abas().find(t => t[0] === aba)[1]}"` : ' tabindex="0"'}><span class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
       <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : ' ' + String(de).trim()}</small></span></span><span class="dx-kpi-r">${rot}</span>
       <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> ${rotPc || 'concluído'}</span><span class="dx-kpi-s">${esc(s2)}</span></${el}>`; };
-  const pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
+  const FMT_PCT = [new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }), new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })];
+  const pct = v => FMT_PCT[v < 10 && v > 0 ? 1 : 0].format(Math.round(v * 10) / 10);
   function painel() {
     const st = ['2.1', '4.1', '3.3', '3.2'].map(id => D.ETAPAS.find(e => e.id === id));
     const lab = { '2.1': 'biofábricas em funcionamento', '4.1': 'unidades produtivas acompanhadas', '3.3': 'kits de apoio entregues', '3.2': 'capacitações realizadas' };
@@ -225,7 +235,7 @@
     const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
-    return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar a minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+    return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
    <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
@@ -294,17 +304,21 @@
  ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
-  const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo, bolsistas discentes e formadores: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
+  const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo, bolsistas discentes e formadores: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, metas, próximos marcos, mapa e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
-    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados. Dá para imprimir a ficha em branco e anexar fotos da visita.',
+    distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados. Dá para imprimir a ficha em branco, pegar a localização pelo GPS (opcional, só a equipe vê) e anexar fotos da visita.',
     eventos: 'Capacitações, dias de campo, reuniões e articulações. Em cada uma: lista de presença (imprimir em branco, colher assinaturas e digitar os nomes) e fotos do dia.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
-    financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança, sua senha e (para a coordenação) quem tem acesso.' };
+    financeiro: 'Despesas por rubrica e por meta, comparadas com o plano de desembolso.', relatorios: 'Relatório de execução por período, pronto para imprimir ou salvar em PDF.', dados: 'Planilhas, cópia de segurança e (para a coordenação) quem tem acesso. A senha se troca em Meus dados, tocando no seu nome no alto.' };
+  /* onde a ajuda da equipe não vale para o SEAB/MDA (que não vê lista, fotos, avisos internos nem valores) */
+  const AJUDA_FORA = { painel: 'Resumo do projeto: quanto do plano já foi executado, metas, próximos marcos, mapa e cronograma.', eventos: 'Capacitações, dias de campo, reuniões e articulações, com o número de participantes.',
+    unidades: 'As biofábricas, os passos da implantação de cada uma e a situação dos itens a comprar.' };
+  const ajudaDe = k => (fora() && AJUDA_FORA[k]) || AJUDA[k] || '';
   function abrirAjuda() {
     ed = null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como usar o sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><div class="fm-oque"><span>O seu perfil</span><p>${esc(eu.perfil)}${eu.orgao ? ' · ' + esc(eu.orgao) : ''}: ${coord() ? 'faz tudo, inclusive lançar despesas, cadastrar acessos e ver o histórico.' : fora() ? 'consulta o andamento em tempo real, sem alterar nada e sem ver dados pessoais.' : 'registra o trabalho de campo e de produção. Despesas e acessos são da coordenação.'}</p></div>
-      <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${AJUDA[tab] || ''}</p>
-      <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${AJUDA[t[0]] || ''}</dd>`).join('')}</dl>
+      <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${ajudaDe(tab)}</p>
+      <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${ajudaDe(t[0])}</dd>`).join('')}</dl>
       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos e exclusões precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
       <h3 class="fm-sec">Sol forte</h3><p class="aj-p">Toque no botão do sol, no alto da tela, e ligue o <b>modo sol</b>: letra preta em fundo branco e maior. Ali também se escolhe tema claro ou escuro. Vale só neste aparelho.</p>
       <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${{ 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento' }[eu.perfil] || 'equipe'}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
@@ -410,7 +424,7 @@
     <path class="l prev" d="${linha('previsto')}"/><path class="l rec" d="${degrau()}"/><path class="l exec" d="${linha('executado')}"/>
     ${ult >= 0 ? `<circle class="pt exec" cx="${x(ult)}" cy="${y(P[ult].executado)}" r="4.5"/><circle class="pt rec" cx="${x(ult)}" cy="${y(P[ult].recebido)}" r="4.5"/>` : ''}
     <line class="cr" data-cr x1="0" x2="0" y1="${GR.t}" y2="${GR.h - GR.b}" hidden/></svg><div class="dica" data-dica hidden></div></div>
-   <p class="small">Passe o mouse ou toque num mês. O previsto é o plano de desembolso enviado à FUNCERN (atualização de 05/10/2026) e fecha em ${brl(X.total)}.</p>
+   <p class="small">Passe o mouse ou toque num mês. O previsto é o plano de desembolso enviado à FUNCERN (planilha de 05/10/2026, ajustada ao plano universal v4 de 07/10/2026) e fecha em ${brl(X.total)}.</p>
    <details class="dx-como"><summary>Ver os números em tabela</summary><div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table><thead><tr><th>Mês</th><th class="n">Previsto</th><th class="n">Pago</th><th class="n">Recebido</th></tr></thead><tbody>${P.map(p => `<tr><td>${p.rotulo}</td><td class="n">${brl(p.previsto)}</td><td class="n">${p.executado == null ? '—' : brl(p.executado)}</td><td class="n">${p.recebido == null ? '—' : brl(p.recebido)}</td></tr>`).join('')}</tbody></table></div></details></div>`;
   }
   function usoRubricas(FR) {
@@ -422,6 +436,11 @@
        <span class="ur-b"><i class="exec" style="width:${Math.min(100, a)}%"></i><i class="comp" style="left:${Math.min(100, a)}%;width:${Math.max(0, Math.min(100 - Math.min(100, a), b))}%"></i><b style="left:${t}%"></b></span></button>`; }).join('')}</div>
    <p class="small">O traço marca quanto da vigência já passou. Barra muito à frente do traço: a rubrica acaba antes do projeto. Muito atrás: há recurso parado.</p></div>`;
   }
+  /* conteúdo de linha que abre (rubrica, meta): só é montado quando alguém abre. Antes cada despesa era desenhada três vezes
+     escondida e o Financeiro levava 1,4 s num celular simples (auditoria de 14/10) */
+  let TARDE = new Map(), nTarde = 0;
+  const adiar = html => html.trim().replace(/<\/summary>([\s\S]*)<\/details>$/, (x, corpo) => { const k = 't' + (++nTarde); TARDE.set(k, corpo); return `</summary><div data-tarde="${k}" hidden></div></details>`; });
+  function abrirTarde(d) { d.querySelectorAll(':scope > [data-tarde]').forEach(x => { const h = TARDE.get(x.dataset.tarde); x.outerHTML = h == null ? '' : h; }); }
   function tabelaRubricas(FR, lim) {
     const FI = R.finItens(db, lim);
     const rm = k => ritmoAtual ? ritmoAtual.pontos[k].rotulo : k + 1;
@@ -435,10 +454,10 @@
         return `<details class="rb-i"><summary><span class="rb-in">${esc(i.nome)}</span><span class="rb-v" data-r="Previsto">${brl(x.prev)}</span><span class="rb-v" data-r="Pago">${v(x.pago)}</span><span class="rb-v" data-r="Comprometido">${v(x.comp)}</span><span class="rb-v${x.saldo < 0 ? ' neg' : ''}" data-r="Saldo">${brl(x.saldo)}</span>
           <span class="rb-e"><span class="medidor fino"><i class="${ui > 100 ? 'bad' : ''}" style="width:${Math.min(100, ui)}%"></i></span><b>${pct(ui)}%</b></span></summary>
           <dl class="rb-x"><div><dt>Composição</dt><dd>${comp_}</dd></div><div><dt>Previsto</dt><dd>${brl(x.prev)}</dd></div><div><dt>Pago</dt><dd>${brl(x.pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(x.comp)}</dd></div><div><dt>Saldo</dt><dd class="${x.saldo < 0 ? 'neg' : ''}"><b>${brl(x.saldo)}</b></dd></div><div><dt>Despesas com este item</dt><dd>${x.despesas.length}</dd></div></dl></details>`; }).join('')}
-      ${itens.length && ds.some(d => !d.item) ? `<p class="rb-si">${ds.filter(d => !d.item).length} despesa(s) desta rubrica sem item indicado (${brl(ds.filter(d => !d.item).reduce((t, d) => t + (+d.valor || 0), 0))}): entram no total da rubrica, mas não em nenhum item. Para corrigir, edite a despesa em Lançamentos e escolha o item.</p>` : ''}
+      ${itens.length && ds.some(d => !d.item) ? `<p class="rb-si">${ds.filter(d => !d.item).length} despesa(s) desta rubrica sem item indicado (${brl(ds.filter(d => !d.item).reduce((t, d) => t + (+d.valor || 0), 0))}): entram no total da rubrica, mas não em nenhum item. Para corrigir, edite a despesa na lista “Despesas do projeto”, no fim desta página, e escolha o item.</p>` : ''}
      <div class="rb-d"><h3>Despesas lançadas nesta rubrica</h3>${ds.length ? `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}<div class="small">${esc((D.DESEMBOLSO.itens.find(i => i.id === d.item) || { nome: 'sem item indicado' }).nome)}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}</div></td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
     return `<div><div class="head"><div><h2>Por rubrica</h2><p>Toque na rubrica para ver os itens do plano e as despesas lançadas nela.</p></div><div class="acts"><button class="b" data-abrir-rub>Abrir todas</button></div></div>
-   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(linha).join('')}
+   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Rubrica</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${FR.map(r => adiar(linha(r))).join('')}
     <div class="rb-tot"><span>Total</span><span data-r="Previsto">${brl(R.soma(FR, 'prev'))}</span><span data-r="Pago">${brl(R.soma(FR, 'pago'))}</span><span data-r="Comprometido">${brl(R.soma(FR, 'comp'))}</span><span data-r="Saldo"><b>${brl(R.soma(FR, 'saldo'))}</b></span><span></span></div></div>
    <p class="note" style="margin-top:8px">Passar de uma rubrica para outra exige ajuste do plano de trabalho. O sistema avisa no painel quando uma rubrica chega a 90% ou estoura.</p></div>`;
   }
@@ -497,7 +516,7 @@
           <dl class="rb-x"><div><dt>Composição</dt><dd>${num(e.q)} × ${brl(e.v)} (${esc(e.un)}) · ${mesAno(e.ini)} a ${mesAno(e.fim)}</dd></div><div><dt>Previsto</dt><dd>${brl(prev)}</dd></div><div><dt>Pago</dt><dd>${brl(pago)}</dd></div><div><dt>Comprometido</dt><dd>${brl(comp)}</dd></div><div><dt>Saldo</dt><dd class="${saldo < 0 ? 'neg' : ''}"><b>${brl(saldo)}</b></dd></div><div><dt>Despesas nesta etapa</dt><dd>${de.length}</dd></div></dl></details>`; }).join('')}
      <div class="rb-d"><h3>Despesas lançadas nesta meta</h3>${ds.length ? `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table><thead><tr><th>Data</th><th>Etapa</th><th>Descrição</th><th>Situação</th><th class="n">Valor</th></tr></thead><tbody>${ds.map(d => `<tr><td>${dt(d.data)}${exChip(d)}</td><td><span class="mono">${esc(d.etapa)}</span></td><td>${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}</div></td><td><span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span></td><td class="n">${brl(d.valor)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small">Nenhuma despesa lançada ainda.</p>'}</div></div></details>`; };
     return `<div><div class="head"><div><h2>Por meta do TED</h2><p>O mesmo gasto, visto pelas metas do plano pactuado com o MDA. Toque na meta para ver as etapas e as despesas lançadas nela.</p></div><div class="acts"><button class="b" data-abrir-rub>Abrir todas</button></div></div>
-   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Meta</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${F.map(linha).join('')}
+   <div class="panel rb-t" style="margin-top:10px"><div class="rb-h" aria-hidden="true"><span>Meta</span><span>Previsto</span><span>Pago</span><span>Comprometido</span><span>Saldo</span><span>Execução</span></div>${F.map(m => adiar(linha(m))).join('')}
     <div class="rb-tot"><span>Total</span><span data-r="Previsto">${brl(R.soma(F, 'prev'))}</span><span data-r="Pago">${brl(R.soma(F, 'pago'))}</span><span data-r="Comprometido">${brl(R.soma(F, 'comp'))}</span><span data-r="Saldo"><b>${brl(R.soma(F, 'saldo'))}</b></span><span></span></div></div></div>`;
   }
   /* dica do gráfico: mês mais próximo do ponteiro, com os três valores */
@@ -516,16 +535,13 @@
     const g = ev.target.closest && ev.target.closest('[data-rg]'); if (!g || !ritmoAtual) return;
     const n = ritmoAtual.pontos.length, atual = ritmoAtual.pontos.findIndex(p => p.atual), ini = mesTeclado >= 0 ? mesTeclado : (atual >= 0 ? atual : 0);
     const alvo = { ArrowRight: ini + 1, ArrowLeft: ini - 1, Home: 0, End: n - 1 }[ev.key]; if (alvo === undefined) return;
-    ev.preventDefault(); mostrarMes(g, mesTeclado < 0 ? ini : alvo);
+    ev.preventDefault(); mostrarMes(g, mesTeclado < 0 && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') ? ini : alvo);
   }
   function aoMoverGrafico(ev) {
     const g = ev.target.closest && ev.target.closest('[data-rg]'); const dica = document.querySelector('[data-dica]'), cr = document.querySelector('[data-cr]');
-    if (!g || !ritmoAtual) { if (dica) dica.hidden = true; if (cr) cr.setAttribute('hidden', ''); return; }
-    const svg = g.querySelector('svg'), b = svg.getBoundingClientRect(), P = ritmoAtual.pontos, n = P.length, k = GR.w / b.width;
-    const px = (ev.clientX - b.left) * k, i = Math.max(0, Math.min(n - 1, Math.round((px - GR.l) / (GR.w - GR.l - GR.r) * n) - 1)), p = P[i], cx = GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n;
-    cr.removeAttribute('hidden'); cr.setAttribute('x1', cx); cr.setAttribute('x2', cx);
-    dica.innerHTML = `<b>${p.rotulo}</b><span><i class="lg prev"></i>Previsto <b>${brl(p.previsto)}</b></span>${p.executado == null ? '<span class="small">mês que ainda não chegou</span>' : `<span><i class="lg exec"></i>Pago <b>${brl(p.executado)}</b></span><span><i class="lg rec"></i>Recebido <b>${brl(p.recebido)}</b></span>`}`;
-    dica.hidden = false; const gb = g.getBoundingClientRect(), esq = cx / k; dica.style.left = Math.max(0, Math.min(gb.width - dica.offsetWidth, esq > gb.width / 2 ? esq - dica.offsetWidth - 12 : esq + 12)) + 'px';
+    if (!g || !ritmoAtual) { if (dica && !(document.activeElement && document.activeElement.matches && document.activeElement.matches('[data-rg]'))) { dica.hidden = true; if (cr) cr.setAttribute('hidden', ''); } return; }
+    const b = g.querySelector('svg').getBoundingClientRect(), n = ritmoAtual.pontos.length, px = (ev.clientX - b.left) * (GR.w / b.width);
+    mostrarMes(g, Math.round((px - GR.l) / (GR.w - GR.l - GR.r) * n) - 1);
   }
   /* ---------- equipe: as três funções com bolsa no plano; as pessoas vêm das solicitações importadas da FUNCERN ---------- */
   const FUNCOES = [['coordenacao', 'i01', 'Coordenação do projeto', 'coordenação do projeto', 'Uma pessoa · responde pelo projeto e assina as solicitações à fundação · cadastrada pela coordenação', 1],
@@ -535,7 +551,7 @@
   const IC_GENTE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.500"/><path d="M2.500 20a6.500 6.500 0 0 1 13 0"/><circle cx="17.500" cy="9" r="2.500"/><path d="M17 14.200a5 5 0 0 1 4.500 5"/></svg>';
   function equipe() {
     if (coord() && !real && convites === undefined) { convites = []; carregarConvites(); }
-    const FI = R.finItens(db), hj = iso(hoje()), pode = R.podeGravar(eu, 'membros'), rot = k => (R.ritmo(db, hoje()).pontos[k] || {}).rotulo || k + 1;
+    const FI = R.finItens(db), hj = iso(hoje()), pode = R.podeGravar(eu, 'membros');
     const semTabela = api.semMembros ? `<div class="banner"><span>O cadastro da equipe ainda não foi ligado no banco: a coordenação precisa rodar o script <b>07_equipe.sql</b> no Supabase. Até lá, nada do que for cadastrado aqui é gravado.</span></div>` : '';
     const bloco = f => { const x = FI.find(i => i.id === f[1]), E = R.equipePorFuncao(db, f[0], hj), ms = x ? x.meses : [], bolsas = {};
       (x ? x.despesas : []).forEach(d => { const k = R.nrm(d.favorecido); if (!k) return; const g = bolsas[k] = bolsas[k] || { nome: d.favorecido, n: 0, pago: 0, comp: 0 }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; });
@@ -608,7 +624,7 @@
  <div><h3>Relatório de execução · ${dt(rel.de)} a ${dt(rel.ate)}</h3><h2>${esc(D.NOME_COMPLETO)}</h2>
  <p class="small">${esc(D.IDENT)}<br>Gerado em ${hoje().toLocaleDateString('pt-BR')} por ${esc(eu ? eu.nome : '')}</p></div>
  <section><h4>1. Execução física acumulada</h4>${tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], D.ETAPAS.map(e => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, feito(e), num(Math.min(100, feito(e) / e.q * 100)) + '%']))}</section>
- <section><h4>2. Unidades de produção de bioinsumos</h4>${tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} etapas${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']))}</section>
+ <section><h4>2. Unidades de produção de bioinsumos</h4>${tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']))}</section>
  <section><h4>3. Capacitações, dias de campo e reuniões no período</h4>${tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), R.vazio(e.part) ? '—' : `${num(e.part)} (${num(e.mulheres)} mulheres)`]))}${tp ? `<p>Total de ${num(tp)} participações, ${num(tm / tp * 100)}% de mulheres.</p>` : ''}</section>
  <section><h4>4. Produção de bioinsumos no período</h4>${tl(['Lote', 'Tipo', 'Unidade', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))}</section>
  <section><h4>5. Distribuição no período</h4>${tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, esc((by('agricultores', d.agricultor) || {}).nome), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; }))}${di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : ''}</section>
@@ -631,38 +647,66 @@
          <div class="panel scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table><thead><tr><th>Pessoa</th><th>Perfil</th><th>Último acesso</th><th>Situação</th></tr></thead><tbody>${acessos.map(a => `<tr><td><b>${esc(a.nome)}</b></td><td>${esc(a.perfil)}${a.orgao ? `<div class="small">${esc(a.orgao)}</div>` : ''}</td><td>${a.ultimo ? `${new Date(a.ultimo).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}<div class="small">${ha(a.ultimo)}</div>` : '—'}</td><td>${!a.ativo ? '<span class="chip">Desativado</span>' : !a.ultimo ? '<span class="chip f">Nunca entrou</span>' : hoje() - new Date(a.ultimo) > 30 * 864e5 ? '<span class="chip f">Sem entrar há mais de 30 dias</span>' : '<span class="chip ok">Em uso</span>'}</td></tr>`).join('')}</tbody></table></div>`; })();
     return `<div class="head"><div><h2>Histórico</h2><p>Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Serve para a prestação de contas. Só a coordenação vê.</p></div></div>
      <div><div class="head"><div><h2>Últimos acessos</h2><p>Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.</p></div>${Array.isArray(acessos) ? '<div class="acts"><button class="b" data-acessos>Atualizar</button></div>' : ''}</div>${quadroA}</div>
-     <div><div class="head"><div><h2>Alterações</h2><p>As 200 mais recentes: inclusões, alterações e exclusões em qualquer cadastro.</p></div>${hist ? '<div class="acts"><button class="b" data-hist>Atualizar</button></div>' : ''}</div><div class="panel box" style="margin-top:10px">${demo() ? '<div class="small">A demonstração não guarda histórico de alterações.</div>' : historico()}</div></div>`;
+     <div><div class="head"><div><h2>Alterações</h2><p>Inclusões, alterações e exclusões em qualquer cadastro, e quem baixou planilhas ou a cópia dos dados. Carrega de 200 em 200.</p></div>${hist ? '<div class="acts"><button class="b" data-hist>Atualizar</button></div>' : ''}</div><div class="panel box" style="margin-top:10px">${historico()}</div></div>`;
   }
   const NOME_ACAO = { INSERT: 'incluiu', UPDATE: 'alterou', DELETE: 'excluiu' };
+  /* histórico em linha do tempo (14/10/2026, trazido do Mulheres & Quintais): frases por dia, com hora; o detalhe campo a campo
+     ("antes → depois") continua a um toque; filtro por cadastro e busca; registros mais antigos de 200 em 200; downloads (script 21) */
+  let histFim = false, histFiltro = '', histBusca = '';
+  const OCULTOS_HIST = /^(id|atualizado_em|criado_em|criado_por|auth_id|ex|codigo_seq)$/;
+  function rotuloCampo(t, k) { const M = MOD[t]; const c = M && M.campos.find(x => x[0] === k); if (c) return c[1]; const ch = D.CHECK.find(x => x[0] === k); return ch ? ch[1] : k.replace(/_/g, ' '); }
+  function valorHist(t, k, v) {
+    if (v == null || v === '') return '—'; if (v === true) return 'Sim'; if (v === false) return 'Não';
+    const M = MOD[t], c = M && M.campos.find(x => x[0] === k);
+    if (c && c[2] === 'ref' && typeof v === 'string') { const r = by(c[4], v); return r ? rotulo[c[4]](r) : 'registro excluído'; }
+    if (k === 'rubrica') return nomeRubrica(v) || v; if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return dt(v);
+    return typeof v === 'object' ? JSON.stringify(v) : String(v);
+  }
+  function fraseHist(h) {
+    const quem = h.por ? (db.pessoas.find(p => p.id === h.por) || {}).nome || 'Pessoa removida' : 'Direto no banco';
+    if (h.tabela === 'planilhas') { const x = h.depois || {}, q = +x.qtd || 0;
+      return x.tipo === 'json' ? `<b>${esc(quem)}</b> baixou a cópia completa dos dados (${num(q)} registros).` : `<b>${esc(quem)}</b> baixou a planilha de <b>${esc((MOD[x.tipo] || {}).nome || x.tipo)}</b> (${num(q)} linha${q === 1 ? '' : 's'}).`; }
+    const o = h.depois || h.antes || {}, M = MOD[h.tabela] || {}, oque = (M.um || M.nome || h.tabela).toLowerCase();
+    const nome = o.nome || o.codigo || o.titulo || o.tema || o.descricao || (o.data ? dt(o.data) : '');
+    const verbo = { INSERT: 'incluiu', UPDATE: 'alterou', DELETE: 'excluiu' }[h.acao] || String(h.acao).toLowerCase();
+    return `<b>${esc(quem)}</b> ${verbo} ${esc(oque)}${nome ? `: <b>${esc(nome)}</b>` : ''}.`;
+  }
+  function detalheHist(h) {
+    if (h.acao !== 'UPDATE' || !h.antes || !h.depois) return '';
+    const L = Object.keys(h.depois).filter(k => !OCULTOS_HIST.test(k) && JSON.stringify(h.antes[k]) !== JSON.stringify(h.depois[k]));
+    return L.length ? `<details class="hs-d"><summary>O que mudou (${L.length})</summary><dl>${L.map(k => `<dt>${esc(rotuloCampo(h.tabela, k))}</dt><dd><s>${esc(valorHist(h.tabela, k, h.antes[k]))}</s> → <b>${esc(valorHist(h.tabela, k, h.depois[k]))}</b></dd>`).join('')}</dl></details>` : '';
+  }
   function historico() {
     if (!hist) return '<div class="acts"><button class="b" data-hist>Carregar o histórico</button></div>';
-    if (!hist.length) return '<div class="small">Nenhuma alteração registrada ainda.</div>';
-    const nomeDe = id => (db.pessoas.find(p => p.id === id) || {}).nome || (id ? 'pessoa removida' : 'direto no banco');
-    const mudou = h => { if (h.acao !== 'UPDATE' || !h.antes || !h.depois) return ''; return Object.keys(h.depois).filter(k => !/^(atualizado_em|criado_em|criado_por|auth_id)$/.test(k) && JSON.stringify(h.antes[k]) !== JSON.stringify(h.depois[k])).map(k => `${k}: ${JSON.stringify(h.antes[k])} → ${JSON.stringify(h.depois[k])}`).join('\n'); };
-    const resumo = h => { const o = h.depois || h.antes || {}; return o.nome || o.codigo || o.titulo || o.tema || o.descricao || o.data || ''; };
-    return `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table class="hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.map(h => `<tr><td>${new Date(h.em).toLocaleString('pt-BR')}</td><td>${esc(nomeDe(h.por))}</td><td>${NOME_ACAO[h.acao] || esc(h.acao)} em ${esc((MOD[h.tabela] || {}).nome || h.tabela)}<div class="small">${esc(resumo(h))}</div></td><td>${mudou(h) ? `<details><summary>ver o que mudou</summary><pre>${esc(mudou(h))}</pre></details>` : ''}</td></tr>`).join('')}</tbody></table></div><div class="small">Últimas ${hist.length} alterações.</div>`;
+    if (!hist.length) return '<div class="small">Nenhuma alteração registrada ainda. Aqui aparece, com data, hora e autor, tudo o que é incluído, alterado ou excluído, e quem baixou planilhas.</div>';
+    const tabs = [...new Set(hist.map(h => h.tabela))].sort((a, b) => ((MOD[a] || {}).nome || a).localeCompare((MOD[b] || {}).nome || b));
+    const nomeT = t => t === 'planilhas' ? 'Planilhas baixadas' : (MOD[t] || {}).nome || t;
+    const vis = hist.filter(h => (!histFiltro || h.tabela === histFiltro) && (!histBusca || R.nrm(fraseHist(h).replace(/<[^>]+>/g, '')).includes(R.nrm(histBusca))));
+    const dia = t => { const d = new Date(t), k = x => x.toLocaleDateString('pt-BR'), h = new Date(), o = new Date(h); o.setDate(h.getDate() - 1); return k(d) === k(h) ? 'Hoje' : k(d) === k(o) ? 'Ontem' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }); };
+    let ult = ''; const itens = vis.map(h => { const d = dia(h.em), cab = d !== ult ? `<li class="hs-dia">${esc(d)}</li>` : ''; ult = d;
+      return cab + `<li class="hs-i"><time datetime="${esc(h.em)}">${new Date(h.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time><div>${fraseHist(h)}${detalheHist(h)}</div></li>`; }).join('');
+    const semana = hist.filter(h => Date.now() - new Date(h.em) < 7 * 864e5).length;
+    return `<div class="hs-f"><label class="fld"><span>Cadastro</span><select id="hfiltro" data-histfiltro><option value="">Todos</option>${tabs.map(t => `<option value="${esc(t)}" ${t === histFiltro ? 'selected' : ''}>${esc(nomeT(t))}</option>`).join('')}</select></label>
+      <label class="fld"><span>Procurar</span><input type="search" id="hbusca" data-histbusca value="${esc(histBusca)}" placeholder="nome, código, pessoa…"></label></div>
+     <p class="small">${num(hist.length)} registro(s) carregado(s) · ${num(semana)} nos últimos 7 dias${histFiltro || histBusca ? ` · mostrando ${num(vis.length)}` : ''}</p>
+     ${vis.length ? `<ul class="hs-l">${itens}</ul>` : '<p class="small">Nada com esse filtro.</p>'}
+     ${histFim ? '<p class="small">Esse é o começo do histórico.</p>' : `<div class="acts"><button class="b" data-histmais>Carregar registros mais antigos</button></div>`}`;
   }
   function dados() {
-    if (fora()) return `<div class="head"><div><h2>Dados</h2><p>O seu acesso é de acompanhamento: consulta em tempo real, sem alterar nada.</p></div></div>
- <div class="panel box"><h3>O que este acesso mostra</h3><ul class="al"><li><span class="chip ok">Mostra</span><span>Visão geral da execução, biofábricas e aquisições, lotes produzidos e distribuídos, capacitações e dias de campo, entregas do plano, despesas por meta e por rubrica, e o relatório de execução por período (aba Relatórios, com opção de imprimir).</span></li>
-  <li><span class="chip">Não mostra</span><span>Nome, comunidade e demais dados pessoais de agricultoras e agricultores (Lei Geral de Proteção de Dados); anotações livres das visitas; e-mails da equipe; histórico interno de alterações.</span></li>
-  <li><span class="chip f">Atenção</span><span>Os valores financeiros são os lançados pela equipe neste sistema. O registro oficial é o da FUNCERN e o do TransfereGov.</span></li></ul></div>
- <div class="panel box"><h3>Planilhas (.csv)</h3><div class="acts">${['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div></div>
- <div class="panel box"><h3>Minha senha</h3>${demo() ? '<div class="small">A demonstração não usa senha.</div>' : '<div class="acts"><button class="b" data-senha>Trocar a minha senha</button></div>'}</div>`;
     return `<div class="head"><div><h2>Dados</h2><p>${demo() ? 'Modo demonstração: os registros ficam guardados somente neste navegador.' : 'Os registros ficam no banco do projeto (Supabase) e aparecem em qualquer aparelho de quem tem acesso.'}</p></div></div>
  <div class="panel box"><h3>Planilhas para a prestação de contas (.csv)</h3><div class="acts">${Object.keys(MOD).filter(m => m !== 'pessoas').map(m => `<button class="b s" data-exp="${m}">${MOD[m].nome}</button>`).join('')}</div>
  <div class="small">Abre no Excel e no LibreOffice. A planilha de unidades produtivas tem dados pessoais: guarde em pasta do projeto, não envie por aplicativo de mensagem.</div></div>
  <div class="panel box"><h3>Cópia de segurança</h3><div class="acts"><button class="b" data-exp="json">Baixar cópia completa (.json)</button></div><div id="msg" class="small"></div></div>
- <div class="panel box"><h3>Minha senha</h3>${demo() ? '<div class="small">A demonstração não usa senha.</div>' : '<div class="acts"><button class="b" data-senha>Trocar a minha senha</button></div>'}</div>
+ <div class="panel box"><h3>Minha senha e meus dados</h3><p class="small">Toque no seu nome, no alto da tela, para abrir <b>Meus dados</b>: lá você troca a senha e atualiza celular e município.</p><div class="acts"><button class="b" data-meus>Abrir Meus dados</button></div></div>
  ${coord() ? tabela('pessoas') + (demo() ? `<div class="panel box"><h3>Recomeçar a demonstração</h3><div class="acts"><button class="b d" data-zerar>Apagar tudo e voltar aos exemplos</button></div></div>` : '') : ''}`;
   }
   /* cada tela tem um h1 com sobretítulo. Nas abas que já começam com um cabeçalho, o primeiro título vira o h1;
      no painel (que começa pelos indicadores) o cabeçalho é criado aqui. */
-  const SOBRE = { historico: 'Histórico', painel: 'Visão geral', equipe: 'Equipe do projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
+  const SOBRE = { historico: 'Histórico', painel: 'Visão geral', equipe: 'Equipe do projeto', unidades: 'Biofábricas', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Monitoramento', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
   function tituloDaTela(v) {
     const cab = [...v.children].find(c => c.classList && c.classList.contains('head')), eye = `<span class="eyebrow">${SOBRE[tab] || ''}</span>`;
     if (cab && tab !== 'painel') { const h2 = cab.querySelector('h2'), d = h2 && h2.parentElement; if (!h2) return; const h1 = document.createElement('h1'); h1.textContent = h2.textContent; h2.replaceWith(h1); d.classList.add('pg'); h1.insertAdjacentHTML('beforebegin', eye); return; }
-    const novo = document.createElement('div'); novo.className = 'head'; novo.innerHTML = `<div class="pg">${eye}<h1>Execução do projeto</h1><p>${fora() ? 'Andamento do projeto em tempo real, como a equipe registrou.' : 'O que já foi feito, o que pede atenção e como está o uso dos recursos.'}</p></div>`;
+    const novo = document.createElement('div'); novo.className = 'head'; novo.innerHTML = `<div class="pg">${eye}<h1>Execução do projeto</h1><p>${fora() ? 'Andamento do projeto em tempo real, como a equipe registrou.' : 'O que já foi feito, o que pede atenção e como está o o que vem pela frente.'}</p></div>`;
     const ref = [...v.children].find(c => c.classList && (c.classList.contains('dx-topo') || c.classList.contains('banner') || c.classList.contains('fe'))); v.insertBefore(novo, ref || v.firstChild);   // o título vem antes do "Falta enviar"
   }
   /* texto dentro de gráfico e mapa: o desenho encolhe ou cresce com a tela; --k devolve a letra ao tamanho da escala */
@@ -694,12 +738,28 @@
       const bb = t.getBBox(); if (bb.width && bb.x + bb.width > +t.ownerSVGElement.dataset.vb - 2) { t.setAttribute('x', t.dataset.esq); t.setAttribute('text-anchor', 'end'); }
     } catch (e) { /* getBBox falha com o desenho escondido: fica como está */ } });
   }
+  /* foco que sobrevive ao redesenho (14/10/2026): trocar de aba, salvar ou fechar uma janela redesenha a tela; o foco volta
+     ao mesmo botão (a mesma aba, o mesmo "Editar") e o próximo Tab continua dali, em vez de recomeçar do topo da página */
+  const ATR_FOCO = ['data-tab', 'data-new', 'data-edit', 'data-del', 'data-presenca', 'data-fotos', 'data-rub', 'data-mapa', 'data-exp', 'data-meus', 'data-ajuda', 'data-aparencia', 'data-mais', 'data-abrir-rub', 'data-hist', 'data-acessos'];
+  function chaveFoco(el) {
+    if (!el || el === document.body || !el.closest || el.closest('dialog')) return null;
+    if (el.id && el.id !== 'view') return '#' + CSS.escape(el.id);
+    const a = ATR_FOCO.find(x => el.hasAttribute(x)); if (!a) return null;
+    return (el.closest('#tabs') ? '#tabs ' : el.closest('header') ? 'header ' : '#view ') + `[${a}="${CSS.escape(el.getAttribute(a))}"]`;
+  }
+  function devolverFoco(chave) {
+    if (!chave) return; const atual = document.activeElement;
+    if (atual && atual !== document.body && atual.isConnected && !atual.matches('#view')) return;   // alguém já pôs o foco num lugar certo
+    const el = document.querySelector(chave); if (el) el.focus({ preventScroll: true });
+  }
+  let gatilho = null;   // botão que abriu a janela: o foco volta para ele quando a janela fecha
   function render() {
-    R.novoDesenho();
+    const chave = chaveFoco(document.activeElement);
+    R.novoDesenho(); TARDE = new Map();
     if (!eu || !db) return;
     nav(); const v = $('#view');
     v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
-    tituloDaTela(v); escalaDesenhos(); paradasDeLeitura();
+    tituloDaTela(v); escalaDesenhos(); paradasDeLeitura(); if (chave) requestAnimationFrame(() => devolverFoco(chave));   // depois de desenhar: focar antes forçava refazer a página inteira na hora
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
@@ -722,25 +782,28 @@
   function pegarLocal(b) {
     const t = $('#f_geo_t'); if (!navigator.geolocation) { t.textContent = 'Este navegador não informa a localização.'; return; }
     b.disabled = true; t.textContent = 'Procurando o sinal do GPS… fique a céu aberto, se puder.';
+    const dono = ed, aqui = () => ed === dono && b.isConnected;   // a resposta do GPS demora: se o formulário fechou ou mudou, ela é descartada (auditoria 14/10)
     navigator.geolocation.getCurrentPosition(p => {
+      if (!aqui()) return; const t = $('#f_geo_t');
       b.disabled = false; const r = { lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6, precisao: Math.round(p.coords.accuracy) };
       $('#f_lat').value = r.lat; $('#f_lng').value = r.lng; $('#f_precisao').value = r.precisao; b.querySelector('span').textContent = 'Pegar de novo';
       t.textContent = textoLocal(r) + (r.precisao > 100 ? ' · precisão baixa: tente de novo fora de casa' : '');
       if (!$('[data-geolimpar]')) t.insertAdjacentHTML('afterend', '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>');
-    }, e => { b.disabled = false; t.textContent = e.code === 1 ? 'O celular não deixou pegar a localização. Permita a localização para este site nas configurações do navegador e tente de novo.' : e.code === 3 ? 'O GPS demorou demais. Vá para um lugar aberto e tente de novo.' : 'Não foi possível pegar a localização agora. Tente de novo.'; },
+    }, e => { if (!aqui()) return; const t = $('#f_geo_t'); b.disabled = false; t.textContent = e.code === 1 ? 'O celular não deixou pegar a localização. Permita a localização para este site nas configurações do navegador e tente de novo.' : e.code === 3 ? 'O GPS demorou demais. Vá para um lugar aberto e tente de novo.' : 'Não foi possível pegar a localização agora. Tente de novo.'; },
     { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
   }
+  const OBR = ' <span class="obr" aria-hidden="true">*</span>';   // campo obrigatório (o navegador também anuncia pelo required)
   function corpoForm(M, r, id, quais) {
     const campo = ([k, l, t, req, o, filtro]) => {
-      const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
+      const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '', L = l + (req ? OBR : '');
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
       if (t === 'check') return `<div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
-      if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
-      if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
+      if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
+      if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
       if (t === 'geo') { const tem = r.lat != null && r.lat !== ''; return `<div class="fld w"><span class="geo-r" id="f_local_r">${l}</span><div class="geo" role="group" aria-labelledby="f_local_r"><input type="hidden" id="f_lat" value="${tem ? esc(r.lat) : ''}"><input type="hidden" id="f_lng" value="${tem ? esc(r.lng) : ''}"><input type="hidden" id="f_precisao" value="${tem && r.precisao != null ? esc(r.precisao) : ''}">
         <button type="button" class="b geo-b" data-geo>${IC_PINO}<span>${tem ? 'Pegar de novo' : 'Pegar a localização'}</span></button><span class="geo-t" id="f_geo_t" aria-live="polite">${tem ? textoLocal(r) : 'Ainda não registrada.'}</span>${tem ? '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>' : ''}</div></div>`; }
-      return `<div class="fld${['nome', 'tema', 'titulo', 'descricao', 'email'].includes(k) ? ' w' : ''}"><label for="${idc}">${l}</label><input id="${idc}" type="${t === 'number' ? 'text' : t}" ${t === 'number' ? 'inputmode="decimal" autocomplete="off"' : (M === MOD.membros || M.membrosPub) && AUTO[k] ? AUTO[k] : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : t === 'number' && v !== '' ? String(v).replace('.', ',') : v)}"${Rq}></div>`;
+      return `<div class="fld${['nome', 'tema', 'titulo', 'descricao', 'email'].includes(k) ? ' w' : ''}"><label for="${idc}">${L}</label><input id="${idc}" type="${t === 'number' ? 'text' : t}" ${t === 'number' ? 'inputmode="decimal" autocomplete="off"' : (M === MOD.membros || M.membrosPub) && AUTO[k] ? AUTO[k] : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : t === 'number' && v !== '' ? String(v).replace('.', ',') : v)}"${Rq}></div>`;
     };
     let corpo = '', aberto = false; const dica = k => M.dicas && M.dicas[k] ? `<span class="fm-dica">${esc(M.dicas[k])}</span>` : '';
     let pend = '';
@@ -919,7 +982,7 @@
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      ${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span>Vai aplicar no papel?</span><button type="button" class="b s" data-imprimir="${m}">Imprimir em branco</button></div>` : ''}
-     <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
+     <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'visitas' && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="visitas:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === 'visitas' && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
     ed.foto = fotoForm(); ed.avisado = false;
@@ -957,7 +1020,8 @@
     }
   }
   async function aoSalvar(ev) {
-    ev.preventDefault(); if (!ed) return; const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
+    ev.preventDefault(); if (!ed) return; const depoisFotos = ed.depoisFotos; ed.depoisFotos = false;   // vale só para este envio (um erro de validação não deixa o pedido ligado)
+    const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
     const er = t => { $('#ferr').textContent = t; };
     if (m === 'membros' && ant && ant._sr) return er('Os dados pessoais desta pessoa (CPF, endereço…) não foram carregados, porque o sistema abriu sem internet. Para não apagá-los, feche, espere a conexão voltar e abra o cadastro de novo.');
     for (const [k, l, t, req] of M.campos) {
@@ -978,12 +1042,12 @@
     b.disabled = false; b.textContent = 'Salvar';
     if (!res.ok) return er(res.msg);
     if (conviteAberto) { try { await api.conviteEncerrar(conviteAberto, 'aprovado'); } catch (e) { toast('Cadastro gravado, mas o convite não foi encerrado: ' + e.message); } convites = undefined; }
-    const depoisFotos = ed.depoisFotos;
     $('#dlg').close(); ed = null; render();
     if (depoisFotos && !res.fila) return abrirFotos(m, r.id, 'Visita salva. Agora tire ou escolha as fotos.');
     if (depoisFotos && res.fila) return toast('Sem internet: a visita ficou guardada neste aparelho. As fotos precisam de internet: anexe depois, pelo botão Fotos da visita.');
     if (res.fila) toast('Sem internet: guardado neste aparelho. Envia sozinho quando o sinal voltar.');
     else if (m === 'pessoas' && !id && !demo()) toast('Acesso criado. Avise a pessoa para abrir o sistema e usar “Primeiro acesso”.');
+    else toast(id ? 'Alterações salvas.' : 'Registro salvo.');
   }
 
   /* ---------- planilhas e cópia ---------- */
@@ -1014,7 +1078,7 @@
   const avisoA = (msg, ok) => `<p class="ac-erro" id="aerr" role="alert"${msg ? '' : ' hidden'}>${msg ? IC_ERRO + '<span>' + esc(msg) + '</span>' : ''}</p><p class="ac-ok" id="aok" role="status"${ok ? '' : ' hidden'}>${esc(ok || '')}</p>`;
   function painelAcesso(msg, ok) {
     const esq = authModo === 'esqueci', pri = authModo === 'primeiro';
-    const intro = pri ? '<p class="ent-p">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>' : esq ? '<p class="ent-p">Você recebe um e-mail com um link para criar outra senha.</p>' : '';
+    const intro = pri ? '<p class="ent-p">Para quem a coordenação já cadastrou e ainda não tem senha. Informe o seu e-mail: você recebe um link, toca nele e cria a senha na tela que abrir.</p>' : '';
     const campos = pri ? campoA('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username') : esq ? campoA('a_email', 'Seu e-mail', 'email', 'username') : campoA('a_email', 'E-mail', 'email', 'username') + campoA('a_senha', 'Senha', 'password', 'current-password');
     return `<form id="fauth" novalidate>${intro}${campos}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>${pri ? 'Enviar o link' : esq ? 'Enviar o e-mail' : 'Entrar'}</span>${IC_SETA}</button></form>
      <div class="ent-links">${esq ? '<button type="button" class="lk" data-auth="entrar">Voltar para a entrada</button>' : '<button type="button" class="lk" data-auth="esqueci">Esqueci a senha</button>'}
@@ -1039,7 +1103,7 @@
       ['Aparece “Este e-mail já tem senha criada”.', 'Você já fez o primeiro acesso. Use Já tenho senha ou, se não lembrar, Esqueci a senha.'],
       ['Quero ver a senha que estou digitando.', 'Toque no olho, dentro do campo da senha. Toque de novo para esconder. Use quando ninguém estiver olhando a sua tela.'],
       ['O sistema saiu sozinho.', 'Depois de 15 minutos sem uso ele sai, para proteger os dados. Entre de novo: neste aparelho ele volta para a mesma aba em que você estava.'],
-      ['Quero trocar a minha senha.', 'Depois de entrar, abra a aba Dados.']
+      ['Quero trocar a minha senha.', 'Depois de entrar, toque no seu nome, no alto da tela (Meus dados), e abra “Trocar minha senha”.']
     ];
     ed = null; $('#frm').className = 'fm aj-ent';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como entrar no sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
@@ -1051,15 +1115,19 @@
      <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
     if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
   }
+  /* cabeçalho do cartão de acesso conforme o caminho (14/10/2026: "Esqueci a senha" ganhou título próprio, como no Mulheres & Quintais) */
+  const CAB_ACESSO = { esqueci: ['Esqueci a senha', 'Criar uma senha nova', 'Digite o e-mail do seu cadastro. Chega uma mensagem com um link: toque nele e crie outra senha. O que você já registrou no sistema não se perde.'],
+    nova: ['Senha nova', 'Crie a sua senha', 'E-mail confirmado. Agora crie a senha que você vai usar para entrar.'] };
+  function cabAcesso() { const c = CAB_ACESSO[authModo] || ['Área de acesso', 'Que bom ver você', 'Entre com o e-mail cadastrado pela coordenação.']; $('#authey').textContent = c[0]; $('#autht').textContent = c[1]; $('#authsub').textContent = c[2]; }
   function telaAcesso(msg, ok) {
-    $('#carregando').hidden = true; $('#app').hidden = true; $('#auth').hidden = false;
+    $('#carregando').hidden = true; $('#app').hidden = true; $('#auth').hidden = false; if (!demo()) cabAcesso();
     if (demo()) {
       $('#authsub').textContent = 'Modo demonstração: os dados ficam só neste navegador e os registros marcados como “exemplo” são fictícios.';
       $('#authcorpo').innerHTML = `<p class="ent-p">Escolha com qual perfil quer ver o sistema.</p><div class="ent-demo"><button class="bt" data-demo="Coordenação"><span>Entrar como Coordenação</span>${IC_SETA}</button><button class="bt sec" data-demo="Equipe"><span>Entrar como Equipe</span></button><button class="bt sec" data-demo="Acompanhamento"><span>Entrar como SEAB/MDA</span></button></div>${avisoA(msg, ok)}`;
       return;
     }
     if (authModo === 'nova') {
-      $('#authcorpo').innerHTML = `<form id="fauth" novalidate><p class="ent-p">E-mail confirmado. Agora crie a senha que você vai usar para entrar.</p>${campoA('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${campoA('a_senha2', 'Repita a senha', 'password', 'new-password')}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>Guardar a senha e entrar</span>${IC_SETA}</button></form>`;
+      $('#authcorpo').innerHTML = `<form id="fauth" novalidate>${campoA('a_senha', 'Senha nova (mínimo 8 caracteres)', 'password', 'new-password')}${campoA('a_senha2', 'Repita a senha', 'password', 'new-password')}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>Guardar a senha e entrar</span>${IC_SETA}</button></form>`;
       return;
     }
     /* "Já tenho senha | Primeiro acesso" troca o painel logo abaixo: é um conjunto de abas (Tab para nas duas opções; Enter, Espaço ou setas trocam) */
@@ -1136,7 +1204,7 @@
     if ($('#dlg').open) $('#dlg').close();
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
-    eu = null; db = null; real = null; hist = null; convites = undefined; filas = undefined; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)
+    eu = null; db = null; real = null; hist = null; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
@@ -1169,9 +1237,12 @@
     sincronizando = true;
     try {
       const r = await SQC.fila.sincronizar(api, eu.id);
-      const novo = await api.carregar(); const fila = await SQC.fila.listar(eu.id);
-      if ($('#dlg').open) { espera = { db: novo, pend: fila }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
-      else { trocarDb(novo); pend = fila; aplicarFila(); render(); }
+      // só busca tudo de novo se algo foi enviado, se abriu com a cópia do aparelho ou se a pessoa pediu: logo depois de entrar
+      // os dados acabaram de chegar, e baixar tudo outra vez dobrava o tempo e o consumo de internet (auditoria de 14/10)
+      const precisa = r.enviados || r.erros || api.offline || avisar;
+      const novo = precisa ? await api.carregar() : null; const fila = await SQC.fila.listar(eu.id);
+      if (novo) { if ($('#dlg').open) { espera = { db: novo, pend: fila }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
+        else { trocarDb(novo); pend = fila; aplicarFila(); render(); } }
       informarFila(); if (coord()) filas = undefined;   // a lista da coordenação busca de novo na próxima vez que o painel aparecer
       const resta = (await SQC.fila.listar(eu.id)).filter(p => !p.erro).length;
       if (r.enviados) toast(r.enviados + ' lançamento(s) enviado(s).' + (resta ? ` ${resta} continuam guardados: o servidor não respondeu a tempo.` : ''));
@@ -1184,6 +1255,7 @@
   /* ---------- cliques ---------- */
   async function aoClicar(ev) {
     const t = ev.target.closest('button,label'); if (!t) return; const d = t.dataset;
+    if (!t.closest('dialog')) { const k = chaveFoco(t); if (k) gatilho = k; }
     if (d.auth) trocarModo(d.auth, true);
     else if (d.olho) { const c = $('#' + d.olho), mostrar = c.type === 'password'; c.type = mostrar ? 'text' : 'password'; t.setAttribute('aria-pressed', mostrar); t.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha'); }
     else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
@@ -1193,7 +1265,7 @@
     else if (d.relatar !== undefined) abrirRelato();
     else if (d.relatook !== undefined) await gerarRelato(t);
     else if (d.mapa) { const y = window.scrollY; mapaUF = d.mapa; render(); window.scrollTo(0, y); }
-    else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial precisa ser anterior à final.'); }
+    else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial não pode ser depois da final.'); }
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
@@ -1245,15 +1317,17 @@
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
-    else if (d.exp) { if (fora()) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+    else if (d.exp) { if (fora()) return; let qtd = 0;
+      if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); qtd += c[k].length; }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); }
+      else { qtd = db[d.exp].filter(r => !r._pendente).length; baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+      if (api.registrarDownload && !demo()) api.registrarDownload(d.exp, qtd);   // fica no histórico (script 21): quem baixou, quando e quantas linhas
+    }
     else if (d.acessos !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { acessos = await api.acessos(); } catch (e) { acessos = undefined; toast(e.message); } render(); }
-    else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
+    else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); histFim = hist.length < 200; } catch (e) { hist = null; toast(e.message); } render(); }
+    else if (d.histmais !== undefined && hist && hist.length) { t.disabled = true; t.textContent = 'Carregando…'; try { const mais = await api.auditoria(200, hist[hist.length - 1].em); hist = hist.concat(mais); histFim = mais.length < 200; } catch (e) { toast(e.message); } render(); }
     else if (d.meus !== undefined) abrirMeusDados();
     else if (d.meussalvar !== undefined) await salvarMeusContatos(t);
     else if (d.senha !== undefined && !demo()) abrirMeusDados({ senha: true });
-    else if (d.senhaVelha !== undefined) {
-      ed = null; $('#frm').className = ''; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
-    }
     else if (d.senhaok !== undefined) {
       const a = $('#s1').value, b = $('#s2').value; if (a.length < 8) { $('#ferr').textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; } if (a !== b) { $('#ferr').textContent = 'As duas senhas não são iguais.'; return; }
       t.disabled = true; try { await api.trocarSenha(a); $('#dlg').close(); toast('Senha trocada. Use a nova senha na próxima entrada.'); } catch (e) { $('#ferr').textContent = e.message; t.disabled = false; }
@@ -1275,7 +1349,7 @@
       ${m && ativo ? `<section class="md-c" aria-labelledby="md-ed"><h3 class="fm-sec" id="md-ed">Atualizar meu celular e município</h3><div class="fields"><div class="fld"><label for="f_telefone">Celular (com DDD)</label><input id="f_telefone" autocomplete="tel" inputmode="tel" value="${esc(m.telefone || '')}"></div><div class="fld"><label for="md_mun">Município</label><input id="md_mun" autocomplete="address-level2" value="${esc(m.municipio || '')}"></div></div>
         <div class="acts"><button type="button" class="b p" data-meussalvar>Salvar meus dados</button>${coord() ? `<button type="button" class="b" data-edit="membros:${esc(m.id)}">Editar meu cadastro completo</button>` : ''}</div>
         <p class="note">Nome, função, e-mail e os dados da bolsa só a coordenação altera.</p></section>`
-        : fora() ? '' : `<p class="note">Seu acesso ainda não está ligado a um cadastro da equipe (o e-mail do cadastro é diferente deste). Peça à coordenação para conferir o e-mail em Equipe.</p>`}
+        : fora() ? '' : m ? `<p class="note">Seu cadastro na equipe está encerrado desde ${dt(m.fim)}. Para corrigir, fale com a coordenação.</p>` : `<p class="note">Seu acesso ainda não está ligado a um cadastro da equipe (o e-mail do cadastro é diferente deste). Peça à coordenação para conferir o e-mail em Equipe.</p>`}
       ${demo() ? '<p class="note">A demonstração não usa senha.</p>' : `<details class="md-s"${op.senha ? ' open' : ''}><summary>Trocar minha senha</summary><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="acts"><button type="button" class="b p" data-senhaok>Trocar senha</button></div></details>`}
      </div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(op.msg || '')}</div><div class="frow md-pe"><button type="button" class="b p" data-fechar>Voltar ao sistema</button><button type="button" class="b" data-sair>Sair do sistema</button></div></div>`;
@@ -1296,6 +1370,10 @@
     api = SQC.CONFIG && SQC.CONFIG.supabaseUrl ? SQC.apiSupabase : SQC.apiDemo; SQC.api = api;
     document.addEventListener('click', ev => { aoClicar(ev).catch(e => toast(e.message || 'Algo deu errado. Tente de novo.')); });
     document.addEventListener('submit', ev => { if (ev.target.id === 'frm') aoSalvar(ev).catch(e => { $('#ferr').textContent = e.message; }); else if (ev.target.id === 'fauth') aoEntrar(ev); else if (ev.target.id === 'fpub') aoEnviarConvite(ev).catch(e => { $('#perr').textContent = e.message; }); });
+    let tBusca = null;
+    document.addEventListener('input', ev => { if (!ev.target.matches || !ev.target.matches('[data-histbusca]')) return; clearTimeout(tBusca);
+      tBusca = setTimeout(() => { histBusca = ev.target.value.trim(); render(); const b = $('#hbusca'); if (b) { b.focus({ preventScroll: true }); b.setSelectionRange(b.value.length, b.value.length); } }, 250); });
+    document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-histfiltro]')) { histFiltro = ev.target.value; render(); } });
     document.addEventListener('change', ev => {
       const e = ev.target, de = e.dataset || {};
       if (e.id === 'imp_arq') { const a = e.files && e.files[0]; e.value = ''; aoEscolherPlanilha(a); return; }
@@ -1309,13 +1387,14 @@
     // lista de presença: Enter em qualquer campo de "Adicionar à lista" adiciona (a janela não tem botão de enviar)
     document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target && /^pr_(nome|com|mun|mul)$/.test(ev.target.id) && prEv) { ev.preventDefault(); adicionarPresenca(prEv).catch(e => { $('#ferr').textContent = e.message; }); } });
     $('#dlg').addEventListener('cancel', ev => { if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
-    $('#dlg').addEventListener('close', () => { ed = null; $('#dlg').classList.remove('dlg-ap'); aplicarEspera(); });
+    $('#dlg').addEventListener('close', () => { ed = null; $('#dlg').classList.remove('dlg-ap'); aplicarEspera(); const g = gatilho; setTimeout(() => devolverFoco(g), 0); });
     // abas da entrada: setas, Home e End trocam a opção (e o foco acompanha)
     document.addEventListener('keydown', ev => { const t = ev.target; if (!t.matches || !t.matches('.sg [role="tab"]')) return; const ordem = ['entrar', 'primeiro'], i = ordem.indexOf(authModo);
       const n = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? (i + 1) % 2 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? (i + 1) % 2 : ev.key === 'Home' ? 0 : ev.key === 'End' ? 1 : -1; if (n < 0) return; ev.preventDefault(); if (n !== i) trocarModo(ordem[n], true); });
     // ao digitar num campo com erro, o erro daquele campo sai
     document.addEventListener('input', ev => { const c = ev.target.closest && ev.target.closest('#fauth .cp.erro'); if (!c) return; c.classList.remove('erro'); const e = c.querySelector('.cp-e'); e.hidden = true; e.textContent = ''; ev.target.removeAttribute('aria-invalid'); ev.target.removeAttribute('aria-describedby'); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
+    document.addEventListener('toggle', ev => { if (ev.target.open && ev.target.matches && ev.target.matches('details')) abrirTarde(ev.target); }, true);
     document.addEventListener('keydown', teclaGrafico); document.addEventListener('focusout', ev => { if (ev.target.matches && ev.target.matches('[data-rg]')) { mesTeclado = -1; const d = document.querySelector('[data-dica]'), c = document.querySelector('[data-cr]'); if (d) d.hidden = true; if (c) c.setAttribute('hidden', ''); } });
     let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false && !api.offline; if (e === 'online') sincronizar(); } }));
@@ -1352,6 +1431,6 @@
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, abas, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, abas, _estado: () => ({ eu, db, pend, tab }) };
   if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
 })();

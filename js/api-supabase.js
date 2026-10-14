@@ -192,7 +192,9 @@
         const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
         const evFora = async () => { const { data, error } = await sb.rpc('eventos_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return todas('eventos'); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos') ? [] : fora && t === 'eventos' ? evFora() : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        // itens das biofábricas (script 20): o SEAB/MDA recebe sem valor e sem rubrica; banco sem o 20 ainda: tira na chegada
+        const itFora = async () => { const { data, error } = await sb.rpc('itens_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return (await todas('itens')).map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); if (error) throw erro(error); return data || []; };
+        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos' || t === 'despesas') ? [] : fora && t === 'eventos' ? evFora() : fora && t === 'itens' ? itFora() : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // dados reservados da equipe: só a coordenação recebe, por função própria do banco
         if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {
@@ -261,8 +263,11 @@
       if (!data || !data.length) throw erro({ code: '42501', message: 'permission denied' });
     },
     /* histórico (só a coordenação enxerga; para os outros o banco devolve lista vazia) */
-    async auditoria(limite) {
-      const { data, error } = await sb.from('auditoria').select('*').order('em', { ascending: false }).limit(limite || 200);
+    /* histórico de 200 em 200: "antes" = data do registro mais antigo já carregado (para buscar os anteriores) */
+    async registrarDownload(tipo, qtd) { try { await sb.rpc('registrar_download', { p_tipo: tipo, p_qtd: qtd || 0 }); } catch (e) { /* sem rede ou sem o script 21: o download segue */ } },
+    async auditoria(limite, antes) {
+      let q = sb.from('auditoria').select('*').order('em', { ascending: false }).limit(limite || 200); if (antes) q = q.lt('em', antes);
+      const { data, error } = await q;
       if (error) throw erro(error);
       return data || [];
     },

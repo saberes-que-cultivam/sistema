@@ -217,7 +217,8 @@
   function tempoDecorrido(hoje) { const a = pd(D.VIGENCIA.ini), b = pd(D.VIGENCIA.fim); return Math.max(0, Math.min(1, ((hoje || new Date()) - a) / (b - a))); }
 
   /* ---------- o que precisa de atenção (painel) ---------- */
-  const brl = v => 'R$ ' + n(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const FMT_BRL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // criado uma vez: toLocaleString a cada chamada era ~50 vezes mais lento (auditoria 14/10)
+  const brl = v => 'R$ ' + FMT_BRL.format(n(v));
   const dt = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
   const venceu = (e, hoje) => iso(fimMes(e.fim)) < iso(hoje || new Date());   // a etapa só vence depois do último dia do mês final
   /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
@@ -383,14 +384,14 @@
   function mensagemErro(e) {
     const m = String((e && (e.message || e.error_description || e.msg)) || e || ''), c = e && e.code;
     if (c === 'P0001') return m;   // mensagem escrita por nós no banco
-    if (c === '23503') return /insert|update/i.test(m) ? 'Este registro aponta para um cadastro que não existe mais (lote, unidade ou agricultor excluído). Confira e escolha de novo.' : 'Este registro está em uso em outro cadastro e não pode ser excluído.';
+    if (c === '23503') return /insert|update/i.test(m) ? 'Este registro aponta para um cadastro que não existe mais (lote, biofábrica ou unidade produtiva excluída). Confira e escolha de novo.' : 'Este registro está em uso em outro cadastro e não pode ser excluído.';
     if (c === '23505') return 'Já existe um registro igual a este.';
     if (c === '22P02') return 'Algum número foi digitado com vírgula ou letra onde só cabe número inteiro. Confira e tente de novo.';
     if (c === '23514' || c === '23502') return 'Algum campo ficou em branco ou com valor fora do permitido. Confira e tente de novo.';
     if (c === '42501' || /row-level security|permission denied/i.test(m)) return 'O seu perfil não tem permissão para fazer isso.';
     if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
     if (/Email not confirmed/i.test(m)) return 'Falta confirmar o e-mail: abra a mensagem que o sistema enviou e toque no link.';
-    if (/already registered/i.test(m)) return 'Este e-mail já tem senha criada. Use "Entrar" ou "Esqueci a senha".';
+    if (/already registered/i.test(m)) return 'Este e-mail já tem senha criada. Use “Já tenho senha” ou “Esqueci a senha”.';
     if (/rate limit|security purposes/i.test(m)) return 'Muitas tentativas seguidas. Espere um minuto e tente de novo.';
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
     if (/Password should be/i.test(m)) return 'A senha precisa ter pelo menos 8 caracteres.';

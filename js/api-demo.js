@@ -110,7 +110,19 @@
       if (R.emUso(db, tabela, id).length) { const e = new Error('em uso'); e.code = '23503'; throw e; }
       db[tabela] = db[tabela].filter(x => x.id !== id); persistir();
     },
-    async auditoria() { return []; },
+    /* demonstração: alguns registros fictícios, montados com os dados de exemplo, para mostrar como o histórico aparece */
+    async auditoria(limite, antes) {
+      if (!db) carregarLocal(); if (antes) return [];
+      const quem = (db.pessoas.find(p => p.perfil === 'Coordenação') || {}).id, eqp = (db.pessoas.find(p => p.perfil === 'Equipe') || {}).id, h = Date.now(), H = [];
+      const em = horas => new Date(h - horas * 3600e3).toISOString(), l = db.lotes[0], u = db.unidades[0], v = db.visitas[0];
+      if (l) H.push({ id: 1, tabela: 'lotes', registro_id: l.id, acao: 'UPDATE', por: eqp, em: em(2), antes: Object.assign({}, l, { status: 'Maturando' }), depois: l });
+      H.push({ id: 2, tabela: 'planilhas', acao: 'PLANILHA', por: quem, em: em(5), depois: { tipo: 'agricultores', qtd: db.agricultores.length } });
+      if (v) H.push({ id: 3, tabela: 'visitas', registro_id: v.id, acao: 'INSERT', por: eqp, em: em(27), depois: v });
+      if (u) H.push({ id: 4, tabela: 'unidades', registro_id: u.id, acao: 'UPDATE', por: quem, em: em(50), antes: Object.assign({}, u, { local_ok: false }), depois: u });
+      H.push({ id: 5, tabela: 'planilhas', acao: 'PLANILHA', por: quem, em: em(75), depois: { tipo: 'json', qtd: D.TABELAS.reduce((t, k) => t + (db[k] || []).length, 0) } });
+      return H.slice(0, limite || 200);
+    },
+    async registrarDownload() { /* a demonstração não guarda histórico */ },
     async informarFila() {},
     async listarFila() {   // demonstração: um exemplo fixo, para a coordenação ver como aparece
       if (!eu || eu.perfil !== 'Coordenação') return [];

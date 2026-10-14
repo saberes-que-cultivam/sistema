@@ -47,7 +47,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   ok((await p.textContent('#frm')).includes('data não confirmada'), 'foto sem data no arquivo entra marcada como “data não confirmada”');
   const f = (await db()).fotos[0]; ok(f.caminho === `eventos/e2/${f.id}.jpg`, 'caminho da foto segue a pasta da atividade');
   await p.keyboard.press('Escape');
-  ok((await p.textContent('[data-fotos="eventos:e2"]')).includes('(2)') && (await p.textContent('[data-presenca="e2"]')).includes('(1)'), 'a tabela mostra quantas fotos e nomes a atividade tem');
+  ok((await p.textContent('[data-fotos="eventos:e2"] .evb-n')) === '2' && (await p.textContent('[data-presenca="e2"] .evb-n')) === '1', 'a tabela mostra quantas fotos e nomes a atividade tem (selo)');
   // atividade com lista e fotos não é excluída por engano
   const d = await p.$('[data-del="eventos:e2"]'); await d.click(); ok(/Em uso/.test(await d.textContent()), 'atividade com lista e fotos não é excluída');
   // excluir foto

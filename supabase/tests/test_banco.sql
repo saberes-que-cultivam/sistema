@@ -368,6 +368,9 @@ do $$ declare ev uuid; vi uuid; cam text; begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   insert into public.fotos (tabela, registro, caminho, tirada_em) values ('eventos', ev, cam, '2026-10-05');
   insert into storage.objects (bucket_id, name) values ('evidencias', cam);
+  -- 20: arquivo que ficou na pasta não é "adotado" por outra linha com o mesmo caminho
+  begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, cam); raise exception 'FALHOU: adotou caminho de arquivo que já existe (20)';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'eventos/' || ev || '/../x.jpg'); raise exception 'FALHOU: caminho fora do formato (15)';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   begin insert into public.fotos (tabela, registro, caminho) values ('eventos', ev, 'visitas/' || ev || '/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: foto com caminho de outro registro';
@@ -447,7 +450,8 @@ reset role;
 -- ===== script 19: "Meus dados" — a pessoa muda só o próprio celular e município =====
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
-insert into public.membros (funcao, nome, email, telefone, inicio, lgpd) values ('discente', 'Equipe Dois', 'e2@teste.br', '(84) 90000-0001', '2026-08-01', true), ('discente', 'Outra Pessoa', 'outra@teste.br', '(84) 90000-0002', '2026-08-01', true);
+insert into public.membros (funcao, nome, email, telefone, inicio, lgpd) values ('discente', 'Equipe Dois', 'e2@teste.br', '(84) 90000-0001', '2026-08-01', true), ('discente', 'Outra Pessoa', 'outra@teste.br', '(84) 90000-0002', '2026-08-01', true), ('discente', 'Mesmo E-mail', ' Outra@Teste.br ', '(84) 90000-0003', '2026-08-01', true);
+insert into public.itens (unidade, descricao, valor, rubrica) select id, 'Item de teste (20)', 1500, 'equipamentos' from public.unidades limit 1;
 reset role;
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
 set role authenticated;
@@ -459,11 +463,31 @@ do $$ begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
+-- 20: dois cadastros ativos com o mesmo e-mail (' Outra@Teste.br ' e 'outra@teste.br'): a função recusa, não muda nenhum
+do $$ begin
+  if (select count(*) from public.membros where lower(btrim(email)) = 'outra@teste.br' and fim is null) <> 2 then raise exception 'FALHOU: preparo do teste de e-mail duplicado'; end if;
+end $$;
+reset role;
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
 set role authenticated;
 do $$ begin
+  -- 20: o SEAB/MDA não recebe valor nem rubrica dos itens; lê pela função, sem esses campos
+  if exists (select 1 from public.itens) then raise exception 'FALHOU: SEAB leu a tabela de itens (valor e rubrica)'; end if;
+  if (select to_jsonb(i) ? 'valor' or to_jsonb(i) ? 'rubrica' from public.itens_acompanhamento() i limit 1) then raise exception 'FALHOU: itens_acompanhamento trouxe valor ou rubrica'; end if;
   begin perform public.atualizar_meus_contatos('(84) 98888-7777', null); raise exception 'FALHOU: acompanhamento sem cadastro na equipe alterou algo';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
+-- ===== script 21: downloads no histórico =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ begin
+  perform public.registrar_download('agricultores', 30);
+  begin perform public.registrar_download('qualquer; drop table x', 1); raise exception 'FALHOU: aceitou tipo de planilha desconhecido';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.auditoria (tabela, acao) values ('planilhas', 'PLANILHA'); raise exception 'FALHOU: equipe gravou direto no histórico';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+do $$ begin if not exists (select 1 from public.auditoria where tabela = 'planilhas' and depois ->> 'tipo' = 'agricultores' and (depois ->> 'qtd')::int = 30) then raise exception 'FALHOU: download não entrou no histórico'; end if; end $$;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;
