@@ -543,16 +543,16 @@
         return `<div class="ae-l"><div class="ae-o"><span class="mt-n" aria-hidden="true">${esc((o.replace(/[^A-Za-zÀ-ú/ ]/g, '').split(/[\s/]+/).filter(Boolean).slice(-1)[0] || '?').slice(0, 4).toUpperCase())}</span><div><b>${esc(o)}</b><small>${at} pessoa${at === 1 ? '' : 's'} com acesso</small></div></div>
          <div class="ae-p">${L.length ? L.map(p => { const st = sit(p); return `<button class="ae-c${p.ativo === false ? ' off' : ''}" data-edit="pessoas:${esc(p.id)}" title="Abrir o cadastro de ${esc(p.nome)}"><span class="pc-av" aria-hidden="true">${esc(iniciais(p.nome))}</span><span class="ae-t"><b>${esc(p.nome)}</b><span class="chip ${st[0]} vg-c">${st[1]}</span></span></button>`; }).join('') : '<p class="small">Ninguém cadastrado ainda.</p>'}</div>
          <div class="ae-a"><button class="ae-b" data-new="pessoas" data-pre="${esc(o === 'Órgão não informado' ? '-' : o)}">${IC_MAIS}<span>Adicionar pessoa</span></button><button class="ae-b" data-vercomo="${esc(o === 'Órgão não informado' ? '' : o)}">${IC_OLHO.split('<svg class="o2"')[0].replace('class="o1" ', '').replace('width="22" height="22"', 'width="20" height="20"')}<span>Ver como ${esc(o === 'Órgão não informado' ? 'quem acompanha' : o)} vê</span></button></div></div>`; }).join('')}</div></section>`; };
-    /* resumo no alto (14/10/2026, no formato do Mulheres & Quintais): vagas do plano preenchidas e bolsas pagas */
+    /* resumo no alto (14/10/2026, no formato do Mulheres & Quintais): vagas do plano preenchidas e atividades de formador pagas */
     const nAt = f => R.equipePorFuncao(db, f, hj).ativos.length, VAGAS = { coordenacao: 1, auxiliar: 1, discente: 3 };
     const abertas = Object.keys(VAGAS).reduce((t, f) => t + Math.max(0, VAGAS[f] - nAt(f)), 0);
-    const ITB = ['i01', 'i02', 'i03', 'i16'], prevB = D.DESEMBOLSO.itens.filter(i => ITB.includes(i.id)).reduce((t, i) => t + i.m.reduce((a, b) => a + b, 0), 0);
-    const pagoB = db.despesas.filter(d => ITB.includes(d.item) && d.status === 'Pago').reduce((t, d) => t + (+d.valor || 0), 0), mil = v => num(v / 1000, v % 1000 ? 1 : 0);
+    /* formadores: o plano v4 paga por atividade (80 × R$ 100, Meta 3); as atividades pagas saem das bolsas do item i16 lançadas como pagas */
+    const atF = Math.floor(db.despesas.filter(d => d.item === 'i16' && d.status === 'Pago').reduce((t, d) => t + (+d.valor || 0), 0) / 100);
     const resumo = `<section class="dx-topo panel eq-top" aria-label="Resumo da equipe"><div class="dx-kpis">
       ${kpi(1, nAt('coordenacao') * 100, nAt('coordenacao'), 'de 1', 'coordenação do projeto cadastrada', '', undefined)}
       ${kpi(2, Math.min(1, nAt('auxiliar')) * 100, nAt('auxiliar'), 'de 1', 'auxiliar administrativo cadastrado', '', undefined)}
-      ${kpi(3, Math.min(3, nAt('discente')) / 3 * 100, nAt('discente'), 'de 3', 'bolsistas discentes na equipe', nAt('formador') ? nAt('formador') + (nAt('formador') === 1 ? ' formador(a) cadastrado(a)' : ' formadores cadastrados') : '', undefined)}
-      ${kpi(4, prevB ? pagoB / prevB * 100 : 0, mil(pagoB), 'de ' + mil(prevB) + ' mil', 'reais em bolsas pagas', 'coordenação, auxiliar, discentes e formadores', undefined, 'pago')}</div></section>`;
+      ${kpi(3, Math.min(3, nAt('discente')) / 3 * 100, nAt('discente'), 'de 3', 'bolsistas discentes na equipe', '', undefined)}
+      ${kpi(4, Math.min(80, atF) / 80 * 100, atF, 'de 80', 'atividades de formação pagas', nAt('formador') ? nAt('formador') + (nAt('formador') === 1 ? ' formador(a) cadastrado(a)' : ' formadores cadastrados') : 'nenhum formador cadastrado ainda', undefined, 'concluído')}</div></section>`;
     return `<div class="head"><div><h2>Coordenação e bolsistas</h2><p>Quem ocupa cada função com bolsa no plano de trabalho. O cadastro é da coordenação; os valores de bolsa vêm da planilha da FUNCERN, importada na aba Financeiro.</p>${abertas ? `<span class="eq-pill">${abertas} ${abertas === 1 ? 'vaga aberta' : 'vagas abertas'} no plano de trabalho</span>` : '<span class="eq-pill ok">Todas as vagas do plano preenchidas</span>'}</div></div>${semTabela}${resumo}${FUNCOES.map(bloco).join('')}${ext()}`;
   }
   function financeiro() {
