@@ -15,3 +15,4 @@
 - Números do plano de trabalho (etapas, rubricas, parcelas) ficam só em `js/dados.js`; os testes conferem que fecham em R$ 400.000,00.
 - O sistema é pequeno de propósito (equipe de 3 a 4 pessoas, 11 meses). Antes de criar módulo novo, pergunte se uma coluna ou um aviso no painel não resolve.
 - Este sistema usa a mesma arquitetura do `mulheres-e-quintais/sistema`, mas é independente: nada daqui escreve naquele repositório nem usa o banco dele.
+- WhatsApp da coordenação no painel "Como entrar no sistema": só em `SQC.CONFIG.contato = { tel, wa }` (`js/config.js`), e só com autorização de quem atende (o número fica público). Sem ele, o painel diz para falar com a coordenação; nunca invente número nem copie o do Mulheres & Quintais.

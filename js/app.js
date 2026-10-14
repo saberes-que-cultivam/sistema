@@ -956,7 +956,38 @@
     const campos = pri ? campoA('a_email', 'Seu e-mail (o mesmo que a coordenação cadastrou)', 'email', 'username') : esq ? campoA('a_email', 'Seu e-mail', 'email', 'username') : campoA('a_email', 'E-mail', 'email', 'username') + campoA('a_senha', 'Senha', 'password', 'current-password');
     return `<form id="fauth" novalidate>${intro}${campos}${avisoA(msg, ok)}<button class="bt" id="abotao"><span>${pri ? 'Enviar o link' : esq ? 'Enviar o e-mail' : 'Entrar'}</span>${IC_SETA}</button></form>
      <div class="ent-links">${esq ? '<button type="button" class="lk" data-auth="entrar">Voltar para a entrada</button>' : '<button type="button" class="lk" data-auth="esqueci">Esqueci a senha</button>'}
-      <details class="ent-aj"><summary><i aria-hidden="true">?</i>Precisa de ajuda para entrar?</summary><p>Só entra quem a coordenação do projeto cadastrou. Na primeira vez, use “Primeiro acesso” com o mesmo e-mail que você passou para a coordenação, abra a mensagem que chegar (confira o spam) e toque no link. Se o e-mail não chegar em alguns minutos ou a tela disser que você não tem acesso, fale com a coordenação.</p></details></div>`;
+      <button type="button" id="aj_entrada" class="ent-aj-b" data-ajudaentrada aria-haspopup="dialog"><i aria-hidden="true">?</i>Precisa de ajuda para entrar?</button></div>`;
+  }
+  /* painel "Como entrar no sistema" (14/10/2026, no formato da ajuda do Mulheres & Quintais, com o caminho deste sistema:
+     o primeiro acesso e a senha esquecida chegam por LINK NO E-MAIL). O WhatsApp da coordenação só aparece se estiver
+     em SQC.CONFIG.contato = { tel: '(84) 9 0000-0000', wa: '5584900000000' } (config.js): sem ele, o painel indica falar com a coordenação. */
+  function abrirAjudaEntrada() {
+    const c = (SQC.CONFIG && SQC.CONFIG.contato) || {}, wa = String(c.wa || '').replace(/\D/g, ''), tel = String(c.tel || '').trim();
+    const tarefas = [
+      ['Entrar pela primeira vez', ['Abra o endereço do sistema no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone e iPad).', 'Toque em <b>Primeiro acesso</b>.', 'Digite o e-mail que a coordenação cadastrou e toque em <b>Enviar o link</b>.', 'Abra a mensagem que chegar no seu e-mail (confira também o spam e a aba Promoções) e toque no link.', 'Na tela que abrir, crie uma senha com pelo menos 8 caracteres, repita e toque em <b>Guardar a senha e entrar</b>.']],
+      ['Entrar nas próximas vezes', ['Toque em <b>Já tenho senha</b>.', 'Digite o e-mail e a senha.', 'Toque em <b>Entrar</b>.']],
+      ['Esqueci a senha', ['Toque em <b>Esqueci a senha</b>.', 'Digite o seu e-mail e toque em <b>Enviar o e-mail</b>.', 'Abra a mensagem, toque no link e crie outra senha. O que você já registrou no sistema não se perde.']]
+    ];
+    const antes = ['Abra o link do e-mail no mesmo aparelho em que vai usar o sistema. Se ele abrir dentro do aplicativo de e-mail, use o menu desse aplicativo para abrir no Chrome ou no Safari.', 'Para usar como aplicativo, no menu do navegador toque em <b>Adicionar à tela inicial</b>. Depois de entrar com internet, dá para registrar no campo sem sinal.', 'No sol forte, toque em <b>Modo sol</b>, no cartão de acesso: letra preta em fundo branco e maior.'];
+    const duvidas = [
+      ['O e-mail com o link não chegou.', 'Espere alguns minutos e confira o spam e a aba Promoções. Veja se o e-mail foi digitado exatamente como a coordenação cadastrou. Peça o link uma vez só: pedidos seguidos são bloqueados por alguns minutos. Se não chegar, fale com a coordenação.'],
+      ['Aparece “O link que você abriu já foi usado ou venceu”.', 'Cada link vale uma vez só e por pouco tempo. Peça outro em Primeiro acesso (ou em Esqueci a senha, se você já tinha senha) e use o link mais recente.'],
+      ['Aparece “Este e-mail não tem acesso ativo ao sistema”.', 'O e-mail não está cadastrado ou o acesso foi desligado. Fale com a coordenação do projeto.'],
+      ['Aparece “E-mail ou senha incorretos”.', 'Confira o e-mail e a senha (letra maiúscula conta). Se não lembrar a senha, use Esqueci a senha.'],
+      ['Aparece “Este e-mail já tem senha criada”.', 'Você já fez o primeiro acesso. Use Já tenho senha ou, se não lembrar, Esqueci a senha.'],
+      ['Quero ver a senha que estou digitando.', 'Toque no olho, dentro do campo da senha. Toque de novo para esconder. Use quando ninguém estiver olhando a sua tela.'],
+      ['O sistema saiu sozinho.', 'Depois de 15 minutos sem uso ele sai, para proteger os dados. Entre de novo: neste aparelho ele volta para a mesma aba em que você estava.'],
+      ['Quero trocar a minha senha.', 'Depois de entrar, abra a aba Dados.']
+    ];
+    ed = null; $('#frm').className = 'fm aj-ent';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como entrar no sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="aj-intro">Só entra quem a coordenação do projeto cadastrou, com o e-mail que ela registrou. Na primeira vez, o sistema manda para esse e-mail um link: é por ele que você cria a sua senha.</p>
+      <div class="aj-ct"><p>Não conseguiu entrar? Fale com a coordenação do projeto${wa && tel ? ':' : '.'}</p>${wa && tel ? `<a class="aj-wa" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">WhatsApp ${esc(tel)}</a>` : ''}</div>
+      <h3 class="fm-sec">Passo a passo</h3><div class="aj-dd">${tarefas.map(([t, l], i) => `<details${i === 0 ? ' open' : ''}><summary>${esc(t)}</summary><ol>${l.map(x => `<li>${x}</li>`).join('')}</ol></details>`).join('')}</div>
+      <h3 class="fm-sec">Antes de entrar</h3><ul class="aj-ul">${antes.map(x => `<li>${x}</li>`).join('')}</ul>
+      <h3 class="fm-sec">Dúvidas comuns</h3><div class="aj-dd">${duvidas.map(([q, r]) => `<details><summary>${esc(q)}</summary><p>${esc(r)}</p></details>`).join('')}</div></div>
+     <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
+    if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
   }
   function telaAcesso(msg, ok) {
     $('#carregando').hidden = true; $('#app').hidden = true; $('#auth').hidden = false;
@@ -1115,6 +1146,7 @@
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.ajudaentrada !== undefined) abrirAjudaEntrada();
     else if (d.aparencia !== undefined) { ed = null; $('#frm').className = 'fm'; $('#frm').innerHTML = SQC.aparencia.janela(); $('#dlg').classList.add('dlg-ap'); if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal(); }
     else if (d.apSol !== undefined) { SQC.aparencia.mudar('sol', !SQC.aparencia.ler().sol); $('#frm').innerHTML = SQC.aparencia.janela(); $('#frm [data-ap-sol]').focus(); }
     else if (d.apTema) { SQC.aparencia.mudar('tema', d.apTema); $('#frm').innerHTML = SQC.aparencia.janela(); $(`#frm [data-ap-tema="${d.apTema}"]`).focus(); }

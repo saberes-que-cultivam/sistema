@@ -31,7 +31,7 @@ const foco = p => p.evaluate(() => { const e = document.activeElement; if (!e ||
   return { nome: e.id || (e.dataset.olho ? 'olho' : e.dataset.auth ? 'lk_' + e.dataset.auth : e.tagName.toLowerCase()), dentro: !!e.closest('#auth'), anel: s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, afast: parseFloat(s.outlineOffset), cor: s.outlineColor,
     visivel: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight + 1 }; });
 const caixa = p => p.evaluate(() => JSON.stringify(['.authbox', '#fauth', '#abotao', '#a_email'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x + scrollX, r.y + scrollY, r.width, r.height].map(Math.round); })));
-const ORDEM = ['tab_entrar', 'tab_primeiro', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'summary', 'ap_entrada'];   // ap_entrada: "Modo sol", por último para não atrasar quem só quer entrar
+const ORDEM = ['tab_entrar', 'tab_primeiro', 'a_email', 'a_senha', 'olho', 'abotao', 'lk_esqueci', 'aj_entrada', 'ap_entrada'];   // ap_entrada: "Modo sol", por último para não atrasar quem só quer entrar
 
 async function roteiro(b, largura, altura) {
   console.log(`\n== ${largura} × ${altura} ==`);
@@ -74,8 +74,12 @@ async function roteiro(b, largura, altura) {
   ok((await p.textContent('#aerr')).trim().length > 10 && await p.getAttribute('#aerr', 'role') === 'alert', 'senha errada: aviso em texto com role=alert: “' + (await p.textContent('#aerr')).trim() + '”');
   f = await foco(p); ok(f.dentro && f.nome !== 'corpo', 'depois do erro o foco continua na tela (' + f.nome + ')');
   // 7. ajuda e "Esqueci a senha"
-  await p.focus('#abotao'); await k('Tab'); await k('Tab'); await k('Space'); ok(await p.evaluate(() => document.querySelector('.ent-aj').open), 'Espaço abre a ajuda');
-  await k('Enter'); ok(!(await p.evaluate(() => document.querySelector('.ent-aj').open)), 'Enter fecha a ajuda');
+  await p.focus('#abotao'); await k('Tab'); await k('Tab'); await k('Space'); await p.waitForSelector('#dlg[open] .aj-ct');
+  ok((await p.textContent('#dlg h2')).includes('Como entrar no sistema') && (await p.$$('#dlg .aj-dd details')).length >= 8 && await p.evaluate(() => document.querySelector('#dlg .aj-dd details').open), 'Espaço abre o painel “Como entrar no sistema” (passo a passo com o primeiro aberto e dúvidas comuns)');
+  ok(!(await p.$('#dlg .aj-wa')) && (await p.textContent('#dlg .aj-ct')).includes('Fale com a coordenação'), 'sem WhatsApp configurado, o painel indica falar com a coordenação (não inventa número)');
+  ok(await p.evaluate(() => document.querySelector('#dlg').contains(document.activeElement)), 'o foco entra no painel');
+  await k('Escape'); await p.waitForFunction(() => !document.querySelector('#dlg').open);
+  ok(await p.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-ajudaentrada')), 'Esc fecha o painel e o foco volta ao “Precisa de ajuda”');
   await k('Shift+Tab'); await k('Enter'); ok((await foco(p)).nome === 'a_email' && !(await p.$('.sg')), '“Esqueci a senha” com Enter: abre o pedido e o foco vai para o e-mail');
   await k('Tab'); await k('Tab'); ok((await foco(p)).nome === 'lk_entrar', 'Tab chega em “Voltar para a entrada”'); await k('Enter');
   ok((await foco(p)).nome === 'tab_entrar', 'voltar devolve o foco ao seletor');

@@ -1175,3 +1175,25 @@ html.bloq #view,html.bloq dialog{visibility:hidden}
 @media (max-width:640px){.pe-ent .wrap{grid-template-columns:1fr;justify-items:center;text-align:center;padding-inline:16px}.pe-ent .pe-m{flex-direction:column;gap:8px}.pe-ent .pe-a{align-items:center}.pe-ent .pe-a p{text-align:center;max-width:none}}
 #auth .cp input::placeholder{color:var(--txt-3);opacity:1}   /* exemplo do campo de e-mail: mesmo cinza dos textos de apoio, legível no claro, no escuro e no modo sol */
 :root[data-sol] #auth .cp input::placeholder{color:#595959}   /* modo sol: cinza escuro (7:1), mas diferente do preto do texto digitado, para não parecer já preenchido */
+/* "Precisa de ajuda para entrar?" abre o painel "Como entrar no sistema" (14/10/2026): o botão tem o mesmo desenho da antiga ligação */
+.ent-aj-b{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:0;border-radius:8px;background:none;color:var(--txt-2);font:500 var(--t-md)/1.2 var(--body);cursor:pointer}
+.ent-aj-b:hover{color:var(--txt-1);text-decoration:underline;text-underline-offset:4px}
+.ent-aj-b i{flex:none;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid currentColor;font:700 var(--t-2xs)/1 var(--body);font-style:normal}
+.aj-ent .aj-intro{margin:0 0 20px;font-size:var(--t-lg);line-height:1.55;color:var(--txt-1);max-width:62ch}
+.aj-ct{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;margin:0 0 8px;padding:16px 20px;border-radius:14px;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+.aj-ct p{margin:0;font:600 var(--t-md)/1.45 var(--body);color:var(--txt-1);flex:1 1 220px}
+.aj-ct .b{flex:none;text-decoration:none;white-space:nowrap}
+.aj-dd{display:flex;flex-direction:column;gap:8px}
+.aj-dd details{border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.aj-dd summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 16px;font:600 var(--t-md)/1.35 var(--body);color:var(--txt-1);cursor:pointer;list-style:none;border-radius:12px}
+.aj-dd summary::-webkit-details-marker{display:none}
+.aj-dd summary::before{content:"+";flex:none;width:16px;text-align:center;font-weight:700;color:var(--accent)}
+.aj-dd details[open]>summary::before{content:"−"}
+.aj-dd summary:focus-visible{outline:3px solid var(--anel);outline-offset:2px}
+.aj-dd ol,.aj-dd p{margin:0;padding:0 16px 14px 42px;font-size:var(--t-md);line-height:1.55;color:var(--txt-1)}
+.aj-dd ol{padding-left:58px} .aj-dd li+li{margin-top:6px}
+.aj-ul{margin:0;padding-left:22px;font-size:var(--t-md);line-height:1.55;color:var(--txt-1)} .aj-ul li+li{margin-top:8px}
+@media (max-width:480px){.aj-ct{padding:14px 16px}.aj-ct .b{width:100%;justify-content:center}.aj-dd ol{padding-left:44px}.aj-dd p{padding-left:16px}}
+.aj-wa{flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:10px 20px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:600 var(--t-md)/1.2 var(--body);text-decoration:none;white-space:nowrap;box-shadow:0 1px 3px rgba(24,36,28,.2)}
+.aj-wa:hover{background:color-mix(in srgb,var(--accent) 86%,#000)} .aj-wa:focus-visible{outline:3px solid var(--anel);outline-offset:3px}
+@media (max-width:480px){.aj-wa{width:100%}}
