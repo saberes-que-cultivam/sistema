@@ -14,7 +14,7 @@
     hoje = hoje || new Date(); const atras = n => R.iso(new Date(hoje.getTime() - n * 864e5));
     return {
       membros: [
-        { id: 'q1', ex: 1, lgpd: true, arlo: 'Sim', outra_bolsa: 'Não', funcao: 'coordenacao', nome: 'Coordenador de exemplo', vinculo: 'IFRN Campus Apodi', email: 'coordenador@exemplo.invalid', telefone: '(00) 00000-0000', municipio: 'Apodi/RN', inicio: '2026-08-01' },
+        { id: 'q1', ex: 1, lgpd: true, arlo: 'Sim', outra_bolsa: 'Não', funcao: 'coordenacao', nome: 'Coordenador de exemplo', vinculo: 'IFRN Campus Apodi', email: 'coordenacao@exemplo.br', telefone: '(00) 00000-0000', municipio: 'Apodi/RN', inicio: '2026-08-01' },
         { id: 'q2', ex: 1, lgpd: true, funcao: 'discente', nome: 'Bolsista de exemplo (saiu)', vinculo: 'Tecnologia em Agroecologia', inicio: '2026-08-10', fim: atras(20), motivo: 'Concluiu o curso' }],
       pessoas: [
         { id: 'p-coord', nome: 'Coordenação (demonstração)', email: 'coordenacao@exemplo.br', perfil: 'Coordenação', ativo: true },
@@ -69,6 +69,12 @@
       carregarLocal(); eu = db.pessoas.find(p => p.perfil === perfil && p.ativo !== false) || null;
       if (!eu) throw falha('Não há acesso ativo com esse perfil na demonstração.');
       gravar(CHAVE + '-eu', eu.id); return eu;
+    },
+    async atualizarMeusContatos(telefone, municipio) {
+      if (!db) carregarLocal(); const e = String((eu && eu.email) || '').trim().toLowerCase(), hj = new Date().toISOString().slice(0, 10);
+      const L = db.membros.filter(m => String(m.email || '').trim().toLowerCase() === e && (!m.fim || m.fim >= hj));
+      if (!L.length) throw falha('Seu cadastro na equipe não está ligado a este e-mail. Peça à coordenação para conferir o e-mail no cadastro.');
+      L.forEach(m => { m.telefone = telefone || null; m.municipio = municipio || null; m.atualizado_em = new Date().toISOString(); }); persistir();
     },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */

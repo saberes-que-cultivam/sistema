@@ -170,6 +170,11 @@
       const { error } = await sb.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), { redirectTo: aqui() });
       if (error) throw erro(error);
     },
+    /* "Meus dados" (script 19): a pessoa muda só o próprio celular e município */
+    async atualizarMeusContatos(telefone, municipio) {
+      const { error } = await sb.rpc('atualizar_meus_contatos', { p_telefone: telefone || null, p_municipio: municipio || null });
+      if (error) { if (error.code === 'PGRST202' || /atualizar_meus_contatos/.test(String(error.message))) throw erro({ code: 'P0001', message: 'Para atualizar os seus dados por aqui, a coordenação precisa rodar antes o script 19_meus_contatos.sql no Supabase.' }); throw erro(error); }
+    },
     async trocarSenha(nova) {
       const { error } = await sb.auth.updateUser({ password: nova });
       if (error) throw erro(error);

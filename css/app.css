@@ -1243,3 +1243,45 @@ html.bloq #view,html.bloq dialog{visibility:hidden}
   .pf-lp thead th{height:9mm;font-weight:700}
   .pf-r{margin-top:3mm;font-size:var(--t-xs)}
 }
+/* teclado (14/10/2026): "Pular para o conteúdo" aparece no primeiro Tab; blocos só de leitura mostram o contorno ao receber o foco */
+.pular{position:absolute;left:12px;top:-60px;z-index:50;padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:600 var(--t-md)/1.2 var(--body);cursor:pointer}
+.pular:focus{top:12px;outline:3px solid var(--anel);outline-offset:3px}
+#view:focus{outline:none}
+#view [tabindex="0"]:not(button):focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:14px}
+.rg[data-rg]:focus-visible{outline:3px solid var(--accent);outline-offset:4px;border-radius:12px}
+/* campo de data: o foco fica numa parte interna (dia, mês, ano); o contorno vai no campo inteiro */
+input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+/* Cabeçalho e rodapé no tamanho do Mulheres & Quintais (14/10/2026): no computador, botões de 34 px, avatar de 38 px,
+   nome do sistema menor e rodapé compacto. No toque (celular e tablet) os botões continuam com 40 a 44 px. */
+@media (min-width:721px){
+  header.top{padding-block:12px}
+  header.top .marca-nome{font-size:var(--t-xl)}
+  header.top .sub{font-size:var(--t-xs)}
+  .who{gap:10px}
+  .tb{width:34px;height:34px;border-width:1.2px;font-size:var(--t-base)} .tb svg{width:18px;height:18px}
+  .tb-av{width:38px;height:38px;font-size:var(--t-sm)}
+  .tb-quem b{font-size:var(--t-sm)} .tb-quem span{font-size:var(--t-xs)}
+  .pe{padding-block:22px} .pe .wrap{gap:14px 32px}
+  .pe-m{gap:10px} .pe-m img{width:32px;height:32px;border-radius:8px} .pe-m b,.marca-nome.pe-m b{font-size:var(--t-base)} .pe-m span{font-size:var(--t-xs)}
+  .pe-i{font-size:var(--t-xs);gap:2px}
+  .pe-a{gap:8px} .pe-b{padding:4px 14px 4px 4px;font-size:var(--t-sm);gap:8px;border-width:1.2px} .pe-b i{width:24px;height:24px;font-size:var(--t-xs);border-width:1.2px}
+  .pe-a p{font-size:var(--t-xs);max-width:46ch}
+}
+@media (min-width:721px) and (pointer:coarse){.tb{width:40px;height:40px}.tb-av{width:40px;height:40px}.pe-b{min-height:40px}}
+/* "Meus dados" (14/10/2026): o botão do perfil no alto e a janela */
+.tb-eu{display:inline-flex;align-items:center;gap:10px;padding:3px 12px 3px 3px;border:0;border-radius:999px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.tb-eu:hover{background:rgba(255,255,255,.1)} .tb-eu:focus-visible{outline:3px solid var(--topo-ink);outline-offset:2px}
+.md-c{padding:20px 22px;border:1px solid var(--line);border-radius:16px;background:var(--surface);display:flex;flex-direction:column;gap:14px}
+.md-t{display:flex;align-items:center;gap:16px}
+.md-av{flex:none;width:64px;height:64px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#D9EADB;color:#1B3324;font:700 var(--t-xl) var(--body)}
+.md-t b{display:block;font:600 var(--t-xl)/1.25 var(--body);color:var(--txt-1)} .md-t span{font-size:var(--t-sm);color:var(--txt-2)}
+.md-l{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:10px 28px;margin:0;font-size:var(--t-base)}
+.md-l dt{color:var(--txt-2)} .md-l dd{margin:0;color:var(--txt-1);overflow-wrap:anywhere}
+.md-c .fm-sec{margin:0}
+.md-s{border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.md-s summary{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:12px 22px;font:600 var(--t-md)/1.3 var(--body);color:var(--txt-1);cursor:pointer;list-style:none;border-radius:16px}
+.md-s summary::-webkit-details-marker{display:none} .md-s summary::after{content:"Mostrar";font:500 var(--t-sm) var(--body);color:var(--accent)} .md-s[open] summary::after{content:"Esconder"}
+.md-s>.fields,.md-s>.acts{padding:0 22px 18px}
+.md-pe{justify-content:space-between}
+@media (max-width:640px){.md-l{grid-template-columns:1fr;gap:2px}.md-l dd{margin-bottom:8px}.md-c{padding:16px}}
+.md-t .md-av{font-size:var(--t-xl);color:#1B3324}

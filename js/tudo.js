@@ -721,7 +721,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     hoje = hoje || new Date(); const atras = n => R.iso(new Date(hoje.getTime() - n * 864e5));
     return {
       membros: [
-        { id: 'q1', ex: 1, lgpd: true, arlo: 'Sim', outra_bolsa: 'Não', funcao: 'coordenacao', nome: 'Coordenador de exemplo', vinculo: 'IFRN Campus Apodi', email: 'coordenador@exemplo.invalid', telefone: '(00) 00000-0000', municipio: 'Apodi/RN', inicio: '2026-08-01' },
+        { id: 'q1', ex: 1, lgpd: true, arlo: 'Sim', outra_bolsa: 'Não', funcao: 'coordenacao', nome: 'Coordenador de exemplo', vinculo: 'IFRN Campus Apodi', email: 'coordenacao@exemplo.br', telefone: '(00) 00000-0000', municipio: 'Apodi/RN', inicio: '2026-08-01' },
         { id: 'q2', ex: 1, lgpd: true, funcao: 'discente', nome: 'Bolsista de exemplo (saiu)', vinculo: 'Tecnologia em Agroecologia', inicio: '2026-08-10', fim: atras(20), motivo: 'Concluiu o curso' }],
       pessoas: [
         { id: 'p-coord', nome: 'Coordenação (demonstração)', email: 'coordenacao@exemplo.br', perfil: 'Coordenação', ativo: true },
@@ -776,6 +776,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       carregarLocal(); eu = db.pessoas.find(p => p.perfil === perfil && p.ativo !== false) || null;
       if (!eu) throw falha('Não há acesso ativo com esse perfil na demonstração.');
       gravar(CHAVE + '-eu', eu.id); return eu;
+    },
+    async atualizarMeusContatos(telefone, municipio) {
+      if (!db) carregarLocal(); const e = String((eu && eu.email) || '').trim().toLowerCase(), hj = new Date().toISOString().slice(0, 10);
+      const L = db.membros.filter(m => String(m.email || '').trim().toLowerCase() === e && (!m.fim || m.fim >= hj));
+      if (!L.length) throw falha('Seu cadastro na equipe não está ligado a este e-mail. Peça à coordenação para conferir o e-mail no cadastro.');
+      L.forEach(m => { m.telefone = telefone || null; m.municipio = municipio || null; m.atualizado_em = new Date().toISOString(); }); persistir();
     },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */
@@ -1025,6 +1031,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     async esqueci(email) {
       const { error } = await sb.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), { redirectTo: aqui() });
       if (error) throw erro(error);
+    },
+    /* "Meus dados" (script 19): a pessoa muda só o próprio celular e município */
+    async atualizarMeusContatos(telefone, municipio) {
+      const { error } = await sb.rpc('atualizar_meus_contatos', { p_telefone: telefone || null, p_municipio: municipio || null });
+      if (error) { if (error.code === 'PGRST202' || /atualizar_meus_contatos/.test(String(error.message))) throw erro({ code: 'P0001', message: 'Para atualizar os seus dados por aqui, a coordenação precisa rodar antes o script 19_meus_contatos.sql no Supabase.' }); throw erro(error); }
     },
     async trocarSenha(nova) {
       const { error } = await sb.auth.updateUser({ password: nova });
@@ -1633,7 +1644,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function nav() {
     const tem = abas();
     $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
-    const s = $('#tabs [aria-selected="true"]'); if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // aba ativa à vista no menu que rola: rola só o menu (scrollIntoView movia o ponto de partida do Tab para a aba e o primeiro Tab pulava o cabeçalho)
+    const s = $('#tabs [aria-selected="true"]'), tb = $('#tabs'); if (s && tb) { const a = s.offsetLeft - tb.offsetLeft, z = a + s.offsetWidth; if (a < tb.scrollLeft) tb.scrollLeft = a - 8; else if (z > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = z - tb.clientWidth + 8; }
     bordasMenu();
   }
   /* listas longas aparecem de 100 em 100 (as mais recentes primeiro): desenhar milhares de linhas trava celular simples */
@@ -1659,7 +1671,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* símbolo da biofábrica: frasco de fermentação com o preparo dentro (desenhado em torno do ponto 0,0) */
   const FRASCO = '<circle class="fr-f" r="12"/><path class="fr-l" d="M-3.900 1.5h7.800l1.900 3.700a.9.9 0 0 1-.8 1.300h-10a.9.9 0 0 1-.8-1.300z"/><path class="fr-v" d="M-3-7.500h6M-1.900-7.500v4.700l-4.300 8.200a1.200 1.200 0 0 0 1.100 1.800h10.200a1.200 1.200 0 0 0 1.100-1.800l-4.300-8.200v-4.700"/>';
   const kpi = (k, pc, n, de, rot, s2, aba, rotPc) => { const vai = aba && abas().some(t => t[0] === aba), el = vai ? 'button' : 'div'; pc = Math.max(0, Math.min(100, +pc || 0)); const pr = Math.round(pc), C = 2 * Math.PI * 18;
-    return `<${el} class="dx-kpi k${k}"${vai ? ` type="button" data-tab="${aba}" title="Abrir ${abas().find(t => t[0] === aba)[1]}"` : aba === undefined ? '' : ' tabindex="0"'}><span class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
+    return `<${el} class="dx-kpi k${k}"${vai ? ` type="button" data-tab="${aba}" title="Abrir ${abas().find(t => t[0] === aba)[1]}"` : ' tabindex="0"'}><span class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
       <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : ' ' + String(de).trim()}</small></span></span><span class="dx-kpi-r">${rot}</span>
       <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> ${rotPc || 'concluído'}</span><span class="dx-kpi-s">${esc(s2)}</span></${el}>`; };
   const pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
@@ -1883,7 +1895,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const atual = P.findIndex(p => p.atual);
     return `<div class="panel box fin-g"><div><h2 class="fin-t">Ritmo do gasto <small>acumulado mês a mês</small></h2>
    <div class="leg"><span><i class="lg prev"></i>Previsto (plano de desembolso)</span><span><i class="lg exec"></i>Pago</span><span><i class="lg rec"></i>Recebido do MDA</span></div></div>
-   <div class="rg" data-rg><svg data-vb="${GR.w}" viewBox="0 0 ${GR.w} ${GR.h}" role="img" aria-label="Gasto acumulado mês a mês: previsto, pago e recebido. Os valores estão na tabela logo abaixo.">
+   <div class="rg" data-rg tabindex="0" role="group" aria-label="Gráfico do gasto acumulado. Use as setas para a esquerda e para a direita para ouvir cada mês."><span class="so" id="rg-voz" aria-live="polite"></span><svg data-vb="${GR.w}" viewBox="0 0 ${GR.w} ${GR.h}" role="img" aria-label="Gasto acumulado mês a mês: previsto, pago e recebido. Os valores estão na tabela logo abaixo.">
     ${grade.map(v => `<line class="gr" x1="${GR.l}" x2="${GR.w - GR.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${GR.l - 8}" y="${y(v) + 4}" text-anchor="end">${mk(v)}</text>`).join('')}
     ${P.map((p, i) => i % (window.innerWidth < 720 ? 3 : 2) ? '' : `<text class="ax" x="${x(i)}" y="${GR.h - 8}" text-anchor="middle">${p.rotulo}</text>`).join('')}
     ${atual >= 0 ? `<line class="hj" x1="${x(atual)}" x2="${x(atual)}" y1="${GR.t}" y2="${GR.h - GR.b}"/><text class="ax" x="${x(atual) + 5}" y="${GR.t + 10}">mês atual</text>` : ''}
@@ -1981,6 +1993,23 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     <div class="rb-tot"><span>Total</span><span data-r="Previsto">${brl(R.soma(F, 'prev'))}</span><span data-r="Pago">${brl(R.soma(F, 'pago'))}</span><span data-r="Comprometido">${brl(R.soma(F, 'comp'))}</span><span data-r="Saldo"><b>${brl(R.soma(F, 'saldo'))}</b></span><span></span></div></div></div>`;
   }
   /* dica do gráfico: mês mais próximo do ponteiro, com os três valores */
+  /* gráfico pelo teclado (14/10/2026): com o foco no gráfico, as setas passam de mês em mês e mostram a mesma dica do mouse */
+  let mesTeclado = -1;
+  function mostrarMes(g, i) {
+    const dica = document.querySelector('[data-dica]'), cr = document.querySelector('[data-cr]'); if (!g || !ritmoAtual || !dica || !cr) return;
+    const P = ritmoAtual.pontos, n = P.length; i = Math.max(0, Math.min(n - 1, i)); mesTeclado = i;
+    const svg = g.querySelector('svg'), b = svg.getBoundingClientRect(), k = GR.w / b.width, p = P[i], cx = GR.l + (GR.w - GR.l - GR.r) * (i + 1) / n;
+    cr.removeAttribute('hidden'); cr.setAttribute('x1', cx); cr.setAttribute('x2', cx);
+    dica.innerHTML = `<b>${p.rotulo}</b><span><i class="lg prev"></i>Previsto <b>${brl(p.previsto)}</b></span>${p.executado == null ? '<span class="small">mês que ainda não chegou</span>' : `<span><i class="lg exec"></i>Pago <b>${brl(p.executado)}</b></span><span><i class="lg rec"></i>Recebido <b>${brl(p.recebido)}</b></span>`}`;
+    dica.hidden = false; const gb = g.getBoundingClientRect(), esq = cx / k; dica.style.left = Math.max(0, Math.min(gb.width - dica.offsetWidth, esq > gb.width / 2 ? esq - dica.offsetWidth - 12 : esq + 12)) + 'px';
+    const v = document.getElementById('rg-voz'); if (v) v.textContent = dica.textContent.replace(/(\d)(Previsto|Pago|Recebido)/g, '$1 · $2');
+  }
+  function teclaGrafico(ev) {
+    const g = ev.target.closest && ev.target.closest('[data-rg]'); if (!g || !ritmoAtual) return;
+    const n = ritmoAtual.pontos.length, atual = ritmoAtual.pontos.findIndex(p => p.atual), ini = mesTeclado >= 0 ? mesTeclado : (atual >= 0 ? atual : 0);
+    const alvo = { ArrowRight: ini + 1, ArrowLeft: ini - 1, Home: 0, End: n - 1 }[ev.key]; if (alvo === undefined) return;
+    ev.preventDefault(); mostrarMes(g, mesTeclado < 0 ? ini : alvo);
+  }
   function aoMoverGrafico(ev) {
     const g = ev.target.closest && ev.target.closest('[data-rg]'); const dica = document.querySelector('[data-dica]'), cr = document.querySelector('[data-cr]');
     if (!g || !ritmoAtual) { if (dica) dica.hidden = true; if (cr) cr.setAttribute('hidden', ''); return; }
@@ -2136,6 +2165,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const certo = w < 560 ? GR_ESTREITO : GR_LARGO; if (certo === GR) return;
     const painel = rg.closest('.fin-g'); if (painel) painel.outerHTML = graficoRitmo(certo);
   }
+  /* blocos só de leitura também recebem o Tab (14/10/2026): quem navega pelo teclado lê cada painel, cartão e aviso.
+     Só ganham parada os que não têm nada clicável dentro (os outros já são alcançados pelo que têm dentro). */
+  const FOCAVEL = 'button:not([disabled]),a[href],input:not([type=hidden]),select,textarea,summary,[tabindex]:not([tabindex="-1"])';
+  function paradasDeLeitura() {
+    document.querySelectorAll('#view section, #view .panel, #view .pc, #view .vg, #view .mt-gi').forEach(el => {
+      if (el.hasAttribute('tabindex') || el.matches(FOCAVEL) || el.querySelector(FOCAVEL)) return;
+      el.setAttribute('tabindex', '0');
+      if (!el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby')) { const h = el.querySelector('h2,h3,b'); if (h) { if (!h.id) h.id = 'pl-' + Math.random().toString(36).slice(2, 9); el.setAttribute('aria-labelledby', h.id); } }
+      if (!el.getAttribute('role') && !/^(SECTION|LI)$/.test(el.tagName)) el.setAttribute('role', 'group');
+    });
+  }
   function escalaDesenhos() {
     ajustarGrafico();
     document.querySelectorAll('svg[data-vb]').forEach(sv => { const w = sv.getBoundingClientRect().width; if (w > 0) sv.style.setProperty('--k', (+sv.dataset.vb / w).toFixed(4)); });
@@ -2151,7 +2191,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (!eu || !db) return;
     nav(); const v = $('#view');
     v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
-    tituloDaTela(v); escalaDesenhos();
+    tituloDaTela(v); escalaDesenhos(); paradasDeLeitura();
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
@@ -2660,6 +2700,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.pular !== undefined) { const v = $('#view'); v.setAttribute('tabindex', '-1'); v.focus(); }
     else if (d.ajudaentrada !== undefined) abrirAjudaEntrada();
     else if (d.geo !== undefined) pegarLocal(t);
     else if (d.geolimpar !== undefined) { ['f_lat', 'f_lng', 'f_precisao'].forEach(i => { $('#' + i).value = ''; }); $('#f_geo_t').textContent = 'Localização apagada.'; const g = $('[data-geo] span'); if (g) g.textContent = 'Pegar a localização'; t.remove(); }
@@ -2699,13 +2740,47 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.exp) { if (fora()) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
     else if (d.acessos !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { acessos = await api.acessos(); } catch (e) { acessos = undefined; toast(e.message); } render(); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
-    else if (d.senha !== undefined) {
+    else if (d.meus !== undefined) abrirMeusDados();
+    else if (d.meussalvar !== undefined) await salvarMeusContatos(t);
+    else if (d.senha !== undefined && !demo()) abrirMeusDados({ senha: true });
+    else if (d.senhaVelha !== undefined) {
       ed = null; $('#frm').className = ''; $('#frm').innerHTML = `<h2>Trocar a minha senha</h2><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b p" data-senhaok>Guardar</button></div>`; $('#dlg').showModal();
     }
     else if (d.senhaok !== undefined) {
       const a = $('#s1').value, b = $('#s2').value; if (a.length < 8) { $('#ferr').textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; } if (a !== b) { $('#ferr').textContent = 'As duas senhas não são iguais.'; return; }
-      t.disabled = true; try { await api.trocarSenha(a); $('#dlg').close(); toast('Senha trocada.'); } catch (e) { $('#ferr').textContent = e.message; t.disabled = false; }
+      t.disabled = true; try { await api.trocarSenha(a); $('#dlg').close(); toast('Senha trocada. Use a nova senha na próxima entrada.'); } catch (e) { $('#ferr').textContent = e.message; t.disabled = false; }
     }
+  }
+
+  /* ---------- "Meus dados" (14/10/2026, como no Mulheres & Quintais): o botão do perfil, no alto, abre os dados de quem entrou.
+     Quem é da equipe muda o próprio celular e município (script 19); a coordenação também abre o cadastro completo.
+     E-mail é o login: muda só pela coordenação, em Dados › acessos. ---------- */
+  const meuMembro = () => { const e = R.nrm(eu && eu.email), hj = iso(hoje()); return e ? (db.membros || []).filter(m => R.nrm(m.email) === e).sort((a, b) => (!a.fim || a.fim >= hj ? 0 : 1) - (!b.fim || b.fim >= hj ? 0 : 1))[0] || null : null; };
+  function abrirMeusDados(op) {
+    op = op || {}; const m = fora() ? null : meuMembro(), hj = iso(hoje()), ativo = m && (!m.fim || m.fim >= hj);
+    const linha = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
+    ed = null; $('#frm').className = 'fm md';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(demo() ? 'Demonstração · ' + eu.perfil : eu.perfil + (eu.orgao ? ' · ' + eu.orgao : ''))}</span><h2>Meus dados</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo">
+      <section class="md-c" aria-label="Seus dados"><div class="md-t"><span class="md-av" aria-hidden="true">${esc(iniciais(demo() ? eu.perfil : eu.nome))}</span><div><b>${esc(demo() ? eu.nome : (m && m.nome) || eu.nome)}</b><span>${esc(m ? NOME_FUNCAO[m.funcao] || '' : eu.perfil)}${m && !ativo ? ' · saiu em ' + dt(m.fim) : ''}</span></div></div>
+       <dl class="md-l">${linha('E-mail de acesso', eu.email)}${linha('Perfil no sistema', eu.perfil)}${linha('Órgão', eu.orgao)}${m ? linha('Celular', m.telefone) + linha('Município', m.municipio) + linha('Vínculo', m.vinculo) + linha('Na equipe desde', dt(m.inicio)) : ''}</dl></section>
+      ${m && ativo ? `<section class="md-c" aria-labelledby="md-ed"><h3 class="fm-sec" id="md-ed">Atualizar meu celular e município</h3><div class="fields"><div class="fld"><label for="f_telefone">Celular (com DDD)</label><input id="f_telefone" autocomplete="tel" inputmode="tel" value="${esc(m.telefone || '')}"></div><div class="fld"><label for="md_mun">Município</label><input id="md_mun" autocomplete="address-level2" value="${esc(m.municipio || '')}"></div></div>
+        <div class="acts"><button type="button" class="b p" data-meussalvar>Salvar meus dados</button>${coord() ? `<button type="button" class="b" data-edit="membros:${esc(m.id)}">Editar meu cadastro completo</button>` : ''}</div>
+        <p class="note">Nome, função, e-mail e os dados da bolsa só a coordenação altera.</p></section>`
+        : fora() ? '' : `<p class="note">Seu acesso ainda não está ligado a um cadastro da equipe (o e-mail do cadastro é diferente deste). Peça à coordenação para conferir o e-mail em Equipe.</p>`}
+      ${demo() ? '<p class="note">A demonstração não usa senha.</p>' : `<details class="md-s"${op.senha ? ' open' : ''}><summary>Trocar minha senha</summary><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="acts"><button type="button" class="b p" data-senhaok>Trocar senha</button></div></details>`}
+     </div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(op.msg || '')}</div><div class="frow md-pe"><button type="button" class="b p" data-fechar>Voltar ao sistema</button><button type="button" class="b" data-sair>Sair do sistema</button></div></div>`;
+    if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));
+    if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
+    if (op.senha) { const s1 = $('#s1'); if (s1) s1.focus(); }
+  }
+  async function salvarMeusContatos(b) {
+    const tel = $('#f_telefone').value.trim(), mun = $('#md_mun').value.trim(), dg = R.soDigitos(tel).replace(/^55(?=\d{10,11}$)/, '');
+    if (tel && !/^\d{10,11}$/.test(dg)) { $('#ferr').textContent = 'Confira o celular: DDD e número, como (84) 99999-0000.'; $('#f_telefone').focus(); return; }
+    b.disabled = true; b.textContent = 'Salvando…'; $('#ferr').textContent = '';
+    try { await api.atualizarMeusContatos(tel, mun); const m = meuMembro(); if (m) { m.telefone = tel || null; m.municipio = mun || null; } if (api.guardarCopia) api.guardarCopia(db); render(); abrirMeusDados({ msg: 'Dados atualizados.' }); }
+    catch (e) { b.disabled = false; b.textContent = 'Salvar meus dados'; $('#ferr').textContent = e.semRede ? 'Sem internet: tente de novo quando o sinal voltar.' : e.message; }
   }
 
   /* ---------- partida ---------- */
@@ -2733,6 +2808,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     // ao digitar num campo com erro, o erro daquele campo sai
     document.addEventListener('input', ev => { const c = ev.target.closest && ev.target.closest('#fauth .cp.erro'); if (!c) return; c.classList.remove('erro'); const e = c.querySelector('.cp-e'); e.hidden = true; e.textContent = ''; ev.target.removeAttribute('aria-invalid'); ev.target.removeAttribute('aria-describedby'); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
+    document.addEventListener('keydown', teclaGrafico); document.addEventListener('focusout', ev => { if (ev.target.matches && ev.target.matches('[data-rg]')) { mesTeclado = -1; const d = document.querySelector('[data-dica]'), c = document.querySelector('[data-cr]'); if (d) d.hidden = true; if (c) c.setAttribute('hidden', ''); } });
     let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false && !api.offline; if (e === 'online') sincronizar(); } }));
     // sinal fraco que "parece conectado": tenta de novo a cada 2 minutos e quando a tela volta a aparecer, enquanto houver o que enviar

@@ -43,6 +43,8 @@ union all
 select 'localização da visita (18)', case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'visitas' and column_name = 'lat') then 'FALTA: rode o 18'
             when pg_get_functiondef('public.visitas_anonimas()'::regprocedure) like '%lat%' then 'ABERTO: a lista do SEAB/MDA traz a localização; confira o 05' else 'ok' end
 union all
+select 'meus dados: celular e município (19)', case when to_regprocedure('public.atualizar_meus_contatos(text,text)') is null then 'FALTA: rode o 19' else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

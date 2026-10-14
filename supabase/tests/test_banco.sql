@@ -444,4 +444,26 @@ do $$ begin
   exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+-- ===== script 19: "Meus dados" — a pessoa muda só o próprio celular e município =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+insert into public.membros (funcao, nome, email, telefone, inicio, lgpd) values ('discente', 'Equipe Dois', 'e2@teste.br', '(84) 90000-0001', '2026-08-01', true), ('discente', 'Outra Pessoa', 'outra@teste.br', '(84) 90000-0002', '2026-08-01', true);
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ begin
+  if public.atualizar_meus_contatos('(84) 98888-7777', 'Apodi/RN') <> 1 then raise exception 'FALHOU: não atualizou o próprio cadastro'; end if;
+  if not exists (select 1 from public.membros where email = 'e2@teste.br' and telefone = '(84) 98888-7777' and municipio = 'Apodi/RN') then raise exception 'FALHOU: celular e município não mudaram'; end if;
+  if not exists (select 1 from public.membros where email = 'outra@teste.br' and telefone = '(84) 90000-0002') then raise exception 'FALHOU: mexeu no cadastro de outra pessoa'; end if;
+  begin perform public.atualizar_meus_contatos('123', null); raise exception 'FALHOU: aceitou celular sem DDD';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ begin
+  begin perform public.atualizar_meus_contatos('(84) 98888-7777', null); raise exception 'FALHOU: acompanhamento sem cadastro na equipe alterou algo';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;
