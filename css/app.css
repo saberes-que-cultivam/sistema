@@ -1311,3 +1311,9 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 .dx-topo .chip{white-space:normal}
 .dx-kpi,.dx-kpi *{min-width:0;overflow-wrap:anywhere}
 @media (max-width:400px){.dx-exec-sub span{white-space:normal}}
+
+/* simulação (?simulacao): faixa fixa avisando que os dados são fictícios */
+#sim-faixa{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding:8px 16px;background:var(--ferment);color:#fff;font:500 var(--t-sm)/1.35 var(--body)}
+#sim-faixa b{font-weight:700} #sim-faixa a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+#sim-faixa .sim-ir{margin-left:auto}
+@media print{#sim-faixa{position:static;background:none;color:#000;border:1px solid #000} #sim-faixa .sim-ir{display:none}}

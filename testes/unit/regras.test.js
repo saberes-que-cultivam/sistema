@@ -178,3 +178,8 @@ test('auditoria formal 14/10: acompanhada exige visita no dia da primeira entreg
 test('auditoria formal 14/10: data na tela só leva dígitos e traço', () => {
   assert.strictEqual(R.dt('2026-10-14'), '14/10/2026'); assert.strictEqual(R.dt('<img src=x>'), ''); assert.strictEqual(R.dt(''), '—');
 });
+test('financeiro em centavos: valores quebrados que fecham o previsto não acusam “R$ 0,00 acima”', () => {
+  const db = base(); for (let i = 0; i < 11; i++) db.despesas.push({ data: '2026-09-01', etapa: '1.1', rubrica: 'bolsa_pesquisador', valor: 2181.82, status: 'Pago' });
+  db.despesas.push({ data: '2026-09-01', etapa: '1.1', rubrica: 'bolsa_pesquisador', valor: 35000 - 2181.82 * 11, status: 'Pago' });
+  assert.strictEqual(R.fin(db)[0].saldo, 0); assert.doesNotMatch(R.alertas(db, HOJE).map(a => a[2]).join('\n'), /Meta 1 está/);
+});

@@ -250,6 +250,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
 
   /* ---------- financeiro ---------- */
+  const cent = x => Math.round(x * 100) / 100;
   const recebido = () => D.PARCELAS.filter(p => p.recebida).reduce((s, p) => s + p.valor, 0);
   const previstoMeta = m => D.ETAPAS.filter(e => e.m === m).reduce((s, e) => s + e.q * e.v, 0);
   const somaDesp = (ds, pago) => ds.filter(d => (d.status === 'Pago') === pago).reduce((s, d) => s + n(d.valor), 0);
@@ -259,7 +260,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return [1, 2, 3, 4, 5, 6].map(m => {
       const prev = previstoMeta(m); const ds = ate(db, lim).filter(d => String(d.etapa)[0] === String(m));
       const pago = somaDesp(ds, true), comp = somaDesp(ds, false);
-      return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
+      return { m, nome: D.METAS[m], prev, comp: cent(comp), pago: cent(pago), saldo: cent(prev - comp - pago) };   // centavos: somas de valores quebrados (2.181,82 × 11) davam “R$ 0,00 acima”
     });
   }
   /* ---------- importação da planilha de solicitações da FUNCERN ----------
@@ -361,7 +362,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const ds = ate(db, lim);
     const linhas = D.RUBRICAS.map(r => {
       const x = ds.filter(d => d.rubrica === r.id); const pago = somaDesp(x, true), comp = somaDesp(x, false);
-      return { id: r.id, nome: r.nome, prev: r.v, comp, pago, saldo: r.v - comp - pago };
+      return { id: r.id, nome: r.nome, prev: r.v, comp: cent(comp), pago: cent(pago), saldo: cent(r.v - comp - pago) };
     });
     const sem = ds.filter(d => !D.RUBRICAS.some(r => r.id === d.rubrica));
     if (sem.length) { const pago = somaDesp(sem, true), comp = somaDesp(sem, false); linhas.push({ id: '', nome: 'Sem rubrica (corrija o lançamento)', prev: 0, comp, pago, saldo: -comp - pago, semRubrica: true }); }
@@ -724,12 +725,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const G = typeof window !== 'undefined' ? window : globalThis;
   const SQC = (G.SQC = G.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  const CHAVE = 'sqc-demo-v1';
+  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v1-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
   const mem = {};   // usado quando o navegador bloqueia o armazenamento (e nos testes)
   const ler = k => { try { const v = G.localStorage.getItem(k); return v == null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } };
   const gravar = (k, v) => { mem[k] = v; try { G.localStorage.setItem(k, v); } catch (e) { /* fica só na memória */ } };
 
-  function semente(hoje) {
+  const semente = hoje => SIM && SQC.simular ? SQC.simular(sementeBase(hoje)) : sementeBase(hoje);
+  function sementeBase(hoje) {
     hoje = hoje || new Date(); const atras = n => R.iso(new Date(hoje.getTime() - n * 864e5));
     return {
       membros: [
@@ -770,6 +772,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   let db = null, eu = null;
   function carregarLocal() {
+    if (SIM && SQC.simularPlano) SQC.simularPlano();
     try { db = JSON.parse(ler(CHAVE)); } catch (e) { db = null; }
     const s = semente(); if (!db || !Array.isArray(db.unidades)) db = s;
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = s[t]; });
@@ -844,7 +847,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     async registrarDownload() { /* a demonstração não guarda histórico */ },
     async informarFila() {},
     async listarFila() {   // demonstração: um exemplo fixo, para a coordenação ver como aparece
-      if (!eu || eu.perfil !== 'Coordenação') return [];
+      if (!eu || eu.perfil !== 'Coordenação' || SIM) return [];
       return [{ pessoa: 'p-equipe', nome: 'Equipe (demonstração)', quantos: 3, recusados: 1, desde: new Date(Date.now() - 3 * 864e5).toISOString(), informado_em: new Date(Date.now() - 2 * 3600e3).toISOString(), ex: 1 }];
     },
     /* fotos na demonstração: a imagem fica só na memória desta página (não ocupa o armazenamento do navegador) */
@@ -1725,7 +1728,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const X = R.execucaoGeral(db, hoje());
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
     const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo').length;
-    const sub = { '2.1': uConta.length ? `${uConta.length} em implantação · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
+    const sub = { '2.1': uConta.length ? `${uConta.filter(u => u.funcionando).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !u.funcionando).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
       '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base`, '3.3': `${db.agricultores.filter(a => !a.kit).length} cadastrada(s) ainda sem kit`,
       '3.2': `${num(caps.reduce((s, e) => s + (+e.part || 0), 0))} participante(s) · ${dc} dia(s) de campo` };
     const A = R.alertas(db, hoje());

@@ -5,12 +5,13 @@
   const G = typeof window !== 'undefined' ? window : globalThis;
   const SQC = (G.SQC = G.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  const CHAVE = 'sqc-demo-v1';
+  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v1-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
   const mem = {};   // usado quando o navegador bloqueia o armazenamento (e nos testes)
   const ler = k => { try { const v = G.localStorage.getItem(k); return v == null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } };
   const gravar = (k, v) => { mem[k] = v; try { G.localStorage.setItem(k, v); } catch (e) { /* fica só na memória */ } };
 
-  function semente(hoje) {
+  const semente = hoje => SIM && SQC.simular ? SQC.simular(sementeBase(hoje)) : sementeBase(hoje);
+  function sementeBase(hoje) {
     hoje = hoje || new Date(); const atras = n => R.iso(new Date(hoje.getTime() - n * 864e5));
     return {
       membros: [
@@ -51,6 +52,7 @@
 
   let db = null, eu = null;
   function carregarLocal() {
+    if (SIM && SQC.simularPlano) SQC.simularPlano();
     try { db = JSON.parse(ler(CHAVE)); } catch (e) { db = null; }
     const s = semente(); if (!db || !Array.isArray(db.unidades)) db = s;
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = s[t]; });
@@ -125,7 +127,7 @@
     async registrarDownload() { /* a demonstração não guarda histórico */ },
     async informarFila() {},
     async listarFila() {   // demonstração: um exemplo fixo, para a coordenação ver como aparece
-      if (!eu || eu.perfil !== 'Coordenação') return [];
+      if (!eu || eu.perfil !== 'Coordenação' || SIM) return [];
       return [{ pessoa: 'p-equipe', nome: 'Equipe (demonstração)', quantos: 3, recusados: 1, desde: new Date(Date.now() - 3 * 864e5).toISOString(), informado_em: new Date(Date.now() - 2 * 3600e3).toISOString(), ex: 1 }];
     },
     /* fotos na demonstração: a imagem fica só na memória desta página (não ocupa o armazenamento do navegador) */

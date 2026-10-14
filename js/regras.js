@@ -82,6 +82,7 @@
   }
 
   /* ---------- financeiro ---------- */
+  const cent = x => Math.round(x * 100) / 100;
   const recebido = () => D.PARCELAS.filter(p => p.recebida).reduce((s, p) => s + p.valor, 0);
   const previstoMeta = m => D.ETAPAS.filter(e => e.m === m).reduce((s, e) => s + e.q * e.v, 0);
   const somaDesp = (ds, pago) => ds.filter(d => (d.status === 'Pago') === pago).reduce((s, d) => s + n(d.valor), 0);
@@ -91,7 +92,7 @@
     return [1, 2, 3, 4, 5, 6].map(m => {
       const prev = previstoMeta(m); const ds = ate(db, lim).filter(d => String(d.etapa)[0] === String(m));
       const pago = somaDesp(ds, true), comp = somaDesp(ds, false);
-      return { m, nome: D.METAS[m], prev, comp, pago, saldo: prev - comp - pago };
+      return { m, nome: D.METAS[m], prev, comp: cent(comp), pago: cent(pago), saldo: cent(prev - comp - pago) };   // centavos: somas de valores quebrados (2.181,82 × 11) davam “R$ 0,00 acima”
     });
   }
   /* ---------- importação da planilha de solicitações da FUNCERN ----------
@@ -193,7 +194,7 @@
     const ds = ate(db, lim);
     const linhas = D.RUBRICAS.map(r => {
       const x = ds.filter(d => d.rubrica === r.id); const pago = somaDesp(x, true), comp = somaDesp(x, false);
-      return { id: r.id, nome: r.nome, prev: r.v, comp, pago, saldo: r.v - comp - pago };
+      return { id: r.id, nome: r.nome, prev: r.v, comp: cent(comp), pago: cent(pago), saldo: cent(r.v - comp - pago) };
     });
     const sem = ds.filter(d => !D.RUBRICAS.some(r => r.id === d.rubrica));
     if (sem.length) { const pago = somaDesp(sem, true), comp = somaDesp(sem, false); linhas.push({ id: '', nome: 'Sem rubrica (corrija o lançamento)', prev: 0, comp, pago, saldo: -comp - pago, semRubrica: true }); }
