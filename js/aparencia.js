@@ -39,5 +39,12 @@
       <p class="ap-nota">A escolha fica guardada neste aparelho e continua valendo depois de sair do sistema. Dica: no sol, deixe também o brilho do celular no máximo.</p></div>`;
   }
   aplicar();
+  /* uma escolha só para o aparelho inteiro: vale a ÚLTIMA, feita na entrada ou dentro do sistema, em qualquer aba ou janela aberta.
+     Outra aba que muda a escolha avisa esta (evento storage); ao voltar para a aba ou para a página guardada pelo navegador, lê de novo. */
+  if (G.addEventListener) {
+    G.addEventListener('storage', e => { if (e.key === CHAVE || e.key === null) aplicar(); });
+    G.addEventListener('pageshow', () => aplicar());
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) aplicar(); });
+  }
   SQC.aparencia = { ler, aplicar, mudar, janela, ICONE, TEMAS, CHAVE };
 })();
