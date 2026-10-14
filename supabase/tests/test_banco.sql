@@ -185,8 +185,9 @@ select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
 set role authenticated;
 do $$ declare r public.pessoas; n integer; begin
   r := public.vincular_conta(); if r.perfil <> 'Acompanhamento' then raise exception 'FALHOU: vínculo do acompanhamento'; end if;
-  if not exists (select 1 from public.unidades) or not exists (select 1 from public.lotes) or not exists (select 1 from public.despesas) or not exists (select 1 from public.distribuicoes) then raise exception 'FALHOU: acompanhamento não lê o andamento'; end if;
+  if not exists (select 1 from public.unidades) or not exists (select 1 from public.lotes) or not exists (select 1 from public.distribuicoes) then raise exception 'FALHOU: acompanhamento não lê o andamento'; end if;
   if exists (select 1 from public.agricultores) or exists (select 1 from public.visitas) or exists (select 1 from public.auditoria) then raise exception 'FALHOU: acompanhamento leu dado pessoal ou auditoria'; end if;
+  if exists (select 1 from public.despesas) then raise exception 'FALHOU: acompanhamento leu despesas (script 16)'; end if;
   select count(*) into n from public.pessoas; if n <> 1 then raise exception 'FALHOU: acompanhamento viu % pessoas (devia ver só o próprio cadastro)', n; end if;
   if not exists (select 1 from public.agricultores_anonimos() where nome = 'Unidade produtiva 01') then raise exception 'FALHOU: lista anônima vazia'; end if;
   if exists (select 1 from public.agricultores_anonimos() a where a.nome like '%Teste%') then raise exception 'FALHOU: lista anônima trouxe nome'; end if;

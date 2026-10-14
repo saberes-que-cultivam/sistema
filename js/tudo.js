@@ -780,6 +780,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         c.agricultores = c.agricultores.map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
         c.pessoas = c.pessoas.filter(p => p.id === eu.id); c.membros = []; c.presencas = []; c.fotos = [];
+        c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });   // como no banco (script 16): sem despesas; itens sem valor
         c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; return x; });   // como no banco (script 15)
       }
       if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
@@ -1489,7 +1490,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
      que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
   let real = null;
   function semPessoal(d) {
-    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = []; c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; return x; });
+    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = []; c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; return x; });
     c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
     c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
     c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; return c;
@@ -1611,7 +1612,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* ---------- telas ---------- */
   const TABS = [['painel', 'Visão geral'], ['equipe', 'Equipe'], ['unidades', 'Biofábricas'], ['lotes', 'Lotes'], ['agricultores', 'Unidades produtivas'], ['distribuicoes', 'Distribuição'], ['visitas', 'Monitoramento'], ['eventos', 'Formação'], ['financeiro', 'Financeiro'], ['relatorios', 'Relatórios'], ['historico', 'Histórico'], ['dados', 'Dados']];
   /* quem acompanha de fora não tem as abas de cadastro de pessoas, monitoramento em campo nem a de dados */
-  const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos', 'financeiro', 'relatorios', 'dados'];
+  const ABAS_FORA = ['painel', 'unidades', 'lotes', 'distribuicoes', 'eventos'];   // SEAB/MDA (14/10/2026): sem Financeiro, Relatórios e Dados; a parte financeira fica com a gestão do projeto
+  const COLS_DINHEIRO = ['itens:Valor', 'unidades:Itens estimados'];   // o SEAB/MDA não vê valores (14/10/2026)
   const abas = () => fora() ? TABS.filter(t => ABAS_FORA.includes(t[0])) : TABS.filter(t => t[0] !== 'historico' || coord());
   /* menu superior em grupos (rótulo em cima, abas embaixo); grupo sem nenhuma aba para o perfil não aparece */
   const GRUPOS = [['Gestão', ['painel', 'equipe', 'financeiro']], ['Produção', ['unidades', 'lotes', 'distribuicoes']], ['Campo', ['agricultores', 'visitas', 'eventos']], ['Documentação', ['relatorios', 'historico', 'dados']]];
@@ -1630,7 +1632,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
   function tabela(m) {
-    const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !(c[3] === 'equipe' && fora())) }), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
+    const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !(fora() && (c[3] === 'equipe' || COLS_DINHEIRO.includes(m + ':' + c[0])))) }, fora() && m === 'itens' ? { desc: 'Cada item passa por orçamento, compra pela FUNCERN e entrega.' } : {}), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<button class="b" data-new="despesas">Lançar à mão</button><label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
@@ -1681,11 +1683,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       return `<li><details class="mt ${stM[0]}"><summary><span class="mt-n" aria-hidden="true">M${pm.m}</span><span class="mt-c"><span class="mt-t"><b>${esc(D.METAS[pm.m])}</b><span class="chip ${stM[0]}">${stM[1]}</span></span>
         <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado, ${pct(pm.prev)}% previsto até o mês passado"><i style="width:${Math.min(100, pm.feito)}%"></i>${pm.prev > 0 && pm.prev < 100 ? `<b style="left:${pm.prev}%"></b>` : ''}</span>
         <span class="mt-p"><span>${conta} · ${pct(pm.feito)}% realizado</span><span class="mt-v">Ver detalhes</span></span></span></summary>
-        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${mesAno(e.ini)} a ${mesAno(e.fim)} · ${brl(e.q * e.v)}</small></span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
+        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${mesAno(e.ini)} a ${mesAno(e.fim)}${fora() ? '' : ' · ' + brl(e.q * e.v)}</small></span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
     /* próximos marcos: saem do que já está no plano (início e prazo de etapa ainda não concluída, parcela a receber, fim da vigência) */
     const dia0 = new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), marcosT = [];
     D.ETAPAS.forEach(e => { const tag = `Meta ${e.m} · ${D.METAS[e.m]}`; if (pd(e.ini) > dia0) marcosT.push([pd(e.ini), `Começa a etapa ${e.id}: ${e.nome}`, tag]); if (feito(e) < e.q) marcosT.push([R.fimMes(e.fim), `Prazo da etapa ${e.id}: ${e.nome}`, tag]); });
-    D.PARCELAS.forEach((p, i) => { if (!p.recebida && p.previsao) marcosT.push([R.fimMes(p.previsao), `${i + 1}ª parcela do MDA prevista (${brl(p.valor)})`, '']); });
+    if (!fora()) D.PARCELAS.forEach((p, i) => { if (!p.recebida && p.previsao) marcosT.push([R.fimMes(p.previsao), `${i + 1}ª parcela do MDA prevista (${brl(p.valor)})`, '']); });
     marcosT.push([pd(D.VIGENCIA.fim), 'Fim da vigência do TED', '']);
     const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
     const marcosF = marcosT.filter(m => m[0] >= dia0).sort((a, b) => a[0] - b[0]), nMarcos = 5;
@@ -1693,25 +1695,25 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
-    return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas.</span></div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+    return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar a minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
    <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
    <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%, previsto até o mês passado ${pct(X.prev)}%"><i class="${ST[X.st][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prev > 0 ? `<b style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
    <p class="dx-exec-sub"><span>Previsto até ${X.ate}: <b>${pct(X.prev)}%</b></span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
-   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista. O traço na barra é o previsto pelo cronograma até o fim do mês passado. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
+   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${fora() ? 'peso ' + Math.round(x.valor / D.TOTAL * 100) + '%' : brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista. O traço na barra é o previsto pelo cronograma até o fim do mês passado. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
   <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e) / e.q * 100, feito(e), e.q, lab[e.id], sub[e.id], { '2.1': 'unidades', '4.1': 'agricultores', '3.3': 'agricultores', '3.2': 'eventos' }[e.id] || '')).join('')}</div>
  </section>
- <section class="at panel ${A.some(a => a[0] === 'bad') ? 'crit' : A.length ? 'pend' : ''}" aria-label="O que pede atenção">
+ ${fora() ? '' : `<section class="at panel ${A.some(a => a[0] === 'bad') ? 'crit' : A.length ? 'pend' : ''}" aria-label="O que pede atenção">
   <div class="at-cab"><h2>O que pede atenção</h2><span class="chip">${A.length ? A.length + (A.length === 1 ? ' aviso' : ' avisos') : 'nada pendente'}</span></div>
   ${A.length ? `<div class="at-col" aria-hidden="true"><span>Problema</span><span>Prazo</span><span></span></div>
   <ul class="at-lista">${A.map(a => `<li class="at-item ${a[0]}"><div class="at-txt"><span class="at-tag">${a[0] === 'bad' ? 'Urgente' : 'Atenção'} · ${esc(a[1])}</span><b>${esc(a[3])}</b><span class="small">${esc(a[4])}</span></div>
    <div class="at-prazo">${a[5] ? `${dt(a[5])}<small>${prazoTxt(a[5])}</small>` : '—'}</div>
    <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
- </section>
+ </section>`}
  <div class="mm">
  <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Barra: realizado · traço: previsto até o mês passado · toque na meta para ver as etapas e registrar as entregas</p></div><ul class="mts-l">${metas}</ul></section>
- <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Datas do plano de trabalho: início e prazo das etapas, parcela a receber e fim da vigência.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
+ <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Datas do plano de trabalho: início e prazo das etapas, ${fora() ? '' : 'parcela a receber e '}fim da vigência.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
  </div>
  ${mapa()}
  <section class="panel mts gt" aria-label="Cronograma físico do plano de trabalho"><div class="mts-cab"><h2>Cronograma físico do plano de trabalho</h2>
@@ -2649,7 +2651,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
-    else if (d.exp) { if (fora() && !['unidades', 'itens', 'lotes', 'eventos', 'entregas', 'despesas'].includes(d.exp)) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
+    else if (d.exp) { if (fora()) return; if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); } else baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
     else if (d.acessos !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { acessos = await api.acessos(); } catch (e) { acessos = undefined; toast(e.message); } render(); }
     else if (d.hist !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { hist = await api.auditoria(200); } catch (e) { hist = null; toast(e.message); } render(); }
     else if (d.senha !== undefined) {

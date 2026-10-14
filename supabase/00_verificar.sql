@@ -32,6 +32,10 @@ select 'correções da auditoria de 13/10 (15)',
             when (select qual from pg_policies where schemaname = 'public' and tablename = 'eventos' and policyname = 'eventos_ler') not like '%sou_equipe%'
               then 'VOLTOU ATRÁS: o 05 ou o 13 foi rodado depois do 15; rode o 15 de novo' else 'ok' end
 union all
+select 'despesas fora do alcance do SEAB/MDA (16)',
+       case when (select qual from pg_policies where schemaname = 'public' and tablename = 'despesas' and policyname = 'despesas_ler') like '%sou_equipe%' then 'ok'
+            else 'ABERTO: o SEAB/MDA lê as despesas; rode o 16 (de novo, se o 15 foi rodado depois dele)' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

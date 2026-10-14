@@ -20,7 +20,7 @@ rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null
 rodar "$P -f $DIR/01_criar_banco.sql" >/dev/null      # rodar duas vezes não pode dar erro
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
 rodar "$P -f $DIR/03_dados_iniciais.sql" >/dev/null
-for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
+for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 16_seab_sem_financeiro 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 16_seab_sem_financeiro; do rodar "$P -f $DIR/$n.sql" >/dev/null; done   # duas vezes: rodar de novo não pode dar erro
 V="$(rodar "$P -At -f $DIR/00_verificar.sql")"
 V="$(echo "$V" | grep -v "^coordenação ativa")"   # banco de teste ainda sem pessoas neste ponto
 if echo "$V" | grep -E "FALTA|ABERT|VOLTOU|CONFIRA" >/dev/null; then echo " 00_verificar acusou problema:"; echo "$V" | grep -E "FALTA|ABERT|VOLTOU|CONFIRA"; exit 1; fi

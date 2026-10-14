@@ -25,8 +25,9 @@ const PERFIS = {
       'No sol forte, toque no botão do sol, no alto da tela, e ligue o modo sol: letra preta em fundo branco e maior.',
       'Lançamento parado no celular aparece para a coordenação como “Falta enviar” (só a quantidade, nunca o conteúdo). Abra o sistema com internet para enviar.'] },
   acompanhamento: { perfil: 'Acompanhamento', titulo: 'Manual do acompanhamento (SEAB/MDA)',
-    papel: 'O acompanhamento consulta o andamento do projeto em tempo real, sem alterar nada. Não aparecem nomes nem dados pessoais de agricultoras e agricultores, nem a equipe: as unidades produtivas são numeradas e as visitas aparecem sem texto livre. Esse corte é feito no banco de dados, não só na tela.',
-    extras: ['As metas e o financeiro mostram o que foi lançado no sistema. O registro oficial das despesas é o da FUNCERN.',
+    papel: 'O acompanhamento consulta a execução física do projeto em tempo real, sem alterar nada: metas e cronograma, biofábricas, lotes, distribuição e formação. Não aparecem nomes nem dados pessoais de agricultoras e agricultores, nem a equipe: as unidades produtivas são numeradas e as visitas aparecem sem texto livre. A parte financeira fica com a gestão do projeto. Esse corte é feito no banco de dados, não só na tela.',
+    extras: ['As metas mostram o que a equipe registrou no sistema, em tempo real. O relatório oficial do projeto é o que a coordenação envia.',
+      'Para trocar a sua senha: na Visão geral, no aviso “Acesso de acompanhamento”, toque em “Trocar a minha senha”.',
       'Dúvidas sobre os números: fale com a coordenação do projeto.'] }
 };
 
