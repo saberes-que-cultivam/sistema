@@ -184,7 +184,7 @@ async function novaPagina(b, opcoes) {
     const I = await ind(); ok(I.participantes === 32 && I.mulheres === 22, 'Meta 5: participantes = 12 + 20 = 32 (22 mulheres), sem as estimativas das atividades futuras', `participantes = ${I.participantes}, mulheres = ${I.mulheres}`); }
   // lista de presença: nome repetido (maiúsculas, acento e espaços diferentes) não entra
   { const ev = await idPor('eventos', 'tema', 'Capacitação em compostagem (exemplo)'); await p.click(`[data-presenca="${ev}"]`); await p.waitForSelector('#pr_nome');
-    await p.fill('#pr_nome', 'Participante Um (exemplo)'); await p.click('[data-pradd]'); await p.waitForFunction(() => (SQC.app._estado().db.presencas || []).length === 1);
+    await p.fill('#pr_nome', 'Participante Um (exemplo)'); await p.click('[data-pradd]'); await p.waitForFunction(() => (SQC.app._estado().db.presencas || []).length === 1 && /entrou na lista/.test(document.querySelector('#dlg').textContent));   // espera a lista redesenhar antes de digitar de novo
     await p.fill('#pr_nome', '  participante   UM (Exemplo) '); await p.click('[data-pradd]'); await p.waitForFunction(() => /já está nesta lista/.test(document.querySelector('#ferr').textContent));
     ok((await db()).presencas.length === 1, 'Meta 3: nome repetido na lista (caixa e espaços diferentes) é avisado e não grava');
     await p.keyboard.press('Escape'); await fechar(); }

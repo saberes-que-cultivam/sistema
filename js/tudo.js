@@ -1812,11 +1812,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
     gente: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2a5 5 0 0 1 4.5 5"/>'
   };
+  /* "?" ao lado do nome do indicador: abre e fecha a explicação logo abaixo (botão de verdade: teclado e leitor de tela) */
+  let nExpl = 0;
+  const explica = (rot, txt) => { const id = 'ex' + (++nExpl);
+    const btn = `<button type="button" class="i5-q" data-expl="${id}" aria-expanded="false" aria-controls="${id}" aria-label="O que é: ${rot.replace(/<[^>]*>/g, '')}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg></button>`;
+    // o "?" fica grudado na última palavra do nome: se o nome quebra a linha, o botão vai junto (não sobra sozinho embaixo)
+    const m = rot.match(/^(.*?)(\S+)$/s);
+    return [`<span class="i5-r">${m ? m[1] : ''}<span class="nw">${m ? m[2] : rot}${btn}</span></span>`,
+      `<p class="i5-x" id="${id}" hidden>${txt}</p>`]; };
   function indMeta5(I) {
     const ic = (k, cls) => `<span class="i5-ic ${cls || ''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC5[k]}</svg></span>`;
     const barra = (pc, cls) => `<span class="i5-bar" aria-hidden="true"><i class="${cls || ''}" style="width:${Math.max(0, Math.min(100, pc)).toFixed(1)}%"></i></span>`;
     const caiu = I.variacao != null && I.variacao < 0, maxG = Math.max(I.base, I.atual) || 1;
-    const item = (icone, rot, valor, como, extra) => `<li class="i5">${icone}<div class="i5-t"><span class="i5-r">${rot}</span><b class="i5-v">${valor}</b>${extra || ''}<small>${como}</small></div></li>`;
+    const item = (icone, rot, valor, como, extra) => { const [r, x] = explica(rot, como); return `<li class="i5">${icone}<div class="i5-t">${r}<b class="i5-v">${valor}</b>${extra || ''}${x}</div></li>`; };
     return `<section class="panel mts i5-p" aria-label="Indicadores para a avaliação"><div class="mts-cab"><h2>Indicadores para a avaliação</h2><p>Meta 5 · calculados a partir das visitas e das atividades registradas; resultados ainda a validar com as agricultoras e agricultores</p></div><ul class="i5-l">
      ${item(ic('base'), 'Gasto com insumos comprados, antes do projeto', I.pares ? brl(I.base) + '<small class="i5-u">/mês</small>' : '—', 'Média da linha de base (diagnóstico inicial) das unidades que também têm gasto na última visita.', I.pares ? barra(I.base / maxG * 100, 'ant') : '')}
      ${item(ic('atual'), 'Gasto com insumos comprados, hoje', I.pares ? brl(I.atual) + '<small class="i5-u">/mês</small>' : '—', 'Média do gasto informado na visita mais recente de cada unidade.', I.pares ? barra(I.atual / maxG * 100) : '')}
@@ -1831,8 +1839,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const ic = '<span class="i5-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></svg></span>';
     return `<section class="panel mts i5-p" aria-label="Produção e distribuição"><div class="mts-cab"><h2>Produção e distribuição</h2><p>Por tipo de bioinsumo, somando os lotes (menos os descartados) · barra: parte já distribuída</p></div>
      ${L.length ? `<ul class="i5-l">${L.map(([k, v]) => { const pc = v[0] ? v[1] / v[0] * 100 : 0, nl = db.lotes.filter(l => l.tipo === k && l.status !== 'Descartado').length;
-       return `<li class="i5">${ic}<div class="i5-t"><span class="i5-r">${esc(k)}</span><b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b><span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>
-        <small>${num(v[1])} ${esc(v[2])} distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])} · ${nl} lote(s)</small></div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
+       const [r, x] = explica(esc(k), `Produzido: soma dos lotes de ${esc(k.toLowerCase())} registrados (os descartados ficam de fora). Distribuído: o que saiu desses lotes nas entregas às unidades produtivas. Saldo: o que ainda está nos lotes. A barra é a parte já distribuída.`);
+       return `<li class="i5">${ic}<div class="i5-t">${r}<b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b><span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>
+        <small>${num(v[1])} ${esc(v[2])} distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])} · ${nl} lote(s)</small>${x}</div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
   }
   /* ---------- unidades produtivas: indicadores, cartão por pessoa e ficha com o histórico ---------- */
   const iniciais = n => String(n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).map(x => x[0]).filter((x, i, a) => i === 0 || i === a.length - 1).join('').toUpperCase() || '?';
@@ -2872,6 +2881,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       // abriu: o foco vai para os dados do município; fechou: volta para o círculo de onde veio
       const alvo = mapaMun ? document.querySelector('.mp-det') : document.querySelector(`g[data-mapamun="${CSS.escape(antes)}"]`);
       if (alvo) { if (mapaMun) alvo.setAttribute('tabindex', '-1'); alvo.focus({ preventScroll: true }); if (mapaMun && window.innerWidth < 720) alvo.scrollIntoView({ block: 'nearest' }); } }
+    else if (d.expl) { const x = document.getElementById(d.expl); if (x) { const abre = x.hidden; x.hidden = !abre; t.setAttribute('aria-expanded', abre); t.classList.toggle('on', abre); } }
     else if (d.relp) { const h = hoje(), f = x => iso(x); let de_, ate_ = f(h);
       if (d.relp === 'mes') { de_ = f(new Date(h.getFullYear(), h.getMonth() - 1, 1)); ate_ = f(new Date(h.getFullYear(), h.getMonth(), 0)); }
       else if (d.relp === 'tri') de_ = f(new Date(h.getFullYear(), h.getMonth() - 3, h.getDate() + 1));
