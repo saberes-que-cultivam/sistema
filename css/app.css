@@ -1368,3 +1368,21 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 @media (max-width:520px){
   .i5-t{grid-template-columns:minmax(0,1fr)} .i5-v{text-align:left;white-space:normal}
 }
+
+/* Relatórios no padrão das outras abas: período num painel, resumo em cartões e cada seção num painel com ícone */
+.rel-f{padding:20px 24px;display:grid;gap:14px;border-radius:20px}
+.rel-at{display:flex;flex-wrap:wrap;gap:8px}
+.rel{padding:0;border:0;background:none;box-shadow:none;gap:20px}
+.rel-doc{padding:24px 28px;border-radius:20px;display:grid;gap:6px}
+.rel-doc h2{font-size:var(--t-xl);line-height:1.25}
+.rel .rs{display:flex;flex-direction:column;gap:14px}
+.rs-cab{display:flex;align-items:flex-start;gap:14px}
+.rs-cab h3{margin:0;font:600 var(--t-xl)/1.2 var(--body);color:var(--txt-1)}
+.rs-cab p{margin:4px 0 0}
+.rel .rs>p{margin:0;color:var(--txt-2);font-size:var(--t-sm)}
+.rel tr.rx{display:none} .rel .rs.tudo tr.rx{display:table-row}
+@media (max-width:640px){.rel-f{padding:16px}.rel-doc{padding:18px 16px}.rs-cab h3{font-size:var(--t-lg)}}
+@media print{
+  .rel{gap:12px} .rel .mts,.rel-doc{padding:0;border:0;box-shadow:none;border-radius:0;background:none}
+  .rel tr.rx{display:table-row!important} .rs-cab .i5-ic{display:none} .rs-cab{padding-bottom:4px}
+}

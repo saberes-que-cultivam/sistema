@@ -113,7 +113,7 @@ const conferir = W => {   // W: largura pedida (no celular simulado o innerWidth
     if (e.matches('svg') && e.closest('button,a,[role=img],[role=button]') && e.closest('button,a,[role=img],[role=button]') !== e) return;
     const n = (e.getAttribute('aria-label') || '').trim() || (e.getAttribute('aria-labelledby') ? 'x' : '') || (e.querySelector(':scope>title') || {}).textContent;
     if (e.matches('canvas') && !e.textContent.trim() && !n) out.graficos.push('canvas sem alternativa: ' + quem(e));
-    else if (!n || (e.matches('svg') && e.getAttribute('role') !== 'img' && !e.closest('[role=img]'))) out.graficos.push('desenho sem papel img ou sem nome: ' + quem(e)); });
+    else if (!n || (e.matches('svg') && !['img', 'group'].includes(e.getAttribute('role')) && !e.closest('[role=img]'))) out.graficos.push('desenho sem papel img ou sem nome: ' + quem(e)); });
   return out;
 };
 
