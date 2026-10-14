@@ -59,6 +59,9 @@
       mb('formador', 'Rita Formadora (fictícia)', 'Associação parceira', '2026-11-01'),
       mb('formador', 'Paulo Formador (fictício)', 'Técnico de ATER', '2026-11-01')]).filter(m => ja(m.inicio));
     db.membros.forEach(m => { if (m.fim && !ja(m.fim)) { delete m.fim; delete m.motivo; } });
+    // CPF fictício (começa com 0000000, confere no dígito e não é de ninguém) e e-mail sem acento: o cadastro exige os dois
+    const cpfFicticio = k => { const d = ('0000000' + String(k).padStart(2, '0')).split('').map(Number); [10, 11].forEach(p => { const r = d.reduce((t, x, i) => t + x * (p - i), 0) * 10 % 11; d.push(r === 10 ? 0 : r); }); return d.join(''); };
+    db.membros.forEach((m, i) => { m.cpf = m.cpf || cpfFicticio(i + 1); m.email = String(m.email || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); });
 
     /* unidades de produção: implantação passo a passo, com as datas de cada passo */
     const passos = { u1: ['2026-08-20', '2026-09-10', '2026-10-15', '2026-11-05', '2026-11-20', '2026-12-18', '2027-01-12', '2027-01-26'],

@@ -20,7 +20,9 @@
       pessoas: [
         { id: 'p-coord', nome: 'Coordenação (demonstração)', email: 'coordenacao@exemplo.br', perfil: 'Coordenação', ativo: true },
         { id: 'p-equipe', nome: 'Equipe (demonstração)', email: 'equipe@exemplo.br', perfil: 'Equipe', ativo: true },
-        { id: 'p-mda', nome: 'Acompanhamento (demonstração)', email: 'acompanhamento@exemplo.br', perfil: 'Acompanhamento', orgao: 'SEAB/MDA', ativo: true }],
+        { id: 'p-mda', nome: 'Acompanhamento (demonstração)', email: 'acompanhamento@exemplo.br', perfil: 'Acompanhamento', orgao: 'SEAB/MDA', ativo: true },
+        { id: 'p-aux', nome: 'Auxiliar administrativo (demonstração)', email: 'auxiliar@exemplo.br', perfil: 'Auxiliar', ativo: true },
+        { id: 'p-form', nome: 'Formador(a) (demonstração)', email: 'formador@exemplo.br', perfil: 'Formador', ativo: true }],
       unidades: [
         { id: 'u1', nome: 'Polo São Paulo do Potengi', sigla: 'SPP', municipio: 'São Paulo do Potengi', uf: 'RN', territorio: 'Potengi/RN', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: microrganismos isolados se houver local adequado; senão, área aberta com cobertura.' },
         { id: 'u2', nome: 'Polo Mulungu', sigla: 'MUL', municipio: 'Mulungu', uf: 'CE', territorio: 'Maciço de Baturité/CE', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: mesma regra do polo de São Paulo do Potengi.' },
@@ -56,7 +58,7 @@
     try { db = JSON.parse(ler(CHAVE)); } catch (e) { db = null; }
     const s = semente(); if (!db || !Array.isArray(db.unidades)) db = s;
     D.TABELAS.forEach(t => { if (!Array.isArray(db[t])) db[t] = s[t]; });
-    if (!db.pessoas.some(p => p.perfil === 'Acompanhamento')) db.pessoas.push(s.pessoas.find(p => p.perfil === 'Acompanhamento'));   // demonstração criada antes desse perfil existir
+    ['Acompanhamento', 'Auxiliar', 'Formador'].forEach(pf => { if (!db.pessoas.some(p => p.perfil === pf)) db.pessoas.push(s.pessoas.find(p => p.perfil === pf)); });   // demonstração criada antes desses perfis existirem
     return db;
   }
   const persistir = () => gravar(CHAVE, JSON.stringify(db));
@@ -78,10 +80,23 @@
       if (!L.length) throw falha('Seu cadastro na equipe não está ligado a este e-mail. Peça à coordenação para conferir o e-mail no cadastro.');
       L.forEach(m => { m.telefone = telefone || null; m.municipio = municipio || null; m.atualizado_em = new Date().toISOString(); }); persistir();
     },
+    async habilitar(id, arlo, termoEm) {
+      if (!eu || !['Coordenação', 'Auxiliar'].includes(eu.perfil)) throw falha('Só a coordenação e o auxiliar administrativo marcam a habilitação.');
+      const m = db.membros.find(x => x.id === id); if (!m) throw falha(R.MSG_EXCLUIDO);
+      m.arlo = arlo || null; m.termo_em = termoEm || null; m.atualizado_em = new Date().toISOString(); persistir(); return JSON.parse(JSON.stringify(m));
+    },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */
     async carregar() {
       const c = JSON.parse(JSON.stringify(carregarLocal()));
+      const pf = eu ? eu.perfil : '';
+      if (pf === 'Auxiliar' || pf === 'Formador') {   // como no banco (23): unidades produtivas numeradas, visitas sem texto; cada um só o que é seu
+        c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, criado_em: a.criado_em, ex: a.ex }));
+        c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
+        c.pessoas = c.pessoas.filter(p => p.id === eu.id);
+        if (pf === 'Auxiliar') { c.presencas = []; c.fotos = []; c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; return x; }); }
+        else { c.despesas = []; c.membros = []; c.fotos = c.fotos.filter(f => f.tabela === 'eventos'); c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); }
+      }
       if (eu && eu.perfil === 'Acompanhamento') {
         c.agricultores = c.agricultores.map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
         c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
@@ -89,7 +104,7 @@
         c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });   // como no banco (script 16): sem despesas; itens sem valor
         c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; return x; });   // como no banco (script 15)
       }
-      if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
+      if (eu && !['Coordenação', 'Auxiliar'].includes(eu.perfil)) c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       return c;
     },
     async salvar(tabela, reg) {
@@ -148,7 +163,7 @@
       this._cv(l => l.concat([{ id: SQC.novoId(), funcao, token, status: 'aberto', dados: null, expira_em: new Date(Date.now() + 7 * 864e5).toISOString(), criado_em: new Date().toISOString() }])); return token; },
     async conviteVer(token) { const c = this._cv().find(x => x.token === token && x.status === 'aberto' && new Date(x.expira_em) > new Date()); return c ? c.funcao : null; },
     async conviteEnviar(token, dados) { let ok = false; const limpo = {}; R.CAMPOS_CONVITE.forEach(k => { if (k in dados && String(dados[k]).length <= 300) limpo[k] = dados[k]; });
-      const msg = R.validarConvite(limpo); if (msg) throw falha(msg);
+      const fn = (this._cv().find(x => x.token === token) || {}).funcao; const msg = R.validarConvite(limpo, fn); if (msg) throw falha(msg);
       this._cv(l => l.map(c => { if (c.token === token && c.status === 'aberto' && new Date(c.expira_em) > new Date()) { ok = true; return Object.assign({}, c, { status: 'preenchido', dados: limpo, preenchido_em: new Date().toISOString() }); } return c; }));
       if (!ok) throw falha('Este link já foi usado ou venceu. Peça outro à coordenação do projeto.'); },
     async conviteEncerrar(id, status) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.'); this._cv(l => l.map(c => c.id === id ? Object.assign({}, c, { status, dados: null }) : c)); },

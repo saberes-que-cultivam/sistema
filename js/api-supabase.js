@@ -30,7 +30,7 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas', 'lat', 'lng', 'precisao'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
+    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs', 'termo_em']),
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status'],
     presencas: ['evento', 'nome', 'comunidade', 'municipio', 'mulher', 'agricultor'],
     fotos: ['tabela', 'registro', 'caminho', 'tirada_em', 'legenda']
@@ -173,6 +173,14 @@
       if (error) throw erro(error);
     },
     /* "Meus dados" (script 19): a pessoa muda só o próprio celular e município */
+    /* habilitação na FUNCERN (Arlo e termo): só essas duas colunas vão ao banco (o 23 recusa o auxiliar mexer em outra) */
+    async habilitar(id, arlo, termoEm, base) {
+      let q = sb.from('membros').update({ arlo: arlo || null, termo_em: termoEm || null }).eq('id', id); if (base) q = q.eq('atualizado_em', base);
+      const { data, error } = await q.select('id, arlo, termo_em, atualizado_em');
+      if (error) { if (error.code === 'PGRST204' || error.code === '42703') throw erro({ code: 'P0001', message: 'Para marcar a habilitação, a coordenação precisa rodar antes o script 23_perfis_auxiliar_formador.sql no Supabase.' }); throw erro(error); }
+      if (!data || !data.length) throw erro({ code: 'P0001', message: R.MSG_CONFLITO });
+      return data[0];
+    },
     async atualizarMeusContatos(telefone, municipio) {
       const { error } = await sb.rpc('atualizar_meus_contatos', { p_telefone: telefone || null, p_municipio: municipio || null });
       if (error) { if (error.code === 'PGRST202' || /atualizar_meus_contatos/.test(String(error.message))) throw erro({ code: 'P0001', message: 'Para atualizar os seus dados por aqui, a coordenação precisa rodar antes o script 19_meus_contatos.sql no Supabase.' }); throw erro(error); }
@@ -191,15 +199,22 @@
     async carregar() {
       try {
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
-        const fora = euCache && euCache.perfil === 'Acompanhamento';
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
         const evFora = async () => { const { data, error } = await sb.rpc('eventos_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return todas('eventos'); if (error) throw erro(error); return data || []; };
         // itens das biofábricas (script 20): o SEAB/MDA recebe sem valor e sem rubrica; banco sem o 20 ainda: tira na chegada
         const itFora = async () => { const { data, error } = await sb.rpc('itens_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return (await todas('itens')).map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); if (error) throw erro(error); return data || []; };
-        const listas = await Promise.all(D.TABELAS.map(t => fora && (t === 'membros' || t === 'presencas' || t === 'fotos' || t === 'despesas') ? [] : fora && t === 'eventos' ? evFora() : fora && t === 'itens' ? itFora() : fora && t === 'agricultores' ? anon('agricultores_anonimos') : fora && t === 'visitas' ? anon('visitas_anonimas') : todas(t)));
+        // o que cada perfil recebe (o banco corta igual; aqui só se pede o caminho certo):
+        //   SEAB/MDA, auxiliar e formador(a): unidades produtivas numeradas e visitas sem texto livre;
+        //   atividades sem link e observações para SEAB/MDA e auxiliar; itens sem valor para SEAB/MDA e formador(a);
+        //   despesas e equipe: coordenação, equipe e auxiliar; listas de presença e fotos: coordenação, equipe e formador(a)
+        const p = (euCache && euCache.perfil) || '', campoAnon = ['Acompanhamento', 'Auxiliar', 'Formador'].includes(p);
+        const vazio = { membros: ['Acompanhamento', 'Formador'], despesas: ['Acompanhamento', 'Formador'], presencas: ['Acompanhamento', 'Auxiliar'], fotos: ['Acompanhamento', 'Auxiliar'] };
+        const pedir = t => (vazio[t] || []).includes(p) ? [] : t === 'eventos' && ['Acompanhamento', 'Auxiliar'].includes(p) ? evFora() : t === 'itens' && ['Acompanhamento', 'Formador'].includes(p) ? itFora()
+          : campoAnon && t === 'agricultores' ? anon('agricultores_anonimos') : campoAnon && t === 'visitas' ? anon('visitas_anonimas') : todas(t);
+        const listas = await Promise.all(D.TABELAS.map(pedir));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // dados reservados da equipe: só a coordenação recebe, por função própria do banco
-        if (euCache && euCache.perfil === 'Coordenação' && db.membros.length && !semCompleto) {
+        if (euCache && ['Coordenação', 'Auxiliar'].includes(euCache.perfil) && db.membros.length && !semCompleto) {
           const rs = await sb.rpc('membros_reservados'); if (rs.error && rs.error.code !== 'PGRST202' && rs.error.code !== '42883') throw erro(rs.error);
           (rs.data || []).forEach(x => { const m = db.membros.find(y => y.id === x.id); if (m) Object.assign(m, x); });
         }
@@ -218,6 +233,8 @@
       catch (e) {
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
+        // banco sem o 23 (coluna termo_em): grava o resto e deixa a data do termo para depois
+        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703') && /termo_em/.test(String(o.message)) && COLUNAS.membros.includes('termo_em')) { COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'termo_em'); return await this.salvar(tabela, reg, op); }
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
         // banco sem as colunas da localização (script 18 ainda não rodado): a visita sem localização segue; com localização, avisa
         if (tabela === 'visitas' && (o.code === 'PGRST204' || /column .*(lat|lng|precisao)/i.test(String(o.message)))) {

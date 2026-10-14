@@ -53,7 +53,7 @@ tab.despesas = db.despesas.map(x => Object.assign({}, x, { id: novo(x.id), data:
 const COL = {
   unidades: ['id', 'nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])),
   itens: ['id', 'unidade', 'descricao', 'valor', 'rubrica', 'status', 'data'],
-  membros: ['id', 'funcao', 'nome', 'vinculo', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'lgpd', 'inicio', 'fim', 'motivo'],
+  membros: ['id', 'funcao', 'nome', 'vinculo', 'cpf', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'lgpd', 'inicio', 'fim', 'motivo'],
   lotes: ['id', 'unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
   agricultores: ['id', 'nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata'],
   distribuicoes: ['id', 'data', 'lote', 'agricultor', 'qtd', 'cultura', 'area', 'forma'],

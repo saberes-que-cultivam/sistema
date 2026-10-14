@@ -44,15 +44,15 @@ insert into public.itens (id, unidade, descricao, valor, rubrica, status, data) 
  ('ffffffff-0000-4000-8000-000000000015', 'ffffffff-0000-4000-8000-000000000002', 'Material de laboratório', 5000, 'equipamentos', 'Entregue', '2026-09-02');
 
 -- membros (8)
-insert into public.membros (id, funcao, nome, vinculo, email, telefone, municipio, outra_bolsa, arlo, lgpd, inicio, fim, motivo) values
- ('ffffffff-0000-4000-8000-000000000016', 'coordenacao', 'Coordenador de exemplo (fictício)', 'IFRN Campus Apodi', 'coordenacao@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Sim', true, '2026-08-01', null, null),
- ('ffffffff-0000-4000-8000-000000000017', 'auxiliar', 'Lívia Auxiliar (fictícia)', 'IFRN Campus Apodi', 'lívia@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-13', null, null),
- ('ffffffff-0000-4000-8000-000000000018', 'discente', 'Caio Discente (fictício)', 'Tecnologia em Agroecologia', 'caio@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', null, null),
- ('ffffffff-0000-4000-8000-000000000019', 'discente', 'Bruna Discente (fictícia)', 'Tecnologia em Agroecologia', 'bruna@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', null, null),
- ('ffffffff-0000-4000-8000-000000000020', 'discente', 'Davi Discente (fictício)', 'Tecnologia em Agroecologia', 'davi@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', '2026-09-24', 'Concluiu o curso'),
- ('ffffffff-0000-4000-8000-000000000021', 'discente', 'Elisa Discente (fictícia)', 'Tecnologia em Agroecologia', 'elisa@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-09-24', null, null),
- ('ffffffff-0000-4000-8000-000000000022', 'formador', 'Rita Formadora (fictícia)', 'Associação parceira', 'rita@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-19', null, null),
- ('ffffffff-0000-4000-8000-000000000023', 'formador', 'Paulo Formador (fictício)', 'Técnico de ATER', 'paulo@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-19', null, null);
+insert into public.membros (id, funcao, nome, vinculo, cpf, email, telefone, municipio, outra_bolsa, arlo, lgpd, inicio, fim, motivo) values
+ ('ffffffff-0000-4000-8000-000000000016', 'coordenacao', 'Coordenador de exemplo (fictício)', 'IFRN Campus Apodi', '00000000191', 'coordenacao@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Sim', true, '2026-08-01', null, null),
+ ('ffffffff-0000-4000-8000-000000000017', 'auxiliar', 'Lívia Auxiliar (fictícia)', 'IFRN Campus Apodi', '00000000272', 'livia@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-13', null, null),
+ ('ffffffff-0000-4000-8000-000000000018', 'discente', 'Caio Discente (fictício)', 'Tecnologia em Agroecologia', '00000000353', 'caio@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', null, null),
+ ('ffffffff-0000-4000-8000-000000000019', 'discente', 'Bruna Discente (fictícia)', 'Tecnologia em Agroecologia', '00000000434', 'bruna@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', null, null),
+ ('ffffffff-0000-4000-8000-000000000020', 'discente', 'Davi Discente (fictício)', 'Tecnologia em Agroecologia', '00000000515', 'davi@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-25', '2026-09-24', 'Concluiu o curso'),
+ ('ffffffff-0000-4000-8000-000000000021', 'discente', 'Elisa Discente (fictícia)', 'Tecnologia em Agroecologia', '00000000604', 'elisa@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-09-24', null, null),
+ ('ffffffff-0000-4000-8000-000000000022', 'formador', 'Rita Formadora (fictícia)', 'Associação parceira', '00000000787', 'rita@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-19', null, null),
+ ('ffffffff-0000-4000-8000-000000000023', 'formador', 'Paulo Formador (fictício)', 'Técnico de ATER', '00000000868', 'paulo@exemplo.br', '(00) 00000-0000', 'Apodi/RN', 'Não', 'Não', true, '2026-08-19', null, null);
 
 -- lotes (42)
 insert into public.lotes (id, unidade, tipo, inicio, dias, qtd, med, status, responsavel, insumos, obs) values

@@ -1396,3 +1396,28 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 @media (pointer:coarse){.i5-q{width:32px;height:32px}}
 .i5-r{display:block} .i5-r .nw{white-space:nowrap}
 .i5-r .i5-q{display:inline-grid;vertical-align:middle;margin-left:6px;position:relative;top:-1px}
+
+/* cadastro da equipe no padrão do Mulheres & Quintais (14/10) */
+.fm-g{display:contents} .fm-g[hidden]{display:none}
+.fm-faz{padding:14px 16px;border-radius:12px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.fm-faz span{display:block;font-size:var(--t-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)} .fm-faz p{margin:4px 0 0;font-size:var(--t-base);color:var(--txt-1)}
+.fm-arlo{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 14px}
+.fm-arlo summary{cursor:pointer;font-weight:600;color:var(--accent)} .fm-arlo p{margin:8px 0 0;font-size:var(--t-sm);color:var(--txt-2);line-height:1.5}
+.pub-passos{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;counter-reset:p}
+.pub-passos li{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--sunken);font-size:var(--t-sm);color:var(--txt-2)}
+.pub-passos b{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font-size:var(--t-sm)}
+.pub-passos li.pp-at{background:var(--accent-soft);color:var(--txt-1);font-weight:600} .pub-passos li.pp-at b{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+@media (max-width:520px){.pub-passos{grid-template-columns:minmax(0,1fr)}}
+/* habilitação na FUNCERN, no alto da aba Equipe */
+.hab-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+.hab-c{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--sunken) 35%,var(--surface))}
+.hab-c h3{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--t-base)}
+.hab-c ul{list-style:none;margin:0;padding:0;display:grid;gap:6px} .hab-c li{display:grid;justify-items:start;text-align:left} .hab-c small{color:var(--txt-3);font-size:var(--t-xs)}
+@media (max-width:820px){.hab-g{grid-template-columns:minmax(0,1fr)}}
+/* ficha da pessoa */
+.fi-top{display:flex;gap:14px;align-items:center} .fi-top>div{display:flex;flex-wrap:wrap;gap:6px;align-items:center} .fi-top p{flex-basis:100%;margin:2px 0 0}
+.fi-dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;margin:10px 0 0}
+.fi-dl dt{font-size:var(--t-xs);color:var(--txt-2)} .fi-dl dd{margin:2px 0 0;font-size:var(--t-base);overflow-wrap:anywhere}
+@media (max-width:520px){.fi-dl{grid-template-columns:minmax(0,1fr)}}
+/* aviso do campo (CPF inválido, e-mail com erro) toma o lugar da dica fixa: os dois no mesmo espaço se sobrepunham */
+.fm .fld .dica-masc ~ .fm-dica{display:none}

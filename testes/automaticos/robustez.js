@@ -55,9 +55,12 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await p.click(`[data-del="lotes:${lote.id}"]`); await p.click(`[data-del="lotes:${lote.id}"]`); await p.waitForFunction(a => SQC.app._estado().db.lotes.length === a, antes);
     ok(!(await p.textContent('#view')).includes(lote.codigo), 'excluir confirmado: o registro some da lista');
     // entrega acima do saldo (regra de negócio) e datas
-    await p.click('[data-tab="equipe"]'); await p.click('.vg-b'); await p.click('[data-digitar]'); await p.fill('#f_nome', X + S); await p.fill('#f_inicio', '2026-10-10'); await p.fill('#f_fim', '2026-10-01'); await p.check('#f_lgpd'); antes = await n(p, 'membros'); await p.click('#fsalvar');
-    ok(await n(p, 'membros') === antes && /antes do início/.test(await p.textContent('#ferr')), 'desligamento antes do início: recusado'); await p.fill('#f_fim', ''); await p.uncheck('#f_lgpd'); await p.click('#fsalvar');
+    await p.click('[data-tab="equipe"]'); await p.click('.vg-b'); await p.click('[data-digitar]'); await p.fill('#f_nome', X + S + ' Sobrenome'); await p.fill('#f_inicio', '2026-10-10');
+    antes = await n(p, 'membros'); await p.click('#fsalvar'); ok(await n(p, 'membros') === antes && /CPF/.test(await p.textContent('#ferr')), 'cadastro novo sem CPF: não grava (padrão Mulheres & Quintais)');
+    await p.fill('#f_cpf', '000.000.001-91'); await p.fill('#f_telefone', '(84) 99999-0000'); await p.fill('#f_email', 'robustez@exemplo.br'); await p.click('#fsalvar');
     ok(await n(p, 'membros') === antes, 'sem o registro de LGPD: não grava'); await p.check('#f_lgpd'); await p.click('#fsalvar'); await fechado(p); ok(await n(p, 'membros') === antes + 1, 'cadastro válido da equipe grava');
+    { const id = await p.evaluate(() => SQC.app._estado().db.membros.find(m => m.email === 'robustez@exemplo.br').id); await p.click(`[data-fichamembro="${id}"]`); await p.click('#frm [data-edit]'); await p.waitForSelector('#f_fim');
+      await p.fill('#f_fim', '2026-10-01'); await p.click('#fsalvar'); ok(/antes do início/.test(await p.textContent('#ferr')), 'desligamento antes do início: recusado'); await p.fill('#f_fim', ''); await p.click('#fsalvar'); await fechado(p); }
     await semXss(p, 'aba Equipe');
     /* ---------- 2b. link de cadastro: página sem login, uma vez só, e nada vira cadastro sem a coordenação aprovar ---------- */
     await p.click('.vg-b'); await p.click('[data-gerarlink]'); await p.waitForSelector('#lk_txt'); const link = await p.inputValue('#lk_txt'); await p.click('#dlg [data-fechar]');
@@ -66,13 +69,15 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await q.goto(link.replace(/[0-9a-f]{4}$/, '0000')); await q.waitForSelector('#pub:not([hidden])'); ok(!(await q.$('#fpub')) && /não vale mais/.test(await q.textContent('#pub')), 'link de cadastro: código errado não abre formulário');
     await q.goto(link); await q.reload(); await q.waitForSelector('#fpub');
     ok(await q.evaluate(() => document.querySelector('#app').hidden && !document.querySelector('#view').innerHTML && !document.querySelector('#f_funcao') && !document.querySelector('#f_inicio') && !document.querySelector('#f_fim')), 'link de cadastro: a página não mostra nada do sistema nem os campos da coordenação');
-    antes = await n(p, 'membros'); await q.fill('#f_nome', X); await q.fill('#f_cpf', '123.456.789-00'); await q.check('#f_lgpd'); await q.click('#penviar'); ok(/CPF/.test(await q.textContent('#perr')), 'link de cadastro: CPF inválido é recusado');
+    antes = await n(p, 'membros'); await q.fill('#f_nome', X + ' Sobrenome'); await q.fill('#f_telefone', '(84) 98888-0000'); await q.fill('#f_email', 'link@exemplo.br'); await q.fill('#f_nascimento', '2000-01-01');
+    for (const k of ['agricultor', 'atua_af', 'zona_rural', 'celular_internet']) if (await q.isVisible('#f_' + k)) await q.selectOption('#f_' + k, 'Não');
+    await q.fill('#f_cpf', '123.456.789-00'); await q.check('#f_lgpd'); await q.click('#penviar'); ok(/CPF/.test(await q.textContent('#perr')), 'link de cadastro: CPF inválido é recusado');
     await q.fill('#f_cpf', '529.982.247-25'); await q.uncheck('#f_lgpd'); await q.click('#penviar'); ok(/concorda/.test(await q.textContent('#perr')), 'link de cadastro: sem aceitar o termo não envia');
     await q.check('#f_lgpd'); await q.click('#penviar'); await q.click('#penviar').catch(() => {}); await q.waitForSelector('text=Cadastro enviado');
     await q.goto(link); await q.reload(); await q.waitForSelector('#pub:not([hidden])'); ok(!(await q.$('#fpub')), 'link de cadastro: o mesmo link não abre de novo depois de usado'); ok(!q.erros.length, 'link de cadastro: sem erro de script'); await q.close();
     await p.reload(); await p.waitForSelector('#app:not([hidden])'); await p.click('[data-tab="equipe"]'); await p.waitForSelector('[data-cvaprovar]');
     ok(await n(p, 'membros') === antes, 'link de cadastro: enviar não cria cadastro sozinho'); await semXss(p, 'convite pendente');
-    await p.click('[data-cvaprovar]'); await p.waitForSelector('#dlg[open] #f_cpf'); ok(await p.inputValue('#f_cpf') === '529.982.247-25' && await p.inputValue('#f_nome') === X, 'link de cadastro: a coordenação confere os dados como texto'); await p.click('#fsalvar'); await fechado(p); await p.waitForTimeout(200);
+    await p.click('[data-cvaprovar]'); await p.waitForSelector('#dlg[open] #f_cpf'); ok(await p.inputValue('#f_cpf') === '529.982.247-25' && await p.inputValue('#f_nome') === X + ' Sobrenome', 'link de cadastro: a coordenação confere os dados como texto'); await p.click('#fsalvar'); await fechado(p); await p.waitForTimeout(200);
     ok(await n(p, 'membros') === antes + 1 && !(await p.$('[data-cvaprovar]')), 'link de cadastro: aprovado vira cadastro e o convite some'); await semXss(p, 'cadastro aprovado');
     /* ---------- 3. planilha com conteúdo malicioso e linhas inválidas ---------- */
     await p.click('[data-tab="financeiro"]'); antes = await n(p, 'despesas'); await p.setInputFiles('#imp_arq', path.join(__dirname, '..', 'unit', 'dados', 'solicitacoes_maliciosa.xlsx')); await p.waitForSelector('#dlg[open] [data-impok]');

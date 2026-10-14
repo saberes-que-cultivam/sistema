@@ -52,7 +52,7 @@ select 'meus dados: celular e município (19)', case when to_regprocedure('publi
 union all
 select 'correções da auditoria de 14/10 (20)',
        case when to_regprocedure('public.itens_acompanhamento()') is null then 'FALTA: rode o 20'
-            when pg_get_functiondef('public.atualizar_meus_contatos(text,text)'::regprocedure) not like '%sou_equipe%' then 'VOLTOU ATRÁS: o 19 foi rodado depois do 20; rode o 20 de novo'
+            when pg_get_functiondef('public.atualizar_meus_contatos(text,text)'::regprocedure) not like '%sou_equipe%' and pg_get_functiondef('public.atualizar_meus_contatos(text,text)'::regprocedure) not like '%sou_do_projeto%' then 'VOLTOU ATRÁS: o 19 foi rodado depois do 20; rode o 20 de novo'
             when pg_get_functiondef('public.fotos_antes()'::regprocedure) not like '%storage.objects%' then 'VOLTOU ATRÁS: o 13 ou o 15 foi rodado depois do 20; rode o 20 de novo'
             when (select qual from pg_policies where schemaname = 'public' and tablename = 'itens' and policyname = 'itens_ler') not like '%sou_equipe%' then 'ABERTO: o SEAB/MDA lê valor e rubrica dos itens (o 15 foi rodado depois do 20); rode o 20 de novo'
             else 'ok' end
@@ -62,6 +62,16 @@ union all
 select 'correções da auditoria formal (22)',
        case when not exists (select 1 from pg_trigger where tgname = 'b_visita_data' and tgrelid = 'public.visitas'::regclass) then 'FALTA: rode o 22'
             when (select qual from pg_policies where schemaname = 'public' and tablename = 'auditoria' and policyname = 'auditoria_ler') like '%AS meu_perfil) =%' then 'CONFIRA: o 15 foi rodado depois do 22 (histórico lento); rode o 22 de novo'
+            else 'ok' end
+union all
+select 'perfis do auxiliar e de formador(a) (23)',
+       case when to_regprocedure('public.sou_do_projeto()') is null then 'FALTA: rode o 23'
+            when (select qual from pg_policies where schemaname = 'public' and tablename = 'despesas' and policyname = 'despesas_ler') not like '%Auxiliar%'
+              or (select qual from pg_policies where schemaname = 'public' and tablename = 'eventos' and policyname = 'eventos_ler') not like '%Formador%'
+              or (select qual from pg_policies where schemaname = 'public' and tablename = 'membros' and policyname = 'membros_ler') not like '%Auxiliar%'
+              or (select qual from pg_policies where schemaname = 'public' and tablename = 'itens' and policyname = 'itens_ler') not like '%Auxiliar%'
+              then 'VOLTOU ATRÁS: o 15, o 16 ou o 20 foi rodado depois do 23; rode do 16 ao último de novo'
+            when not exists (select 1 from pg_trigger where tgname = 'b_membros_conferir') then 'FALTA: rode o 23'
             else 'ok' end
 union all
 select 'regras da pasta de fotos',

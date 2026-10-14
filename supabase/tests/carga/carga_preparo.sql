@@ -13,7 +13,7 @@ select set_config('sqc.vinculando', '', false);
 insert into public.unidades (nome, sigla, municipio, uf) select 'Unidade carga ' || g, 'C' || chr(65 + g / 26) || chr(65 + g % 26), 'Apodi', 'RN' from generate_series(1, 20) g;
 insert into public.itens (unidade, descricao, valor, rubrica, status) select 'c0000000-0000-4000-8000-000000000001', 'Item ' || g, 100 + g, 'consumo', 'A definir' from generate_series(1, 200) g;
 insert into public.entregas (etapa, titulo, data) select '3.1', 'Entrega ' || g, '2026-09-01'::date + g % 30 from generate_series(1, 100) g;
-insert into public.membros (funcao, nome, email, inicio) select 'discente', 'Membro ' || g, 'membro' || g || '@teste.br', '2026-08-01' from generate_series(1, 30) g;
+insert into public.membros (funcao, nome, email, inicio, cpf, telefone) select 'discente', 'Membro ' || g, 'membro' || g || '@teste.br', '2026-08-01', lpad(g::text, 11, '0'), '(84) 90000-0000' from generate_series(1, 30) g;
 
 -- 30 lotes grandes com id conhecido (gravações da carga) e 1 lote de 100 kg (corrida no mesmo lote)
 insert into public.lotes (id, unidade, tipo, inicio, qtd, status)

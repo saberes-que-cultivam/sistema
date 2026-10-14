@@ -146,12 +146,45 @@ test('cadastro da equipe: documento guardado só com números; questionário nã
   const r = R.normalizarMembro({ cpf: '529.982.247-25', cep: '59700-000', uf: 'rn', socio: false, renda: 1200, raca_cor: 'Parda' });
   assert.deepStrictEqual([r.cpf, r.cep, r.uf, r.renda, r.raca_cor], ['52998224725', '59700000', 'RN', '', '']);
 });
-test('link de cadastro: nome e termo obrigatórios; CPF e CEP conferidos; campos da coordenação não estão na lista aceita', () => {
-  assert.match(R.validarConvite({ nome: 'Ab', lgpd: true }), /nome/); assert.match(R.validarConvite({ nome: 'Pessoa Exemplo' }), /concorda/);
-  assert.match(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cpf: '11111111111' }), /CPF/); assert.match(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cep: '123' }), /CEP/);
-  assert.strictEqual(R.validarConvite({ nome: 'Pessoa Exemplo', lgpd: true, cpf: '52998224725' }), '');
-  ['funcao', 'inicio', 'fim', 'motivo', 'obs', 'id', 'criado_por'].forEach(k => assert.ok(!R.CAMPOS_CONVITE.includes(k), k));
+test('link de cadastro (padrão Mulheres & Quintais): nome completo, CPF, celular, e-mail, nascimento sem Arlo, perfil no campo e termo', () => {
+  const ok = { nome: 'Pessoa Exemplo', cpf: '52998224725', telefone: '(84) 90000-0000', email: 'pessoa@exemplo.br', nascimento: '2000-01-01', lgpd: true };
+  assert.strictEqual(R.validarConvite(ok, 'auxiliar'), '');
+  assert.match(R.validarConvite(Object.assign({}, ok, { nome: 'Pessoa' }), 'auxiliar'), /nome completo/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { cpf: '' }), 'auxiliar'), /CPF/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { cpf: '11111111111' }), 'auxiliar'), /CPF/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { telefone: '' }), 'auxiliar'), /celular/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { email: '' }), 'auxiliar'), /e-mail/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { nascimento: '' }), 'auxiliar'), /nascimento/);
+  assert.strictEqual(R.validarConvite(Object.assign({}, ok, { nascimento: '', arlo: 'Sim' }), 'auxiliar'), '');   // já tem Arlo: não precisa
+  assert.match(R.validarConvite(ok, 'discente'), /Perfil no campo/);
+  assert.strictEqual(R.validarConvite(Object.assign({}, ok, { agricultor: 'Não', atua_af: 'Sim', zona_rural: 'Não', celular_internet: 'Sim' }), 'discente'), '');
+  assert.match(R.validarConvite(Object.assign({}, ok, { cep: '123' }), 'auxiliar'), /CEP/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { lgpd: false }), 'auxiliar'), /concorda/);
+  assert.match(R.validarConvite(Object.assign({}, ok, { socio: true, escolaridade: 'Técnico' }), 'auxiliar'), /socioeconômico/);
+  ['funcao', 'inicio', 'fim', 'motivo', 'obs', 'id', 'criado_por', 'termo_em'].forEach(k => assert.ok(!R.CAMPOS_CONVITE.includes(k), k));
   R.CAMPOS_RESERVADOS.forEach(k => assert.ok(R.CAMPOS_CONVITE.includes(k), k));
+});
+test('perfis do 23: auxiliar administrativo grava financeiro e itens; formador(a), só a Formação', () => {
+  const aux = { id: 'x', perfil: 'Auxiliar' }, fo = { id: 'y', perfil: 'Formador' };
+  assert.ok(R.podeGravar(aux, 'despesas') && R.podeGravar(aux, 'itens') && !R.podeGravar(aux, 'membros') && !R.podeGravar(aux, 'visitas') && !R.podeGravar(aux, 'eventos'));
+  assert.ok(R.podeExcluir(aux, 'despesas', { criado_por: 'outro' }) && !R.podeExcluir(aux, 'itens', { criado_por: 'outro' }) && R.podeExcluir(aux, 'itens', { criado_por: 'x' }));
+  assert.ok(R.podeGravar(fo, 'eventos') && R.podeGravar(fo, 'presencas') && R.podeGravar(fo, 'fotos') && !R.podeGravar(fo, 'despesas') && !R.podeGravar(fo, 'visitas') && !R.podeGravar(fo, 'agricultores'));
+  assert.ok(!R.podeExcluir(fo, 'eventos', { criado_por: 'outro' }) && R.podeExcluir(fo, 'eventos', { criado_por: 'y' }));
+});
+test('cadastro da equipe: obrigatórios em cadastro novo, sem repetir CPF e e-mail, vagas do plano', () => {
+  const db = base(); db.membros = [{ id: 'm1', funcao: 'coordenacao', nome: 'Coord Um', cpf: '52998224725', email: 'c@exemplo.br', telefone: '(84) 90000-0000', inicio: '2026-08-01', lgpd: true }];
+  const novo = x => Object.assign({ id: 'n', funcao: 'discente', nome: 'Bolsista Dois', cpf: '00000000191', telefone: '(84) 90000-0001', email: 'b@exemplo.br', inicio: '2026-12-01', lgpd: true }, x);
+  assert.strictEqual(R.validar(db, 'membros', novo({}), null), '');
+  assert.match(R.validar(db, 'membros', novo({ cpf: '' }), null), /CPF/);
+  assert.match(R.validar(db, 'membros', novo({ telefone: '' }), null), /celular/);
+  assert.match(R.validar(db, 'membros', novo({ cpf: '52998224725' }), null), /CPF/);
+  assert.match(R.validar(db, 'membros', novo({ email: ' C@Exemplo.br ' }), null), /e-mail/);
+  assert.match(R.validar(db, 'membros', novo({ funcao: 'coordenacao' }), null), /vagas/);
+  assert.strictEqual(R.validar(db, 'membros', novo({ funcao: 'coordenacao' }), null).length > 0, true);
+  // cadastro antigo sem CPF: continua podendo ser editado
+  const velho = { id: 'v', funcao: 'formador', nome: 'Formadora Antiga', inicio: '2026-08-01', lgpd: true };
+  assert.strictEqual(R.validar(db, 'membros', Object.assign({}, velho, { municipio: 'Apodi/RN' }), velho), '');
+  assert.match(R.validar(db, 'membros', Object.assign({}, db.membros[0], { cpf: '' }), db.membros[0]), /CPF/);   // o que já tinha não se apaga
 });
 test('auditoria formal 14/10: o que tem data depois do dia de corte é planejado e não conta', () => {
   const db = base(), e = id => SQC.dados.ETAPAS.find(x => x.id === id);

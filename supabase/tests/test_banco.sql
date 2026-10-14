@@ -213,17 +213,17 @@ reset role;
 -- coordenação: grava membro e despesa com item; formato errado e período invertido são recusados
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
-insert into public.membros (funcao, nome, inicio, lgpd) values ('formador', 'Formadora de exemplo', '2026-11-01', true);   -- 17: função nova do plano v4
-insert into public.membros (id, funcao, nome, inicio, lgpd) values ('eeeeeeee-0000-4000-8000-000000000001', 'coordenacao', 'Membro <b>Teste</b>''; drop table membros;--', '2026-08-01', true);
+insert into public.membros (funcao, nome, inicio, lgpd, cpf, telefone, email) values ('formador', 'Formadora de exemplo', '2026-11-01', true, '00000000191', '(84) 90000-0101', 'formadora@teste.br');   -- 17: função nova do plano v4
+insert into public.membros (id, funcao, nome, inicio, lgpd, cpf, telefone, email) values ('eeeeeeee-0000-4000-8000-000000000001', 'coordenacao', 'Membro <b>Teste</b>''; drop table membros;--', '2026-08-01', true, '00000000272', '(84) 90000-0102', 'membro@teste.br');
 insert into public.despesas (data, etapa, rubrica, item, descricao, valor) values ('2026-10-02', '6.2', 'bolsa_pesquisador', 'i01', 'Bolsa teste', 2000);
 do $$ declare n int; begin
-  begin insert into public.membros (funcao, nome, inicio) values ('diretor', 'X', '2026-08-01'); raise exception 'FALHOU: aceitou função fora da lista';
+  begin insert into public.membros (funcao, nome, inicio, cpf, telefone, email) values ('diretor', 'X', '2026-08-01', '00000000353', '(84) 90000-0103', 'x1@teste.br'); raise exception 'FALHOU: aceitou função fora da lista';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
-  begin insert into public.membros (funcao, nome, inicio, fim) values ('auxiliar', 'X', '2026-08-01', '2026-07-01'); raise exception 'FALHOU: aceitou desligamento antes do início';
+  begin insert into public.membros (funcao, nome, inicio, fim, cpf, telefone, email) values ('auxiliar', 'X', '2026-08-01', '2026-07-01', '00000000353', '(84) 90000-0103', 'x1@teste.br'); raise exception 'FALHOU: aceitou desligamento antes do início';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
-  begin insert into public.membros (funcao, nome, inicio, arlo) values ('auxiliar', 'X', '2026-08-01', 'talvez'); raise exception 'FALHOU: aceitou valor fora de Sim/Não';
+  begin insert into public.membros (funcao, nome, inicio, arlo, cpf, telefone, email) values ('auxiliar', 'X', '2026-08-01', 'talvez', '00000000353', '(84) 90000-0103', 'x1@teste.br'); raise exception 'FALHOU: aceitou valor fora de Sim/Não';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
-  begin insert into public.membros (funcao, nome, inicio) values ('auxiliar', '   ', '2026-08-01'); raise exception 'FALHOU: aceitou nome em branco';
+  begin insert into public.membros (funcao, nome, inicio, cpf, telefone, email) values ('auxiliar', '   ', '2026-08-01', '00000000353', '(84) 90000-0103', 'x1@teste.br'); raise exception 'FALHOU: aceitou nome em branco';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   begin insert into public.despesas (data, etapa, rubrica, item, descricao, valor) values ('2026-10-02', '6.2', 'consumo', 'qualquer', 'x', 1); raise exception 'FALHOU: aceitou item da despesa fora do formato';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
@@ -266,12 +266,12 @@ reset role;
 -- ===== scripts 10 e 11: dados reservados da equipe e link de cadastro =====
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
-insert into public.membros (id, funcao, nome, inicio, lgpd, cpf, renda, raca_cor) values ('eeeeeeee-0000-4000-8000-000000000010', 'auxiliar', 'Reservado Teste', '2026-08-01', true, '52998224725', 1500, 'Parda');
+insert into public.membros (id, funcao, nome, inicio, lgpd, cpf, renda, raca_cor, telefone, email) values ('eeeeeeee-0000-4000-8000-000000000010', 'auxiliar', 'Reservado Teste', '2026-08-01', true, '52998224725', 1500, 'Parda', '(84) 90000-0104', 'reservado@teste.br');
 create temp table tk (t text); grant all on tk to public;
 insert into tk select public.criar_convite('discente');
 do $$ declare n int; begin
   select count(*) into n from public.membros_reservados() where cpf = '52998224725'; if n <> 1 then raise exception 'FALHOU: coordenação não recebeu o dado reservado'; end if;
-  begin insert into public.membros (funcao, nome, inicio, cpf) values ('auxiliar', 'X', '2026-08-01', '123'); raise exception 'FALHOU: aceitou CPF fora do formato';
+  begin insert into public.membros (funcao, nome, inicio, cpf, telefone, email) values ('auxiliar', 'X', '2026-08-01', '123', '(84) 90000-0105', 'x2@teste.br'); raise exception 'FALHOU: aceitou CPF fora do formato';
   exception when check_violation then null; end;
 end $$;
 reset role;
@@ -450,7 +450,22 @@ reset role;
 -- ===== script 19: "Meus dados" — a pessoa muda só o próprio celular e município =====
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
-insert into public.membros (funcao, nome, email, telefone, inicio, lgpd) values ('discente', 'Equipe Dois', 'e2@teste.br', '(84) 90000-0001', '2026-08-01', true), ('discente', 'Outra Pessoa', 'outra@teste.br', '(84) 90000-0002', '2026-08-01', true), ('discente', 'Mesmo E-mail', ' Outra@Teste.br ', '(84) 90000-0003', '2026-08-01', true);
+insert into public.membros (funcao, nome, email, telefone, cpf, inicio, lgpd) values ('discente', 'Equipe Dois', 'e2@teste.br', '(84) 90000-0001', '00000000434', '2026-08-01', true), ('discente', 'Outra Pessoa', 'outra@teste.br', '(84) 90000-0002', '00000000515', '2026-08-01', true);
+do $$ begin   -- 23: e-mail repetido entre quem está ativo é recusado
+  begin insert into public.membros (funcao, nome, email, telefone, cpf, inicio, lgpd) values ('discente', 'Mesmo E-mail', ' Outra@Teste.br ', '(84) 90000-0003', '00000000604', '2026-08-01', true); raise exception 'FALHOU: aceitou e-mail repetido na equipe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, email, telefone, cpf, inicio, lgpd) values ('discente', 'Mesmo CPF', 'mesmocpf@teste.br', '(84) 90000-0003', '00000000515', '2026-08-01', true); raise exception 'FALHOU: aceitou CPF repetido na equipe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, email, inicio, lgpd) values ('discente', 'Sem CPF', 'semcpf@teste.br', '2026-08-01', true); raise exception 'FALHOU: aceitou cadastro novo sem CPF e celular';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+-- cadastro antigo (de antes do 23) com e-mail repetido: o 20 ainda precisa recusar a troca de contato
+alter table public.membros disable trigger b_membros_conferir;
+insert into public.membros (funcao, nome, email, telefone, inicio, lgpd) values ('discente', 'Mesmo E-mail', ' Outra@Teste.br ', '(84) 90000-0003', '2026-08-01', true);
+alter table public.membros enable trigger b_membros_conferir;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
 insert into public.itens (unidade, descricao, valor, rubrica) select id, 'Item de teste (20)', 1500, 'equipamentos' from public.unidades limit 1;
 reset role;
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
@@ -498,6 +513,60 @@ do $$ begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   insert into public.visitas (data, agricultor, usou) values (current_date, 'dddddddd-0000-4000-8000-000000000001', 'Sim');   -- hoje pode
   if exists (select 1 from public.auditoria) then raise exception 'FALHOU: equipe leu o histórico'; end if;
+end $$;
+reset role;
+-- ===== script 23: perfis do auxiliar administrativo e de formador(a) =====
+insert into public.pessoas (id, nome, email, perfil) values ('aaaaaaaa-0000-4000-8000-00000000000a', 'Auxiliar Teste', 'aux@teste.br', 'Auxiliar'), ('aaaaaaaa-0000-4000-8000-00000000000b', 'Formadora Teste', 'form@teste.br', 'Formador');
+insert into auth.users (id, email) values ('bbbbbbbb-0000-4000-8000-00000000000a', 'aux@teste.br'), ('bbbbbbbb-0000-4000-8000-00000000000b', 'form@teste.br');
+select teste.sou('bbbbbbbb-0000-4000-8000-00000000000a', 'aux@teste.br');
+set role authenticated;
+do $$ declare n int; d uuid; begin
+  perform public.vincular_conta();
+  if public.meu_perfil() <> 'Auxiliar' then raise exception 'FALHOU: perfil Auxiliar'; end if;
+  if not exists (select 1 from public.despesas) then raise exception 'FALHOU: auxiliar não lê despesas'; end if;
+  insert into public.despesas (data, etapa, rubrica, descricao, valor) values ('2026-10-03', '6.3', 'doa', 'Lançada pelo auxiliar', 10) returning id into d;
+  update public.despesas set valor = 11 where id = d; get diagnostics n = row_count; if n <> 1 then raise exception 'FALHOU: auxiliar não alterou despesa'; end if;
+  delete from public.despesas where id = d; get diagnostics n = row_count; if n <> 1 then raise exception 'FALHOU: auxiliar não excluiu despesa'; end if;
+  if not exists (select 1 from public.itens where valor is not null) then raise exception 'FALHOU: auxiliar não lê o valor dos itens'; end if;
+  select count(*) into n from public.membros_reservados() where cpf is not null; if n < 1 then raise exception 'FALHOU: auxiliar não recebe o CPF para o Arlo'; end if;
+  update public.membros set arlo = 'Sim', termo_em = '2026-10-05' where email = 'reservado@teste.br'; get diagnostics n = row_count; if n <> 1 then raise exception 'FALHOU: auxiliar não marcou a habilitação'; end if;
+  begin update public.membros set nome = 'Outro nome' where email = 'reservado@teste.br'; raise exception 'FALHOU: auxiliar mudou o nome de alguém da equipe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.membros (funcao, nome, inicio, cpf, telefone, email) values ('discente', 'X', '2026-08-01', '00000000787', '(84) 90000-0109', 'x9@teste.br'); raise exception 'FALHOU: auxiliar cadastrou alguém na equipe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  select count(*) into n from public.agricultores; if n > 0 then raise exception 'FALHOU: auxiliar leu dado pessoal de unidade produtiva'; end if;
+  select count(*) into n from public.visitas; if n > 0 then raise exception 'FALHOU: auxiliar leu as visitas'; end if;
+  select count(*) into n from public.presencas; if n > 0 then raise exception 'FALHOU: auxiliar leu lista de presença'; end if;
+  if not exists (select 1 from public.agricultores_anonimos()) then raise exception 'FALHOU: auxiliar não recebe as unidades produtivas numeradas'; end if;
+  begin insert into public.agricultores (nome) values ('Intrusa'); raise exception 'FALHOU: auxiliar cadastrou unidade produtiva';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.eventos (tipo, data, tema) values ('Reunião', '2026-10-01', 'x'); raise exception 'FALHOU: auxiliar lançou atividade';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  if exists (select 1 from public.auditoria) then raise exception 'FALHOU: auxiliar leu o histórico'; end if;
+  begin perform public.criar_convite('discente'); raise exception 'FALHOU: auxiliar gerou link de cadastro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-00000000000b', 'form@teste.br');
+set role authenticated;
+do $$ declare n int; e uuid; v uuid; begin
+  perform public.vincular_conta();
+  if not exists (select 1 from public.eventos) then raise exception 'FALHOU: formador não lê as atividades'; end if;
+  insert into public.eventos (tipo, data, tema, part) values ('Capacitação', '2026-10-10', 'Oficina do formador', 20) returning id into e;
+  insert into public.presencas (evento, nome) values (e, 'Participante do formador');
+  select id into v from public.visitas limit 1;
+  begin insert into public.fotos (tabela, registro, caminho) values ('visitas', v, 'visitas/' || v || '/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: formador anexou foto de visita';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  insert into public.fotos (tabela, registro, caminho) values ('eventos', e, 'eventos/' || e || '/' || gen_random_uuid() || '.jpg');
+  select count(*) into n from public.despesas; if n > 0 then raise exception 'FALHOU: formador leu despesas'; end if;
+  select count(*) into n from public.itens; if n > 0 then raise exception 'FALHOU: formador leu os itens com valor'; end if;
+  select count(*) into n from public.membros; if n > 0 then raise exception 'FALHOU: formador leu a equipe'; end if;
+  select count(*) into n from public.agricultores; if n > 0 then raise exception 'FALHOU: formador leu dado pessoal de unidade produtiva'; end if;
+  select count(*) into n from public.fotos where tabela = 'visitas'; if n > 0 then raise exception 'FALHOU: formador viu foto de visita'; end if;
+  begin insert into public.despesas (data, etapa, rubrica, descricao, valor) values ('2026-10-03', '6.3', 'doa', 'x', 1); raise exception 'FALHOU: formador lançou despesa';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into public.visitas (data, agricultor, usou) values (current_date, 'dddddddd-0000-4000-8000-000000000001', 'Sim'); raise exception 'FALHOU: formador lançou visita';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

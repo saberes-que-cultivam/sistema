@@ -315,8 +315,16 @@
       if (!['coordenacao', 'auxiliar', 'discente', 'formador'].includes(r.funcao)) return 'Escolha a função.';
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
+      const ob = obrigatoriosMembro(r, anterior); if (ob) return ob;
       if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
       const mc = validarDadosPessoais(r); if (mc) return mc;
+      // ninguém duas vezes na equipe ao mesmo tempo, e as vagas do plano (o banco confere CPF e e-mail; as vagas, a tela)
+      const hj = iso(new Date()), ativoM = m => !m.fim || m.fim >= hj, outros = (db.membros || []).filter(m => m.id !== r.id && ativoM(m));
+      if (ativoM(r)) {
+        if (r.cpf && outros.some(m => m.cpf && soDigitos(m.cpf) === soDigitos(r.cpf))) return 'Já existe uma pessoa ativa na equipe com este CPF.';
+        if (r.email && outros.some(m => String(m.email || '').trim().toLowerCase() === String(r.email).trim().toLowerCase())) return 'Já existe uma pessoa ativa na equipe com este e-mail.';
+        const lim = VAGAS[r.funcao]; if (lim && (!anterior || anterior.funcao !== r.funcao || !ativoM(anterior)) && outros.filter(m => m.funcao === r.funcao).length >= lim) return `As vagas desta função já estão ocupadas (${lim} no plano). Registre o desligamento de quem saiu antes de cadastrar outra pessoa.`;
+      }
     }
     if (tabela === 'despesas') {
       if (!(n(r.valor) > 0)) return 'Informe o valor da despesa.';
@@ -340,12 +348,17 @@
   const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => (db[c] || []).some(x => x[k] === id)).map(([c]) => c);
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
-  const RESTRITAS = ['despesas', 'pessoas', 'membros'];   // só a coordenação grava
-  /* perfil Acompanhamento (SEAB/MDA) só lê */
-  const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela)));
-  /* excluir: a coordenação exclui tudo; a equipe, só o que ela mesma lançou (nunca despesas nem acessos) */
+  const RESTRITAS = ['despesas', 'pessoas', 'membros'];   // a equipe (bolsistas) não grava
+  /* perfis (23): o auxiliar administrativo cuida do financeiro e dos itens; formador(a), só da Formação. Acompanhamento (SEAB/MDA) só lê.
+     A habilitação da equipe (Arlo e termo) o auxiliar marca por outro caminho (api.habilitar), não pelo formulário. */
+  const PERFIS = ['Coordenação', 'Equipe', 'Auxiliar', 'Formador', 'Acompanhamento'];
+  const NOME_PERFIL = { Coordenação: 'Coordenação', Equipe: 'Equipe (bolsistas)', Auxiliar: 'Auxiliar administrativo', Formador: 'Formador(a)', Acompanhamento: 'Acompanhamento (SEAB/MDA)' };
+  const GRAVA = { Auxiliar: ['despesas', 'itens'], Formador: ['eventos', 'presencas', 'fotos'] };
+  const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela)) || (GRAVA[eu.perfil] || []).includes(tabela));
+  /* excluir: a coordenação exclui tudo; o auxiliar, qualquer despesa; nos demais casos, só o que a própria pessoa lançou (nunca acessos) */
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
-    && (eu.perfil === 'Coordenação' || (eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela) && !!r && r.criado_por === eu.id));
+    && (eu.perfil === 'Coordenação' || (eu.perfil === 'Auxiliar' && tabela === 'despesas')
+      || (((eu.perfil === 'Equipe' && !RESTRITAS.includes(tabela)) || (GRAVA[eu.perfil] || []).includes(tabela)) && !!r && r.criado_por === eu.id));
 
   /* ---------- cadastro da equipe: documentos e endereço (vale na tela da coordenação e no link que a pessoa preenche) ---------- */
   const soDigitos = s => String(s == null ? '' : s).replace(/\D/g, '');
@@ -377,9 +390,28 @@
     if (r.pessoas_casa !== '' && r.pessoas_casa != null && !(Number.isInteger(Number(r.pessoas_casa)) && r.pessoas_casa >= 1 && r.pessoas_casa <= 40)) return 'Pessoas na casa: informe um número de 1 a 40.';
     return '';
   }
+  /* vagas do plano de trabalho por função (formador(a): por atividade, sem número fixo) */
+  const VAGAS = { coordenacao: 1, auxiliar: 1, discente: 3 };
+  /* obrigatórios do cadastro da equipe (padrão do Mulheres & Quintais). Cadastro antigo sem CPF, celular ou e-mail continua
+     podendo ser editado; o que já foi informado não pode ser apagado. */
+  function obrigatoriosMembro(r, anterior) {
+    const tem = k => String(r[k] == null ? '' : r[k]).trim() !== '', tinha = k => !anterior || String(anterior[k] == null ? '' : anterior[k]).trim() !== '';
+    if (String(r.nome || '').trim().split(/\s+/).filter(Boolean).length < 2) return 'Informe o nome completo (nome e sobrenome).';
+    if (!tem('cpf') && tinha('cpf')) return 'Informe o CPF.';
+    if (!tem('telefone') && tinha('telefone')) return 'Informe o celular com WhatsApp.';
+    if (!tem('email') && tinha('email')) return 'Informe o e-mail: é o login no sistema.';
+    if (r.siape && !/^\d{5,8}$/.test(soDigitos(r.siape))) return 'A matrícula SIAPE tem de 5 a 8 números.';
+    if (r.nascimento && r.inicio) { const d = new Date(r.nascimento + 'T12:00:00'); d.setFullYear(d.getFullYear() + 16); if (iso(d) > r.inicio) return 'Confira a data de nascimento: a pessoa precisa ter pelo menos 16 anos no início da bolsa.'; }
+    if (r.socio && ['escolaridade', 'raca_cor', 'renda', 'pessoas_casa'].some(k => !tem(k))) return 'Questionário socioeconômico: responda as quatro perguntas ou desmarque o questionário.';
+    return '';
+  }
   /* o que a pessoa envia pelo link: nome e termo são obrigatórios; o resto é conferido se vier */
-  function validarConvite(r) {
-    if (String(r.nome || '').trim().length < 3) return 'Informe o nome completo.';
+  function validarConvite(r, funcao) {
+    if (String(r.nome || '').trim().split(/\s+/).filter(Boolean).length < 2) return 'Informe o nome completo (nome e sobrenome).';
+    if (!r.cpf) return 'Informe o CPF.'; if (!r.telefone) return 'Informe o celular com WhatsApp.'; if (!r.email) return 'Informe o e-mail: será o seu login no sistema.';
+    if (r.arlo !== 'Sim' && !r.nascimento) return 'Informe a data de nascimento (a FUNCERN pede para o cadastro no Arlo).';
+    if (['discente', 'formador'].includes(funcao) && ['agricultor', 'atua_af', 'zona_rural', 'celular_internet'].some(k => !r[k])) return 'Responda as perguntas do “Perfil no campo”.';
+    { const ob = obrigatoriosMembro(Object.assign({}, r, { inicio: '' }), null); if (ob) return ob; }
     const m = validarDadosPessoais(r); if (m) return m;
     if (!r.lgpd) return 'Para enviar, marque que você leu e concorda com o uso dos dados.';
     return '';
@@ -411,5 +443,5 @@
   }
 
   SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

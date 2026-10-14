@@ -31,7 +31,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('#fsalvar'); await p.waitForSelector('#dlg:not([open])', { state: 'attached' });
   const m = (await p.evaluate(() => SQC.app._estado().db.membros)).find(x => x.nome === 'Pessoa Exemplo da Silva');
   ok(m && m.cpf === '52998224725', 'CPF guardado só com números');
-  await p.click(`[data-edit="membros:${m.id}"]`); await p.waitForSelector('#f_cpf'); ok(await p.inputValue('#f_cpf') === '529.982.247-25', 'ao abrir de novo, CPF aparece formatado');
+  await p.click(`[data-fichamembro="${m.id}"]`); await p.click('#frm [data-edit]'); await p.waitForSelector('#f_cpf'); ok(await p.inputValue('#f_cpf') === '529.982.247-25', 'ao abrir de novo, CPF aparece formatado');
   await p.keyboard.press('Escape'); ok(!(await p.$('#dlg[open]')), 'abrir e fechar sem mexer não pede confirmação (a máscara não conta como alteração)');
   // ditado por voz
   await p.click('[data-tab="eventos"]'); await p.click('[data-new="eventos"]'); await p.waitForSelector('#f_obs');
