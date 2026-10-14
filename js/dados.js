@@ -1,6 +1,8 @@
 /* Saberes que Cultivam — dados fixos do projeto.
-   Fonte: Plano de Trabalho do TED (Plano de Ação 30879420260055-006262, SEI 55000.010072/2026-02)
-   e Plano de Trabalho universal (11 meses, ago/2026 a 30/07/2027), executado via FUNCERN (contrato 220/2026).
+   Fonte: Plano de Trabalho do TED assinado com o MDA em 17/07/2026 (Plano de Ação 30879420260055-006262, SEI 55000.010072/2026-02):
+   metas, etapas e cronograma físico (é o compromisso que o SEAB/MDA acompanha).
+   Plano de Trabalho universal, versão 4 (atualização de 07/10/2026), executado via FUNCERN (contrato 220/2026): orçamento por rubrica (item 14).
+   O v4 traz outras janelas de mês por meta (ex.: Meta 1 só em ago/2026); o cronograma do sistema segue o TED de propósito.
    Mudou o plano? Mude aqui e rode os testes: eles conferem que os totais fecham em R$ 400.000,00. */
 (function () {
   const G = typeof window !== 'undefined' ? window : globalThis;
@@ -31,14 +33,14 @@
   /* Rubricas do orçamento resumido do plano universal (item 14). É por rubrica que a FUNCERN controla o gasto.
      Rubricas com valor zero no plano (CLT, pessoa física, ressarcimento, outros custos) ficam de fora. */
   const RUBRICAS = [
-    { id: 'bolsa_pesquisador', n: 1, nome: 'Bolsas de pesquisador', v: 38400 },
-    { id: 'bolsa_estudante', n: 2, nome: 'Bolsas de estudante', v: 21600 },
-    { id: 'diarias', n: 4, nome: 'Diárias', v: 7200 },
-    { id: 'ajuda_custo', n: 5, nome: 'Ajuda de custo (pessoa física)', v: 14400 },
+    { id: 'bolsa_pesquisador', n: 1, nome: 'Bolsas de pesquisador', v: 46000 },
+    { id: 'bolsa_estudante', n: 2, nome: 'Bolsas de estudante', v: 14400 },
+    { id: 'diarias', n: 4, nome: 'Diárias', v: 9600 },
+    { id: 'ajuda_custo', n: 5, nome: 'Ajuda de custo (pessoa física)', v: 10000 },
     { id: 'passagens', n: 6, nome: 'Passagens e locomoção', v: 39000 },
     { id: 'servicos_pj', n: 7, nome: 'Serviços de terceiros (pessoa jurídica)', v: 170000 },
-    { id: 'consumo', n: 9, nome: 'Material de consumo', v: 60100 },
-    { id: 'equipamentos', n: 10, nome: 'Máquinas e equipamentos', v: 9300 },
+    { id: 'consumo', n: 9, nome: 'Material de consumo', v: 61000 },
+    { id: 'equipamentos', n: 10, nome: 'Máquinas e equipamentos', v: 10000 },
     { id: 'doa', n: 13, nome: 'Despesas operacionais e administrativas (FUNCERN)', v: 40000 }
   ];
 
@@ -53,26 +55,29 @@
     ['montada', 'Estrutura montada'], ['funcionando', 'Em funcionamento']];
 
 
-  /* Plano de desembolso (planilha "Plano de desembolso - Saberes que Cultivam", atualização de 05/10/2026):
+  /* Plano de desembolso (planilha "Plano de desembolso - Saberes que Cultivam", atualização de 05/10/2026), ajustado ao plano universal v4 (07/10/2026):
      quanto cada item do orçamento prevê gastar em cada mês, de ago/2026 a jul/2027. É a linha "previsto" do gráfico de ritmo do gasto.
+     Itens que o v4 mudou e que a planilha de 05/10 ainda não tinha (i02, i03, i04, i05, i11, i14 e o i16 novo): bolsas pelo período da equipe
+     no v4 (item 13); os demais com o mesmo formato mensal da planilha, no valor novo. Quando a FUNCERN mandar a planilha nova, troque por ela.
      Mudou a planilha? Mude aqui: os testes conferem que cada rubrica e o total continuam batendo com o plano. */
   /* id do item: é o que a despesa guarda no campo "item". Não reaproveite nem troque um id já usado; item novo recebe o próximo número. */
   const DESEMBOLSO = { inicio: '2026-08', itens: [
     { id: 'i01', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - coordenador do projeto', m: [0, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.8] },
-    { id: 'i02', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 0, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600] },
-    { id: 'i03', rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400] },
-    { id: 'i04', rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 800, 800, 800, 800, 800, 800, 800, 800, 400, 400] },
-    { id: 'i05', rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1200, 1200] },
+    { id: 'i02', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400] },   // v4: 10 × R$ 1.400, out/2026 a jul/2027
+    { id: 'i03', rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },   // v4: 3 discentes × 8 × R$ 600, dez/2026 a jul/2027
+    { id: 'i04', rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 800, 800] },   // v4: 24 × R$ 400
+    { id: 'i05', rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000] },   // v4: 4 dias de campo × R$ 2.500 (Meta 5)
     { id: 'i06', rubrica: 'passagens', nome: 'Passagens', m: [0, 0, 3500, 3500, 3500, 0, 0, 3500, 3500, 0, 3500, 0] },
     { id: 'i07', rubrica: 'passagens', nome: 'Locação de veículos', m: [0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },
     { id: 'i08', rubrica: 'servicos_pj', nome: 'Serviços gráficos e comunicação visual', m: [0, 0, 0, 0, 0, 0, 0, 2000, 2000, 2000, 2000, 2000] },
     { id: 'i09', rubrica: 'servicos_pj', nome: 'Produção de material didático', m: [0, 0, 0, 0, 0, 0, 0, 4000, 3000, 3000, 0, 0] },
     { id: 'i10', rubrica: 'servicos_pj', nome: 'Implantação das Unidades de Produção de Bioinsumos', m: [0, 0, 75000, 0, 0, 0, 0, 75000, 0, 0, 0, 0] },
-    { id: 'i11', rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 810, 810, 810, 810, 810, 810, 810, 810, 810, 810] },
+    { id: 'i11', rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900] },   // v4: R$ 9.000
     { id: 'i12', rubrica: 'consumo', nome: 'Kits para produção de bioinsumos', m: [0, 0, 15000, 0, 0, 0, 0, 15000, 0, 0, 0, 0] },
     { id: 'i13', rubrica: 'consumo', nome: 'Insumos para produção de bioinsumos', m: [0, 0, 11000, 0, 0, 0, 0, 11000, 0, 0, 0, 0] },
-    { id: 'i14', rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 9300, 0, 0, 0, 0] },
-    { id: 'i15', rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] }
+    { id: 'i14', rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 0, 0] },   // v4: R$ 10.000
+    { id: 'i15', rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] },
+    { id: 'i16', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - formador(a)', m: [0, 0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 0] }   // novo no v4: 80 atividades × R$ 100, nov/2026 a jun/2027 (Meta 3)
   ] };
 
   SQC.dados = {

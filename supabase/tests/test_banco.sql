@@ -180,7 +180,8 @@ end $$;
 -- ===== 05: perfil de acompanhamento (SEAB/MDA) =====
 insert into public.pessoas (id, nome, email, perfil, orgao) values ('aaaaaaaa-0000-4000-8000-000000000009', 'Pessoa do MDA', 'mda@teste.br', 'Acompanhamento', 'SEAB/MDA');
 insert into auth.users (id, email) values ('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
-insert into public.visitas (data, agricultor, usou, obs, tecnico) values ('2026-10-05', 'dddddddd-0000-4000-8000-000000000001', 'Sim', 'Dona Fulana contou que...', 'Técnico X');
+insert into public.visitas (data, agricultor, usou, obs, tecnico, lat, lng, precisao) values ('2026-10-05', 'dddddddd-0000-4000-8000-000000000001', 'Sim', 'Dona Fulana contou que...', 'Técnico X', -5.65, -37.79, 12);
+do $$ begin begin insert into public.visitas (data, agricultor, usou, lat, lng) values ('2026-10-05', 'dddddddd-0000-4000-8000-000000000001', 'Sim', 95, 0); raise exception 'FALHOU: aceitou latitude impossível'; exception when check_violation then null; end; end $$;
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
 set role authenticated;
 do $$ declare r public.pessoas; n integer; begin
@@ -192,6 +193,7 @@ do $$ declare r public.pessoas; n integer; begin
   if not exists (select 1 from public.agricultores_anonimos() where nome = 'Unidade produtiva 01') then raise exception 'FALHOU: lista anônima vazia'; end if;
   if exists (select 1 from public.agricultores_anonimos() a where a.nome like '%Teste%') then raise exception 'FALHOU: lista anônima trouxe nome'; end if;
   if (select count(*) from public.visitas_anonimas()) < 1 then raise exception 'FALHOU: visitas anônimas vazias'; end if;
+  if (select to_jsonb(v) ? 'lat' from public.visitas_anonimas() v limit 1) then raise exception 'FALHOU: SEAB recebeu a localização da visita'; end if;
   begin insert into public.eventos (tipo, data, tema) values ('Reunião', '2026-10-01', 'x'); raise exception 'FALHOU: acompanhamento gravou'; exception when insufficient_privilege then null; end;
   begin insert into public.despesas (data, etapa, rubrica, descricao, valor) values ('2026-10-01', '3.1', 'consumo', 'x', 1); raise exception 'FALHOU: acompanhamento lançou despesa'; exception when insufficient_privilege then null; end;
   update public.unidades set nome = 'INVADIDA'; if exists (select 1 from public.unidades where nome = 'INVADIDA') then raise exception 'FALHOU: acompanhamento alterou unidade'; end if;
@@ -211,6 +213,7 @@ reset role;
 -- coordenação: grava membro e despesa com item; formato errado e período invertido são recusados
 select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
+insert into public.membros (funcao, nome, inicio, lgpd) values ('formador', 'Formadora de exemplo', '2026-11-01', true);   -- 17: função nova do plano v4
 insert into public.membros (id, funcao, nome, inicio, lgpd) values ('eeeeeeee-0000-4000-8000-000000000001', 'coordenacao', 'Membro <b>Teste</b>''; drop table membros;--', '2026-08-01', true);
 insert into public.despesas (data, etapa, rubrica, item, descricao, valor) values ('2026-10-02', '6.2', 'bolsa_pesquisador', 'i01', 'Bolsa teste', 2000);
 do $$ declare n int; begin

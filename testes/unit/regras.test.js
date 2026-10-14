@@ -55,7 +55,7 @@ test('financeiro por meta e por rubrica: pago x comprometido, e os totais batem 
 });
 test('alertas: rubrica estourada, despesa sem rubrica, gasto acima do recebido, linha de base faltando', () => {
   const db = base();
-  db.despesas.push({ data: '2026-09-01', etapa: '2.1', rubrica: 'equipamentos', valor: 9301, status: 'Pago' }, { data: '2026-09-01', etapa: '2.1', rubrica: '', valor: 10, status: 'Pago' });
+  db.despesas.push({ data: '2026-09-01', etapa: '2.1', rubrica: 'equipamentos', valor: 10001, status: 'Pago' }, { data: '2026-09-01', etapa: '2.1', rubrica: '', valor: 10, status: 'Pago' });
   let txt = R.alertas(db, HOJE).map(a => a[1] + ': ' + a[2]).join('\n');
   assert.match(txt, /Máquinas e equipamentos: R\$ 1,00 acima/); assert.match(txt, /sem rubrica/); assert.match(txt, /1 unidade\(s\) produtiva\(s\) sem diagnóstico/);
   assert.doesNotMatch(txt, /acima do que já foi recebido/);

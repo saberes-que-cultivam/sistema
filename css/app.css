@@ -1073,7 +1073,7 @@ dialog.dlg-ap .fm-corpo{flex:none;gap:18px;padding-block:22px 24px}
    ===================================================================== */
 /* A1 · grades que exigiam 320 px por coluna estouravam em telas de 320 */
 .two{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
-.eq-l{grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr))}
+.eq-l{grid-template-columns:minmax(0,1fr)}   /* um cartão por linha, largura total (desenho original da equipe) */
 .ae-c{min-width:0}
 .two.fin-2{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}   /* o Financeiro mantém a proporção própria (a regra acima não pode valer para ele) */
 @media (max-width:980px){.two.fin-2{grid-template-columns:1fr}}
@@ -1197,3 +1197,49 @@ html.bloq #view,html.bloq dialog{visibility:hidden}
 .aj-wa{flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:10px 20px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:600 var(--t-md)/1.2 var(--body);text-decoration:none;white-space:nowrap;box-shadow:0 1px 3px rgba(24,36,28,.2)}
 .aj-wa:hover{background:color-mix(in srgb,var(--accent) 86%,#000)} .aj-wa:focus-visible{outline:3px solid var(--anel);outline-offset:3px}
 @media (max-width:480px){.aj-wa{width:100%}}
+/* Equipe: selo de vagas e resumo no alto (14/10/2026) */
+.eq-pill{display:inline-flex;align-items:center;margin-top:14px;padding:8px 16px;border-radius:999px;background:var(--ferment-soft);color:var(--txt-1);font:600 var(--t-sm)/1.3 var(--body)}
+.eq-pill.ok{background:var(--accent-soft)}
+.dx-topo.eq-top{margin-bottom:24px;grid-template-columns:minmax(0,1fr)}
+.head .eq-pill{align-self:flex-start;width:auto}
+/* descrições sob os títulos usam a linha (14/10/2026): o limite de 62 caracteres quebrava frases curtas cedo, com a tela sobrando */
+.head p,.note,.fm-oque p,.dx-como p,.aj-p,.rel p,.at-txt .small,.mts-cab p,.eq-cab p{max-width:none}
+/* Janelas de formulário (14/10/2026): mais largas e em duas colunas largas. Em três colunas estreitas os nomes das
+   etapas e dos itens eram cortados e as dicas desalinhavam a linha. Ajuda e aparência continuam estreitas (leitura). */
+@media (min-width:641px){
+  dialog:has(.fields):not(.dlg-ap){width:min(980px,calc(100% - 48px));border-radius:20px}
+  .fm .fields{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}
+  dialog:has(.fields) .fm-cab{padding:24px 32px 18px}
+  dialog:has(.fields) .fm-corpo{padding:24px 32px;gap:18px}
+  dialog:has(.fields) .fm-pe{padding:16px 32px 20px}
+  .fm .fld>.fm-dica{line-height:1.45}
+}
+@media (min-width:1100px){dialog:has(.fields) .fm-cab h2{font-size:var(--t-3xl)}}
+@media (min-width:641px){dialog:has(.fields) .imp-barra{margin:0;padding:12px 32px;border-radius:0}}
+.imp-barra{padding-inline:26px} @media (max-width:640px){.imp-barra{padding-inline:16px}}
+/* localização da visita (14/10/2026) */
+.geo-r{font:500 var(--t-base) var(--body);color:var(--ink);padding-bottom:6px}
+.geo{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px 14px;border:1px dashed color-mix(in srgb,var(--ink) 28%,var(--line));border-radius:12px;background:var(--surface)}
+.geo-b{display:inline-flex;align-items:center;gap:8px;min-height:44px}
+.geo-t{font-size:var(--t-md);color:var(--txt-2);flex:1 1 220px}
+.geo-x{font-size:var(--t-sm)}
+/* Folhas em branco para preencher à mão (14/10/2026): medidas em milímetros, linha de 8 a 9 mm para a letra de mão (caderno pautado tem cerca de 7 mm),
+   texto longo com 5 linhas, caixas de marcar de 5 mm e letra de 15 px (cerca de 11 pt). A lista de presença tem linhas de 10 mm (20 por folha). */
+@media print{
+  @page{size:A4;margin:12mm 14mm 9mm}
+  .pf{font:var(--t-base)/1.4 var(--body)}
+  .pf-cab{padding-bottom:3mm;margin-bottom:4mm} .pf-t h1{font-size:var(--t-xl)} .pf-t p,.pf-cab>div:nth-child(2){font-size:var(--t-sm)}
+  .pf-o{font-size:var(--t-sm);margin:0 0 3mm}
+  .pf-inst{margin:0 0 3mm;padding:2mm 3.5mm;border:1px solid #000;border-radius:2mm;font-size:var(--t-sm)}
+  .pf-c{grid-template-columns:1fr 1fr;gap:3.5mm 10mm}
+  .pf-c h2{margin:2mm 0 0;padding-bottom:1mm;font-size:var(--t-lg);border-bottom:1.5px solid #000}
+  .pf-i{gap:1.5mm} .pf-i b{font-size:var(--t-md);font-weight:700}
+  .pf-ln{height:9mm;border-bottom:1px solid #000}
+  .pf-i.w .pf-ln{height:8mm}
+  .pf-ops{gap:3mm 7mm;padding-top:1.5mm} .pf-op{gap:2mm;font-size:var(--t-base)} .pf-bx{width:5mm;height:5mm;border:1.4px solid #000;border-radius:.6mm}
+  .pf-dt{display:block;padding-top:3mm;font-size:var(--t-lg);letter-spacing:.05em}
+  .pf-lp th,.pf-lp td{height:10mm;padding:0 2mm;font-size:var(--t-sm)}
+  .pf-lp th:first-child{width:8mm} .pf-lp th:nth-child(2){width:34%} .pf-lp th:nth-child(5){width:17mm} .pf-lp th:last-child{width:26%}
+  .pf-lp thead th{height:9mm;font-weight:700}
+  .pf-r{margin-top:3mm;font-size:var(--t-xs)}
+}

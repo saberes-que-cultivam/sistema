@@ -50,7 +50,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-new="visitas"]'); ok((await p.$eval('#f_agricultor', e => e.selectedOptions[0].textContent)).includes('Maria'), 'visita abre com a pessoa já escolhida');
   await p.selectOption('#f_usou', 'Sim'); await p.click('#fsalvar'); await p.waitForSelector('#dlg:not([open])', { state: 'attached' });
   // despesa exige rubrica e aparece nas duas tabelas
-  await p.click('[data-tab="financeiro"]'); await p.click('[data-new="despesas"]'); await p.fill('#f_descricao', 'Teste'); await p.fill('#f_valor', '9400'); await p.click('#fsalvar');
+  await p.click('[data-tab="financeiro"]'); await p.click('[data-new="despesas"]'); await p.fill('#f_descricao', 'Teste'); await p.fill('#f_valor', '10100'); await p.click('#fsalvar');
   await p.waitForFunction(() => document.querySelector('#ferr').textContent.length > 0); ok(/Rubrica/.test(await p.textContent('#ferr')), 'despesa sem rubrica é recusada');
   await p.selectOption('#f_rubrica', 'equipamentos'); await p.click('#fsalvar'); await p.waitForSelector('#dlg:not([open])', { state: 'attached' });
   await p.click('[data-tab="painel"]'); ok(/Máquinas e equipamentos: R\$ 100,00 acima/.test(await p.textContent('#view')), 'painel avisa rubrica estourada');

@@ -25,7 +25,7 @@
     lotes: ['unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
     agricultores: ['nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata'],
     distribuicoes: ['data', 'lote', 'agricultor', 'qtd', 'cultura', 'area', 'forma'],
-    visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
+    visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas', 'lat', 'lng', 'precisao'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
     membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
@@ -210,6 +210,11 @@
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
+        // banco sem as colunas da localização (script 18 ainda não rodado): a visita sem localização segue; com localização, avisa
+        if (tabela === 'visitas' && (o.code === 'PGRST204' || /column .*(lat|lng|precisao)/i.test(String(o.message)))) {
+          if (reg.lat != null) throw erro({ code: 'P0001', message: 'Para guardar a localização da visita, a coordenação precisa rodar antes o script 18_local_da_visita.sql no Supabase. Enquanto isso, apague a localização e salve.' });
+          const sem = Object.assign({}, reg); delete sem.lat; delete sem.lng; delete sem.precisao; COLUNAS.visitas = COLUNAS.visitas.filter(k => !['lat', 'lng', 'precisao'].includes(k)); return await this._salvar(tabela, sem, op);
+        }
         if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
         if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
         semItem = true; return await this._salvar(tabela, reg, op);

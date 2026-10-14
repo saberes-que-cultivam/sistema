@@ -32,7 +32,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-prcontar]'); ok((await p.textContent('[data-prcontar]')).includes('Confirmar'), '“Usar o total da lista” pede confirmação'); await p.click('[data-prcontar]'); await p.waitForFunction(() => +SQC.app._estado().db.eventos.find(e => e.id === 'e2').part === 2);
   ok((await db()).eventos.find(e => e.id === 'e2').mulheres === 1, '“Usar o total da lista” atualiza participantes e mulheres da atividade');
   await p.evaluate(() => { window._impresso = null; }); await p.click('[data-imprimirlista="e2"]'); await p.waitForFunction(() => window._impresso); const imp = await p.evaluate(() => window._impresso);
-  ok(imp.includes('Lista de presença') && (imp.match(/<tr>/g) || []).length === 26 && imp.includes('Assinatura'), 'lista de presença em branco com 25 linhas e assinatura');
+  ok(imp.includes('Lista de presença') && (imp.match(/<tr>/g) || []).length === 21 && imp.includes('Assinatura'), 'lista de presença em branco com 20 linhas (10 mm) e assinatura');
   ok(await p.evaluate(() => !document.body.classList.contains('imprimindo') && getComputedStyle(document.getElementById('impresso')).display === 'none'), 'depois de imprimir a tela volta ao normal (a folha fica escondida até a próxima impressão)');
   const del = await p.$('[data-prdel]'); await del.click(); await del.click(); await p.waitForFunction(() => SQC.app._estado().db.presencas.length === 1);
   ok(true, 'lixeira tira da lista com dois toques');

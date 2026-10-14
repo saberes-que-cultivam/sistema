@@ -58,7 +58,7 @@ const LARGURAS = process.env.RAPIDO ? [390, 1440] : [320, 390, 768, 1024, 1440];
     await p.click('[data-tab="agricultores"]'); await p.click('[data-new="agricultores"]'); await rel(p, 'formulário'); await p.click('#fsalvar'); await rel(p, 'formulário com erro'); await p.click('[data-fechar]');
     await p.click('.pc [data-ficha]'); await rel(p, 'ficha'); await p.click('[data-fechar]');
     await p.click('[data-ajuda]'); await rel(p, 'ajuda'); await p.click('[data-fechar]'); await p.click('[data-relatar]'); await rel(p, 'relato'); await p.click('[data-fechar]');
-    await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForSelector('.dx-topo'); await p.click('[data-tab="painel"]'); await rel(p, 'painel SEAB-MDA'); await p.click('[data-tab="dados"]'); await rel(p, 'dados SEAB-MDA');
+    await p.click('[data-sair]'); await p.click('[data-demo="Acompanhamento"]'); await p.waitForSelector('.dx-topo'); await p.click('[data-tab="painel"]'); await rel(p, 'painel SEAB-MDA'); await p.click('#tabs [data-tab="unidades"]'); await rel(p, 'biofábricas SEAB-MDA');
     await ctx.close();
   }
   await b.close(); if (total) { console.error(`TIPOGRAFIA: ${total} problema(s)`); process.exit(1); } console.log((process.env.SOL ? '[modo sol] ' : process.env.ESCURO ? '[escuro] ' : '') + 'TIPOGRAFIA: TUDO CERTO em ' + LARGURAS.join(', ') + ' px (escala, mínimo de 12 px, corte, fonte, itálico, maiúsculas e contraste)');

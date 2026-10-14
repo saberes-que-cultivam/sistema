@@ -59,8 +59,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 ;
 /* ===== dados.js ===== */
 /* Saberes que Cultivam — dados fixos do projeto.
-   Fonte: Plano de Trabalho do TED (Plano de Ação 30879420260055-006262, SEI 55000.010072/2026-02)
-   e Plano de Trabalho universal (11 meses, ago/2026 a 30/07/2027), executado via FUNCERN (contrato 220/2026).
+   Fonte: Plano de Trabalho do TED assinado com o MDA em 17/07/2026 (Plano de Ação 30879420260055-006262, SEI 55000.010072/2026-02):
+   metas, etapas e cronograma físico (é o compromisso que o SEAB/MDA acompanha).
+   Plano de Trabalho universal, versão 4 (atualização de 07/10/2026), executado via FUNCERN (contrato 220/2026): orçamento por rubrica (item 14).
+   O v4 traz outras janelas de mês por meta (ex.: Meta 1 só em ago/2026); o cronograma do sistema segue o TED de propósito.
    Mudou o plano? Mude aqui e rode os testes: eles conferem que os totais fecham em R$ 400.000,00. */
 (function () {
   const G = typeof window !== 'undefined' ? window : globalThis;
@@ -91,14 +93,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* Rubricas do orçamento resumido do plano universal (item 14). É por rubrica que a FUNCERN controla o gasto.
      Rubricas com valor zero no plano (CLT, pessoa física, ressarcimento, outros custos) ficam de fora. */
   const RUBRICAS = [
-    { id: 'bolsa_pesquisador', n: 1, nome: 'Bolsas de pesquisador', v: 38400 },
-    { id: 'bolsa_estudante', n: 2, nome: 'Bolsas de estudante', v: 21600 },
-    { id: 'diarias', n: 4, nome: 'Diárias', v: 7200 },
-    { id: 'ajuda_custo', n: 5, nome: 'Ajuda de custo (pessoa física)', v: 14400 },
+    { id: 'bolsa_pesquisador', n: 1, nome: 'Bolsas de pesquisador', v: 46000 },
+    { id: 'bolsa_estudante', n: 2, nome: 'Bolsas de estudante', v: 14400 },
+    { id: 'diarias', n: 4, nome: 'Diárias', v: 9600 },
+    { id: 'ajuda_custo', n: 5, nome: 'Ajuda de custo (pessoa física)', v: 10000 },
     { id: 'passagens', n: 6, nome: 'Passagens e locomoção', v: 39000 },
     { id: 'servicos_pj', n: 7, nome: 'Serviços de terceiros (pessoa jurídica)', v: 170000 },
-    { id: 'consumo', n: 9, nome: 'Material de consumo', v: 60100 },
-    { id: 'equipamentos', n: 10, nome: 'Máquinas e equipamentos', v: 9300 },
+    { id: 'consumo', n: 9, nome: 'Material de consumo', v: 61000 },
+    { id: 'equipamentos', n: 10, nome: 'Máquinas e equipamentos', v: 10000 },
     { id: 'doa', n: 13, nome: 'Despesas operacionais e administrativas (FUNCERN)', v: 40000 }
   ];
 
@@ -113,26 +115,29 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     ['montada', 'Estrutura montada'], ['funcionando', 'Em funcionamento']];
 
 
-  /* Plano de desembolso (planilha "Plano de desembolso - Saberes que Cultivam", atualização de 05/10/2026):
+  /* Plano de desembolso (planilha "Plano de desembolso - Saberes que Cultivam", atualização de 05/10/2026), ajustado ao plano universal v4 (07/10/2026):
      quanto cada item do orçamento prevê gastar em cada mês, de ago/2026 a jul/2027. É a linha "previsto" do gráfico de ritmo do gasto.
+     Itens que o v4 mudou e que a planilha de 05/10 ainda não tinha (i02, i03, i04, i05, i11, i14 e o i16 novo): bolsas pelo período da equipe
+     no v4 (item 13); os demais com o mesmo formato mensal da planilha, no valor novo. Quando a FUNCERN mandar a planilha nova, troque por ela.
      Mudou a planilha? Mude aqui: os testes conferem que cada rubrica e o total continuam batendo com o plano. */
   /* id do item: é o que a despesa guarda no campo "item". Não reaproveite nem troque um id já usado; item novo recebe o próximo número. */
   const DESEMBOLSO = { inicio: '2026-08', itens: [
     { id: 'i01', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - coordenador do projeto', m: [0, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.82, 2181.8] },
-    { id: 'i02', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 0, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600, 1600] },
-    { id: 'i03', rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400, 2400] },
-    { id: 'i04', rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 800, 800, 800, 800, 800, 800, 800, 800, 400, 400] },
-    { id: 'i05', rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1200, 1200] },
+    { id: 'i02', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - auxiliar administrativo', m: [0, 0, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400, 1400] },   // v4: 10 × R$ 1.400, out/2026 a jul/2027
+    { id: 'i03', rubrica: 'bolsa_estudante', nome: 'Bolsa - apoio técnico (discente)', m: [0, 0, 0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },   // v4: 3 discentes × 8 × R$ 600, dez/2026 a jul/2027
+    { id: 'i04', rubrica: 'diarias', nome: 'Diárias', m: [0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 800, 800] },   // v4: 24 × R$ 400
+    { id: 'i05', rubrica: 'ajuda_custo', nome: 'Ajuda de custo', m: [0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000] },   // v4: 4 dias de campo × R$ 2.500 (Meta 5)
     { id: 'i06', rubrica: 'passagens', nome: 'Passagens', m: [0, 0, 3500, 3500, 3500, 0, 0, 3500, 3500, 0, 3500, 0] },
     { id: 'i07', rubrica: 'passagens', nome: 'Locação de veículos', m: [0, 0, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800] },
     { id: 'i08', rubrica: 'servicos_pj', nome: 'Serviços gráficos e comunicação visual', m: [0, 0, 0, 0, 0, 0, 0, 2000, 2000, 2000, 2000, 2000] },
     { id: 'i09', rubrica: 'servicos_pj', nome: 'Produção de material didático', m: [0, 0, 0, 0, 0, 0, 0, 4000, 3000, 3000, 0, 0] },
     { id: 'i10', rubrica: 'servicos_pj', nome: 'Implantação das Unidades de Produção de Bioinsumos', m: [0, 0, 75000, 0, 0, 0, 0, 75000, 0, 0, 0, 0] },
-    { id: 'i11', rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 810, 810, 810, 810, 810, 810, 810, 810, 810, 810] },
+    { id: 'i11', rubrica: 'consumo', nome: 'Combustível', m: [0, 0, 900, 900, 900, 900, 900, 900, 900, 900, 900, 900] },   // v4: R$ 9.000
     { id: 'i12', rubrica: 'consumo', nome: 'Kits para produção de bioinsumos', m: [0, 0, 15000, 0, 0, 0, 0, 15000, 0, 0, 0, 0] },
     { id: 'i13', rubrica: 'consumo', nome: 'Insumos para produção de bioinsumos', m: [0, 0, 11000, 0, 0, 0, 0, 11000, 0, 0, 0, 0] },
-    { id: 'i14', rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 9300, 0, 0, 0, 0] },
-    { id: 'i15', rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] }
+    { id: 'i14', rubrica: 'equipamentos', nome: 'Material diverso', m: [0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 0, 0] },   // v4: R$ 10.000
+    { id: 'i15', rubrica: 'doa', nome: 'DOA - FUNCERN', m: [20000, 0, 0, 0, 0, 0, 0, 20000, 0, 0, 0, 0] },
+    { id: 'i16', rubrica: 'bolsa_pesquisador', nome: 'Bolsa - formador(a)', m: [0, 0, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 0] }   // novo no v4: 80 atividades × R$ 100, nov/2026 a jun/2027 (Meta 3)
   ] };
 
   SQC.dados = {
@@ -462,7 +467,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (tabela === 'agricultores' && r.kit && !r.kitdata) return 'Informe a data da entrega do kit.';
     if (tabela === 'membros') {
       if (!String(r.nome || '').trim()) return 'Informe o nome.';
-      if (!['coordenacao', 'auxiliar', 'discente'].includes(r.funcao)) return 'Escolha a função.';
+      if (!['coordenacao', 'auxiliar', 'discente', 'formador'].includes(r.funcao)) return 'Escolha a função.';
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
       if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
@@ -876,7 +881,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     lotes: ['unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
     agricultores: ['nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata'],
     distribuicoes: ['data', 'lote', 'agricultor', 'qtd', 'cultura', 'area', 'forma'],
-    visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas'],
+    visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas', 'lat', 'lng', 'precisao'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
     membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs']),
@@ -1061,6 +1066,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
+        // banco sem as colunas da localização (script 18 ainda não rodado): a visita sem localização segue; com localização, avisa
+        if (tabela === 'visitas' && (o.code === 'PGRST204' || /column .*(lat|lng|precisao)/i.test(String(o.message)))) {
+          if (reg.lat != null) throw erro({ code: 'P0001', message: 'Para guardar a localização da visita, a coordenação precisa rodar antes o script 18_local_da_visita.sql no Supabase. Enquanto isso, apague a localização e salve.' });
+          const sem = Object.assign({}, reg); delete sem.lat; delete sem.lng; delete sem.precisao; COLUNAS.visitas = COLUNAS.visitas.filter(k => !['lat', 'lng', 'precisao'].includes(k)); return await this._salvar(tabela, sem, op);
+        }
         if (tabela !== 'despesas' || semItem || !(o.code === 'PGRST204' || /column .*item|'item' column/i.test(String(o.message)))) throw e;
         if (reg.item) throw erro({ code: 'P0001', message: 'Para indicar o item do plano na despesa, a coordenação precisa rodar antes o script 06_item_da_despesa.sql no Supabase. Enquanto isso, grave a despesa sem item.' });
         semItem = true; return await this._salvar(tabela, reg, op);
@@ -1557,12 +1567,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Lote', d => { const l = by('lotes', d.lote) || {}; return `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span><div class="small">${esc(l.tipo)}</div>`; }],
         ['Para', d => esc((by('agricultores', d.agricultor) || {}).nome)], ['Uso', d => `${esc(d.cultura)}<div class="small">${esc(d.forma)} · ${num(d.area, 1)} ha</div>`],
         ['Quantidade', d => `${num(d.qtd)} ${esc((by('lotes', d.lote) || {}).med || '')}`, 'n']] },
-    visitas: { um: 'Visita de monitoramento', oque: 'O que foi visto em campo depois da entrega. O gasto informado aqui é comparado com a linha de base no painel.', dicas: { gasto: 'Mesma pergunta da linha de base, para comparar antes e depois.' }, nome: 'Monitoramento', titulo: 'Visitas de monitoramento', desc: 'Registro do uso em campo. O gasto mensal com insumos comprados é comparado com a linha de base no painel.', novo: 'Registrar visita',
-      campos: [['_s1', 'A visita', 'sec'], ['data', 'Data', 'date', 1], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['tecnico', 'Quem visitou', 'text'],
+    visitas: { um: 'Visita de monitoramento', oque: 'O que foi visto em campo depois da entrega. O gasto informado aqui é comparado com a linha de base no painel.', dicas: { gasto: 'Mesma pergunta da linha de base, para comparar antes e depois.', local: 'Pelo GPS do celular, na propriedade (funciona sem internet). Só a equipe do projeto vê.' }, nome: 'Monitoramento', titulo: 'Visitas de monitoramento', desc: 'Registro do uso em campo. O gasto mensal com insumos comprados é comparado com a linha de base no painel.', novo: 'Registrar visita',
+      campos: [['_s1', 'A visita', 'sec'], ['data', 'Data', 'date', 1], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['tecnico', 'Quem visitou', 'text'], ['local', 'Localização da visita', 'geo'],
         ['_s2', 'O que foi visto', 'sec'],
         ['usou', 'Aplicou o bioinsumo recebido?', 'select', 1, opt(['', 'Sim', 'Parcial', 'Não'])], ['vigor', 'Vigor da cultura (1 ruim a 5 ótimo)', 'select', 0, opt(['', '1', '2', '3', '4', '5'])],
         ['gasto', 'Gasto atual com insumos comprados (R$/mês)', 'number'], ['obs', 'O que foi observado', 'textarea'], ['problemas', 'Dificuldades relatadas', 'textarea']],
-      cols: [['Data', v => dt(v.data) + exChip(v)], ['Fotos', v => evid('visitas', v), '', 'equipe'], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome)],
+      cols: [['Data', v => dt(v.data) + exChip(v)], ['Fotos', v => evid('visitas', v), '', 'equipe'], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome) + (v.lat != null && v.lat !== '' && !fora() ? '<div class="small">com localização</div>' : '')],
         ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
     eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano. Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
@@ -1586,7 +1596,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
     membros: { um: 'Pessoa da equipe', oque: 'Quem ocupa uma função no projeto. Quando a pessoa sair, preencha o desligamento: o registro fica como histórico e a vaga volta a aparecer aberta.', dicas: { fim: 'Deixe vazio enquanto a pessoa estiver na equipe.', vinculo: 'Exemplo: IFRN Campus Apodi, ou o curso do estudante.', inicio: 'Sugerimos hoje. Mude se a pessoa começou em outro dia.', lgpd: 'Conta bancária e chave Pix não entram aqui: vão direto para a FUNCERN, que faz o pagamento.', cpf: 'Só a coordenação vê. Guardado só com os números.', cep: 'Só os 8 números.', socio: 'Com uma equipe pequena não dá para esconder de quem é cada resposta: por isso ela fica só com a coordenação e não entra em relatório.', siape: 'Deixe vazio se não for.', organizacao: 'Exemplo: sindicato, associação, cooperativa.', outra_bolsa: 'A fundação confere acúmulo de bolsas antes de pagar.', arlo: 'É o sistema em que a FUNCERN cadastra quem recebe. Sem esse cadastro a bolsa não é paga.', nome: 'Escreva como aparece na planilha da FUNCERN, para o sistema ligar a pessoa às bolsas.' }, nome: 'Equipe', titulo: 'Equipe', desc: '', novo: 'Cadastrar', restrito: 1,
-      campos: [['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente']]],
+      campos: [['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente'], ['formador', 'Formador(a)']]],
         ['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome completo', 'text', 1], ['cpf', 'CPF', 'text'], ['telefone', 'Celular com WhatsApp', 'tel'], ['email', 'E-mail', 'email'],
         ['_s1b', 'Endereço', 'sec'], ['cep', 'CEP', 'text'], ['numero', 'Número', 'text'], ['logradouro', 'Logradouro (rua, sítio, estrada)', 'text'], ['complemento', 'Complemento', 'text'], ['bairro', 'Bairro ou comunidade', 'text'], ['municipio', 'Município onde mora', 'text'], ['uf', 'Estado', 'select', 0, opt(['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'])],
         ['_s1c', 'Questionário socioeconômico (opcional)', 'sec'], ['socio', 'Responder. Só a coordenação vê estas respostas.', 'check'], ['escolaridade', 'Escolaridade', 'select', 0, opt(['', 'Fundamental incompleto', 'Fundamental completo', 'Médio incompleto', 'Médio completo', 'Técnico', 'Superior incompleto', 'Superior completo', 'Pós-graduação'])], ['raca_cor', 'Raça/cor', 'select', 0, opt(['', 'Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Prefiro não informar'])], ['renda', 'Renda familiar por mês (R$)', 'number'], ['pessoas_casa', 'Pessoas na casa', 'number'],
@@ -1650,7 +1660,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const FRASCO = '<circle class="fr-f" r="12"/><path class="fr-l" d="M-3.900 1.5h7.800l1.900 3.700a.9.9 0 0 1-.8 1.300h-10a.9.9 0 0 1-.8-1.300z"/><path class="fr-v" d="M-3-7.500h6M-1.900-7.500v4.700l-4.300 8.200a1.200 1.200 0 0 0 1.100 1.800h10.200a1.200 1.200 0 0 0 1.100-1.800l-4.300-8.200v-4.700"/>';
   const kpi = (k, pc, n, de, rot, s2, aba, rotPc) => { const vai = aba && abas().some(t => t[0] === aba), el = vai ? 'button' : 'div'; pc = Math.max(0, Math.min(100, +pc || 0)); const pr = Math.round(pc), C = 2 * Math.PI * 18;
     return `<${el} class="dx-kpi k${k}"${vai ? ` type="button" data-tab="${aba}" title="Abrir ${abas().find(t => t[0] === aba)[1]}"` : aba === undefined ? '' : ' tabindex="0"'}><span class="dx-kpi-topo"><span class="dx-anel" aria-hidden="true"><svg viewBox="0 0 44 44" width="52" height="52" focusable="false"><circle cx="22" cy="22" r="18" class="tr"/>${pc > 0 ? `<circle cx="22" cy="22" r="18" class="pg" stroke-dasharray="${(C * pc / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 22 22)"/>` : ''}</svg><b>${pr}%</b></span>
-      <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : de}</small></span></span><span class="dx-kpi-r">${rot}</span>
+      <span class="dx-kpi-n"><b>${n}</b><small>${typeof de === 'number' ? ' / ' + de : ' ' + String(de).trim()}</small></span></span><span class="dx-kpi-r">${rot}</span>
       <span class="medidor fino" aria-hidden="true"><i style="width:${pc}%"></i></span><span class="dx-kpi-p"><b>${pr}%</b> ${rotPc || 'concluído'}</span><span class="dx-kpi-s">${esc(s2)}</span></${el}>`; };
   const pct = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { maximumFractionDigits: v < 10 && v > 0 ? 1 : 0 });
   function painel() {
@@ -1764,7 +1774,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
-  const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo e bolsistas discentes: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
+  const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo, bolsistas discentes e formadores: quanto o plano prevê para cada função e quem já recebeu bolsa, conforme a planilha da FUNCERN.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, recursos e cronograma.', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN.',
     lotes: 'Cada batelada de bioinsumo produzida, com código, maturação e saldo.', agricultores: 'Quem o projeto atende: cadastro, linha de base, kit, entregas e visitas de cada pessoa.',
     distribuicoes: 'Cada entrega de bioinsumo: de qual lote saiu e quem recebeu.', visitas: 'Visitas de monitoramento: se aplicou, como está a cultura e quanto gasta com insumos comprados. Dá para imprimir a ficha em branco e anexar fotos da visita.',
     eventos: 'Capacitações, dias de campo, reuniões e articulações. Em cada uma: lista de presença (imprimir em branco, colher assinaturas e digitar os nomes) e fotos do dia.', entregas: 'Relatórios, materiais e produtos concluídos, com o link da evidência.',
@@ -1983,7 +1993,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* ---------- equipe: as três funções com bolsa no plano; as pessoas vêm das solicitações importadas da FUNCERN ---------- */
   const FUNCOES = [['coordenacao', 'i01', 'Coordenação do projeto', 'coordenação do projeto', 'Uma pessoa · responde pelo projeto e assina as solicitações à fundação · cadastrada pela coordenação', 1],
     ['auxiliar', 'i02', 'Auxiliar administrativo', 'auxiliar administrativo', 'Uma pessoa · apoia a gestão: solicitações, documentos e prestação de contas', 1],
-    ['discente', 'i03', 'Bolsistas discentes', 'bolsista discente', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo', 0]];
+    ['discente', 'i03', 'Bolsistas discentes', 'bolsista discente', 'Estudantes que dão apoio técnico às unidades de produção e ao acompanhamento em campo', 0],
+    ['formador', 'i16', 'Formadores', 'formador(a)', 'Especialistas em bioinsumos e agroecologia que planejam e ministram as capacitações da Meta 3 · bolsa por atividade realizada', 0]];
   const IC_GENTE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.500"/><path d="M2.500 20a6.500 6.500 0 0 1 13 0"/><circle cx="17.500" cy="9" r="2.500"/><path d="M17 14.200a5 5 0 0 1 4.500 5"/></svg>';
   function equipe() {
     if (coord() && !real && convites === undefined) { convites = []; carregarConvites(); }
@@ -2013,7 +2024,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         return `<div class="ae-l"><div class="ae-o"><span class="mt-n" aria-hidden="true">${esc((o.replace(/[^A-Za-zÀ-ú/ ]/g, '').split(/[\s/]+/).filter(Boolean).slice(-1)[0] || '?').slice(0, 4).toUpperCase())}</span><div><b>${esc(o)}</b><small>${at} pessoa${at === 1 ? '' : 's'} com acesso</small></div></div>
          <div class="ae-p">${L.length ? L.map(p => { const st = sit(p); return `<button class="ae-c${p.ativo === false ? ' off' : ''}" data-edit="pessoas:${esc(p.id)}" title="Abrir o cadastro de ${esc(p.nome)}"><span class="pc-av" aria-hidden="true">${esc(iniciais(p.nome))}</span><span class="ae-t"><b>${esc(p.nome)}</b><span class="chip ${st[0]} vg-c">${st[1]}</span></span></button>`; }).join('') : '<p class="small">Ninguém cadastrado ainda.</p>'}</div>
          <div class="ae-a"><button class="ae-b" data-new="pessoas" data-pre="${esc(o === 'Órgão não informado' ? '-' : o)}">${IC_MAIS}<span>Adicionar pessoa</span></button><button class="ae-b" data-vercomo="${esc(o === 'Órgão não informado' ? '' : o)}">${IC_OLHO.split('<svg class="o2"')[0].replace('class="o1" ', '').replace('width="22" height="22"', 'width="20" height="20"')}<span>Ver como ${esc(o === 'Órgão não informado' ? 'quem acompanha' : o)} vê</span></button></div></div>`; }).join('')}</div></section>`; };
-    return `<div class="head"><div><h2>Equipe do projeto</h2><p>Quem ocupa cada função com bolsa no plano de trabalho. O cadastro é da coordenação; os valores de bolsa vêm da planilha da FUNCERN, importada na aba Financeiro.</p></div></div>${semTabela}${FUNCOES.map(bloco).join('')}${ext()}`;
+    /* resumo no alto (14/10/2026, no formato do Mulheres & Quintais): vagas do plano preenchidas e bolsas pagas */
+    const nAt = f => R.equipePorFuncao(db, f, hj).ativos.length, VAGAS = { coordenacao: 1, auxiliar: 1, discente: 3 };
+    const abertas = Object.keys(VAGAS).reduce((t, f) => t + Math.max(0, VAGAS[f] - nAt(f)), 0);
+    const ITB = ['i01', 'i02', 'i03', 'i16'], prevB = D.DESEMBOLSO.itens.filter(i => ITB.includes(i.id)).reduce((t, i) => t + i.m.reduce((a, b) => a + b, 0), 0);
+    const pagoB = db.despesas.filter(d => ITB.includes(d.item) && d.status === 'Pago').reduce((t, d) => t + (+d.valor || 0), 0), mil = v => num(v / 1000, v % 1000 ? 1 : 0);
+    const resumo = `<section class="dx-topo panel eq-top" aria-label="Resumo da equipe"><div class="dx-kpis">
+      ${kpi(1, nAt('coordenacao') * 100, nAt('coordenacao'), 'de 1', 'coordenação do projeto cadastrada', '', undefined)}
+      ${kpi(2, Math.min(1, nAt('auxiliar')) * 100, nAt('auxiliar'), 'de 1', 'auxiliar administrativo cadastrado', '', undefined)}
+      ${kpi(3, Math.min(3, nAt('discente')) / 3 * 100, nAt('discente'), 'de 3', 'bolsistas discentes na equipe', nAt('formador') ? nAt('formador') + (nAt('formador') === 1 ? ' formador(a) cadastrado(a)' : ' formadores cadastrados') : '', undefined)}
+      ${kpi(4, prevB ? pagoB / prevB * 100 : 0, mil(pagoB), 'de ' + mil(prevB) + ' mil', 'reais em bolsas pagas', 'coordenação, auxiliar, discentes e formadores', undefined, 'pago')}</div></section>`;
+    return `<div class="head"><div><h2>Coordenação e bolsistas</h2><p>Quem ocupa cada função com bolsa no plano de trabalho. O cadastro é da coordenação; os valores de bolsa vêm da planilha da FUNCERN, importada na aba Financeiro.</p>${abertas ? `<span class="eq-pill">${abertas} ${abertas === 1 ? 'vaga aberta' : 'vagas abertas'} no plano de trabalho</span>` : '<span class="eq-pill ok">Todas as vagas do plano preenchidas</span>'}</div></div>${semTabela}${resumo}${FUNCOES.map(bloco).join('')}${ext()}`;
   }
   function financeiro() {
     const F = R.fin(db), FR = R.finRubrica(db), pago = R.soma(F, 'pago'), comp = R.soma(F, 'comp'), usado = pago + comp, rec = R.recebido(), prox = D.PARCELAS.find(p => !p.recebida);
@@ -2100,7 +2121,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   /* cada tela tem um h1 com sobretítulo. Nas abas que já começam com um cabeçalho, o primeiro título vira o h1;
      no painel (que começa pelos indicadores) o cabeçalho é criado aqui. */
-  const SOBRE = { historico: 'Histórico', painel: 'Visão geral', equipe: 'Quem faz o projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
+  const SOBRE = { historico: 'Histórico', painel: 'Visão geral', equipe: 'Equipe do projeto', unidades: 'Unidades de produção', lotes: 'Produção', agricultores: 'Quem o projeto atende', distribuicoes: 'Rastreabilidade', visitas: 'Acompanhamento em campo', eventos: 'Formação', entregas: 'Plano de trabalho', financeiro: 'Recursos do TED', relatorios: 'Prestação de contas', dados: 'Administração' };
   function tituloDaTela(v) {
     const cab = [...v.children].find(c => c.classList && c.classList.contains('head')), eye = `<span class="eyebrow">${SOBRE[tab] || ''}</span>`;
     if (cab && tab !== 'painel') { const h2 = cab.querySelector('h2'), d = h2 && h2.parentElement; if (!h2) return; const h1 = document.createElement('h1'); h1.textContent = h2.textContent; h2.replaceWith(h1); d.classList.add('pg'); h1.insertAdjacentHTML('beforebegin', eye); return; }
@@ -2147,6 +2168,20 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return /^\d+(\.\d+)?$/.test(t) ? +t : NaN; };
   const AUTO = { nome: 'autocomplete="name"', email: 'autocomplete="email"', telefone: 'autocomplete="tel"', cep: 'autocomplete="postal-code" inputmode="numeric"', logradouro: 'autocomplete="address-line1"',
     complemento: 'autocomplete="address-line2"', municipio: 'autocomplete="address-level2"', nascimento: 'autocomplete="bday"', pis: 'inputmode="numeric" autocomplete="off"', siape: 'inputmode="numeric" autocomplete="off"', numero: 'inputmode="numeric"' };
+  const IC_PINO = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></svg>';
+  const textoLocal = r => `${(+r.lat).toFixed(5).replace('.', ',')}; ${(+r.lng).toFixed(5).replace('.', ',')}${r.precisao != null && r.precisao !== '' ? ` · precisão de ${num(+r.precisao)} m` : ''}`;
+  /* GPS do celular: alta precisão, até 25 s; funciona sem internet. Precisão pior que 100 m é avisada (dentro de casa, céu fechado) */
+  function pegarLocal(b) {
+    const t = $('#f_geo_t'); if (!navigator.geolocation) { t.textContent = 'Este navegador não informa a localização.'; return; }
+    b.disabled = true; t.textContent = 'Procurando o sinal do GPS… fique a céu aberto, se puder.';
+    navigator.geolocation.getCurrentPosition(p => {
+      b.disabled = false; const r = { lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6, precisao: Math.round(p.coords.accuracy) };
+      $('#f_lat').value = r.lat; $('#f_lng').value = r.lng; $('#f_precisao').value = r.precisao; b.querySelector('span').textContent = 'Pegar de novo';
+      t.textContent = textoLocal(r) + (r.precisao > 100 ? ' · precisão baixa: tente de novo fora de casa' : '');
+      if (!$('[data-geolimpar]')) t.insertAdjacentHTML('afterend', '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>');
+    }, e => { b.disabled = false; t.textContent = e.code === 1 ? 'O celular não deixou pegar a localização. Permita a localização para este site nas configurações do navegador e tente de novo.' : e.code === 3 ? 'O GPS demorou demais. Vá para um lugar aberto e tente de novo.' : 'Não foi possível pegar a localização agora. Tente de novo.'; },
+    { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
+  }
   function corpoForm(M, r, id, quais) {
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '';
@@ -2155,6 +2190,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
       if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${l}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
+      if (t === 'geo') { const tem = r.lat != null && r.lat !== ''; return `<div class="fld w"><span class="geo-r" id="f_local_r">${l}</span><div class="geo" role="group" aria-labelledby="f_local_r"><input type="hidden" id="f_lat" value="${tem ? esc(r.lat) : ''}"><input type="hidden" id="f_lng" value="${tem ? esc(r.lng) : ''}"><input type="hidden" id="f_precisao" value="${tem && r.precisao != null ? esc(r.precisao) : ''}">
+        <button type="button" class="b geo-b" data-geo>${IC_PINO}<span>${tem ? 'Pegar de novo' : 'Pegar a localização'}</span></button><span class="geo-t" id="f_geo_t" aria-live="polite">${tem ? textoLocal(r) : 'Ainda não registrada.'}</span>${tem ? '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>' : ''}</div></div>`; }
       return `<div class="fld${['nome', 'tema', 'titulo', 'descricao', 'email'].includes(k) ? ' w' : ''}"><label for="${idc}">${l}</label><input id="${idc}" type="${t === 'number' ? 'text' : t}" ${t === 'number' ? 'inputmode="decimal" autocomplete="off"' : (M === MOD.membros || M.membrosPub) && AUTO[k] ? AUTO[k] : ''} value="${esc(v === '' && t === 'date' && req && !id ? iso(hoje()) : t === 'number' && v !== '' ? String(v).replace('.', ',') : v)}"${Rq}></div>`;
     };
     let corpo = '', aberto = false; const dica = k => M.dicas && M.dicas[k] ? `<span class="fm-dica">${esc(M.dicas[k])}</span>` : '';
@@ -2171,7 +2208,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   /* ---------- link de cadastro da equipe ---------- */
   let convites, preMembro = null;   // convites: undefined = ainda não carregou; null = o banco não tem (falta o script 11); lista = carregado
-  const NOME_FUNCAO = { coordenacao: 'Coordenação do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Bolsista discente' };
+  const NOME_FUNCAO = { coordenacao: 'Coordenação do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Bolsista discente', formador: 'Formador(a)' };
   async function carregarConvites() { try { convites = await api.convites(); } catch (e) { convites = []; toast(e.message); } if (tab === 'equipe') render(); }
   function abrirEscolha(funcao) {
     ed = null; $('#frm').className = 'fm';
@@ -2314,15 +2351,16 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (t === 'check') return `<div class="pf-i">${cx(l)}</div>`;
       if (t === 'select') { const ops = (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]); return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><div class="pf-ops">${ops.map(x => cx(x[1])).join('')}</div></div>`; }
       if (t === 'ref') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
-      if (t === 'textarea') return `<div class="pf-i w"><b>${esc(l)}</b>${ln}${ln}${ln}</div>`;
+      if (t === 'textarea') return `<div class="pf-i w"><b>${esc(l)}</b>${ln.repeat(k === 'problemas' ? 4 : 5)}</div>`;
+      if (t === 'geo') return `<div class="pf-i w"><b>${esc(l)} (GPS, se tiver)</b><span class="pf-dt">Lat. ______________ &nbsp; Long. ______________</span></div>`;
       if (t === 'date') return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b><span class="pf-dt">____ / ____ / ________</span></div>`;
       return `<div class="pf-i"><b>${esc(l)}${req ? ' *' : ''}</b>${ln}</div>`;
     };
-    imprimir(`<section class="pf">${cabImp(M.um, `Aplicado por: ${esc(eu.nome)} &nbsp;·&nbsp; Data: ____ / ____ / ________`)}${M.oque ? `<p class="pf-o">${esc(M.oque)}</p>` : ''}<div class="pf-c">${M.campos.map(campo).join('')}</div><p class="pf-r">* obrigatório. Depois, digite no sistema: Saberes que Cultivam › ${esc(M.nome)}.</p></section>`);
+    imprimir(`<section class="pf">${cabImp(M.um, `Aplicado por: ${esc(eu.nome)} &nbsp;·&nbsp; Data: ____ / ____ / ________`)}${M.oque ? `<p class="pf-o">${esc(M.oque)}</p>` : ''}<p class="pf-inst">Escreva com letra de forma. Nas opções, marque com <b>X</b> o quadrinho. Se faltar espaço, continue no verso indicando o nome do campo.</p><div class="pf-c">${M.campos.map(campo).join('')}</div><p class="pf-r">* obrigatório. Depois, digite no sistema: Saberes que Cultivam › ${esc(M.nome)}.</p></section>`);
   }
   function imprimirLista(evId) {
     const e = by('eventos', evId); if (!e) return;
-    const linhas = Array.from({ length: 25 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+    const linhas = Array.from({ length: 20 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
     imprimir(`<section class="pf">${cabImp('Lista de presença', `${esc(e.tipo)} · ${esc(e.tema)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}${e.municipio ? ' · ' + esc(e.municipio) : ''}`)}
       <p class="pf-o">Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).</p>
       <table class="pf-lp"><thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade</th><th>Município</th><th>Mulher? (S/N)</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table>
@@ -2334,7 +2372,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      ${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span>Vai aplicar no papel?</span><button type="button" class="b s" data-imprimir="${m}">Imprimir em branco</button></div>` : ''}
      <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button class="b p" id="fsalvar">Salvar</button></div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'visitas' && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="visitas:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === 'visitas' && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
     ed.foto = fotoForm(); ed.avisado = false;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
@@ -2377,6 +2415,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     for (const [k, l, t, req] of M.campos) {
       if (t === 'sec') continue;
       if (t === 'checks') { D.CHECK.forEach(c => { r[c[0]] = $('#f_' + c[0]).checked; }); continue; }
+      if (t === 'geo') { const la = $('#f_lat').value, lo = $('#f_lng').value, pr = $('#f_precisao').value; r.lat = la === '' ? null : +la; r.lng = lo === '' ? null : +lo; r.precisao = la === '' || pr === '' ? null : +pr; continue; }
       const el = $('#f_' + k); r[k] = t === 'check' ? el.checked : t === 'number' ? numCampo(el.value) : el.value.trim();
       if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo, como 120 ou 120,50.`); el.focus(); return; }
       if (req && (r[k] === '' || r[k] == null)) { er(`Preencha “${l}”.`); el.focus(); return; }
@@ -2391,7 +2430,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     b.disabled = false; b.textContent = 'Salvar';
     if (!res.ok) return er(res.msg);
     if (conviteAberto) { try { await api.conviteEncerrar(conviteAberto, 'aprovado'); } catch (e) { toast('Cadastro gravado, mas o convite não foi encerrado: ' + e.message); } convites = undefined; }
+    const depoisFotos = ed.depoisFotos;
     $('#dlg').close(); ed = null; render();
+    if (depoisFotos && !res.fila) return abrirFotos(m, r.id, 'Visita salva. Agora tire ou escolha as fotos.');
+    if (depoisFotos && res.fila) return toast('Sem internet: a visita ficou guardada neste aparelho. As fotos precisam de internet: anexe depois, pelo botão Fotos da visita.');
     if (res.fila) toast('Sem internet: guardado neste aparelho. Envia sozinho quando o sinal voltar.');
     else if (m === 'pessoas' && !id && !demo()) toast('Acesso criado. Avise a pessoa para abrir o sistema e usar “Primeiro acesso”.');
   }
@@ -2401,7 +2443,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks' && c[2] !== 'sec'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
     // texto que começa com = + - @ vira fórmula no Excel: um apóstrofo na frente desarma
     const seguro = v => typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
-    const val = (c, r) => c[2] === 'ref' ? (by(c[4], r[c[0]]) ? rotulo[c[4]](by(c[4], r[c[0]])) : '') : c[2] === 'check' ? (r[c[0]] ? 'Sim' : 'Não') : c[0] === 'rubrica' ? nomeRubrica(r[c[0]]) : c[0] === 'item' && m === 'despesas' ? ((D.DESEMBOLSO.itens.find(i => i.id === r.item) || { nome: '' }).nome) : typeof r[c[0]] === 'number' ? String(r[c[0]]).replace('.', ',') : r[c[0]];
+    const val = (c, r) => c[2] === 'geo' ? (r.lat != null && r.lat !== '' ? `${r.lat}; ${r.lng}${r.precisao != null ? ' (±' + r.precisao + ' m)' : ''}` : '') : c[2] === 'ref' ? (by(c[4], r[c[0]]) ? rotulo[c[4]](by(c[4], r[c[0]])) : '') : c[2] === 'check' ? (r[c[0]] ? 'Sim' : 'Não') : c[0] === 'rubrica' ? nomeRubrica(r[c[0]]) : c[0] === 'item' && m === 'despesas' ? ((D.DESEMBOLSO.itens.find(i => i.id === r.item) || { nome: '' }).nome) : typeof r[c[0]] === 'number' ? String(r[c[0]]).replace('.', ',') : r[c[0]];
     const head = [...(m === 'lotes' ? ['Código'] : []), ...cs.map(c => c[1]), ...(m === 'unidades' ? D.CHECK.map(c => c[1]) : []), ...(m === 'lotes' ? ['Saldo'] : [])];
     const lin = db[m].filter(r => !r._pendente).map(r => [...(m === 'lotes' ? [r.codigo] : []), ...cs.map(c => val(c, r)), ...(m === 'unidades' ? D.CHECK.map(c => r[c[0]] ? 'Sim' : 'Não') : []), ...(m === 'lotes' ? [String(saldo(r)).replace('.', ',')] : [])].map(seguro).map(q).join(';'));
     return '﻿' + [head.map(q).join(';'), ...lin].join('\r\n');
@@ -2619,6 +2661,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
     else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
     else if (d.ajudaentrada !== undefined) abrirAjudaEntrada();
+    else if (d.geo !== undefined) pegarLocal(t);
+    else if (d.geolimpar !== undefined) { ['f_lat', 'f_lng', 'f_precisao'].forEach(i => { $('#' + i).value = ''; }); $('#f_geo_t').textContent = 'Localização apagada.'; const g = $('[data-geo] span'); if (g) g.textContent = 'Pegar a localização'; t.remove(); }
+    else if (d.salvarfotos !== undefined) { if (ed) { ed.depoisFotos = true; $('#frm').requestSubmit($('#fsalvar')); } }
     else if (d.aparencia !== undefined) { ed = null; $('#frm').className = 'fm'; $('#frm').innerHTML = SQC.aparencia.janela(); $('#dlg').classList.add('dlg-ap'); if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal(); }
     else if (d.apSol !== undefined) { SQC.aparencia.mudar('sol', !SQC.aparencia.ler().sol); $('#frm').innerHTML = SQC.aparencia.janela(); $('#frm [data-ap-sol]').focus(); }
     else if (d.apTema) { SQC.aparencia.mudar('tema', d.apTema); $('#frm').innerHTML = SQC.aparencia.janela(); $(`#frm [data-ap-tema="${d.apTema}"]`).focus(); }
@@ -2630,7 +2675,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const res = await gravarRegistro('eventos', r, e); render(); abrirPresenca(d.prcontar, res.ok ? 'Participantes da atividade atualizados pela lista.' : res.msg); }
     else if (d.imprimirlista) imprimirLista(d.imprimirlista);
     else if (d.imprimir) imprimirBranco(d.imprimir);
-    else if (d.fotos) { const [tt, id] = d.fotos.split(':'); abrirFotos(tt, id); }
+    else if (d.fotos) { if ($('#dlg').open && ed && perderia()) return avisarPerda(); const [tt, id] = d.fotos.split(':'); abrirFotos(tt, id); }
     else if (d.fotocam) { if (!demo() && navigator.onLine === false) { $('#ferr').textContent = 'Sem internet a foto não sobe, e a foto tirada por aqui não fica salva no celular. Tire com a câmera do próprio celular e anexe depois em “Escolher foto”: a data dela continua valendo.'; return; } const f = await SQC.fotodia.abrirCamera(m => { $('#ferr').textContent = m; }); if (f) await anexarFoto(d.fotocam, f, true); }
     else if (d.fotodel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para excluir a foto.'; return; }
       const f = db.fotos.find(x => x.id === d.fotodel); if (!f) return;

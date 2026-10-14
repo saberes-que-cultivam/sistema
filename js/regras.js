@@ -299,7 +299,7 @@
     if (tabela === 'agricultores' && r.kit && !r.kitdata) return 'Informe a data da entrega do kit.';
     if (tabela === 'membros') {
       if (!String(r.nome || '').trim()) return 'Informe o nome.';
-      if (!['coordenacao', 'auxiliar', 'discente'].includes(r.funcao)) return 'Escolha a função.';
+      if (!['coordenacao', 'auxiliar', 'discente', 'formador'].includes(r.funcao)) return 'Escolha a função.';
       if (!r.inicio) return 'Informe a data de início.';
       if (r.fim && r.fim < r.inicio) return 'O desligamento não pode ser antes do início.';
       if (!r.lgpd) return 'Marque que a pessoa foi informada e concorda com o uso dos dados.';
