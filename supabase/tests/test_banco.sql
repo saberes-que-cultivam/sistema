@@ -490,4 +490,14 @@ do $$ begin
 end $$;
 reset role;
 do $$ begin if not exists (select 1 from public.auditoria where tabela = 'planilhas' and depois ->> 'tipo' = 'agricultores' and (depois ->> 'qtd')::int = 30) then raise exception 'FALHOU: download não entrou no histórico'; end if; end $$;
+-- ===== script 22: visita no futuro; leitura do histórico =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ begin
+  begin insert into public.visitas (data, agricultor, usou) values (current_date + 30, 'dddddddd-0000-4000-8000-000000000001', 'Sim'); raise exception 'FALHOU: aceitou visita com data no futuro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  insert into public.visitas (data, agricultor, usou) values (current_date, 'dddddddd-0000-4000-8000-000000000001', 'Sim');   -- hoje pode
+  if exists (select 1 from public.auditoria) then raise exception 'FALHOU: equipe leu o histórico'; end if;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

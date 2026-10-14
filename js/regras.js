@@ -38,18 +38,26 @@
     if (ordenar) m.forEach(l => l.sort((a, b) => a.data < b.data ? 1 : -1)); porAgr.set(lista, { m, n: lista.length, u: lista[lista.length - 1] }); return m; };
   const visitasDe = (db, id) => (grupo(db.visitas, true).get(id) || []).slice();
   const recebeu = (db, id) => (grupo(db.distribuicoes, false).get(id) || []).slice();
-  /* "acompanhada" (Meta 4): recebeu bioinsumo e teve ao menos uma visita de monitoramento */
-  const acompanhada = (db, a) => recebeu(db, a.id).length > 0 && visitasDe(db, a.id).length > 0;
+  /* até que dia conta (AAAA-MM-DD). Sem data final, conta até hoje: atividade marcada para o futuro é planejada, não realizada. */
+  const ateDia = ate => ate || iso(new Date());
+  const ateh = (d, ate) => String(d || '') <= ate;   // registro antigo sem data continua contando
+  /* "acompanhada" (Meta 4): recebeu bioinsumo e teve visita de monitoramento NO DIA da primeira entrega ou depois
+     (mesma conta do aviso "recebeu bioinsumo e não teve visita depois"); visita antes da entrega não acompanha uso. */
+  const acompanhada = (db, a, ate) => { ate = ateDia(ate);
+    const r = recebeu(db, a.id).filter(x => ateh(x.data, ate)).map(x => String(x.data || '')).sort()[0];
+    return r !== undefined && visitasDe(db, a.id).some(v => ateh(v.data, ate) && String(v.data || '') >= r); };
 
   /* ---------- execução física: quanto de cada etapa já foi feito ---------- */
-  function feito(db, e) {
+  /* ate (opcional, AAAA-MM-DD): conta só o que tem data até esse dia. Sem ele, até hoje. */
+  function feito(db, e, ate) {
+    ate = ateDia(ate);
     switch (e.id) {
       case '2.1': return db.unidades.filter(u => u.conta === 'Sim' && u.funcionando).length;
-      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação').length;
-      case '3.3': return db.agricultores.filter(a => a.kit).length;
-      case '4.1': return db.agricultores.filter(a => acompanhada(db, a)).length;
-      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo').length;
-      default: return db.entregas.filter(g => g.etapa === e.id).length;
+      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate)).length;
+      case '3.3': return db.agricultores.filter(a => a.kit && ateh(a.kitdata, ate)).length;
+      case '4.1': return db.agricultores.filter(a => acompanhada(db, a, ate)).length;
+      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate)).length;
+      default: return db.entregas.filter(g => g.etapa === e.id && ateh(g.data, ate)).length;
     }
   }
 
@@ -63,7 +71,7 @@
   }
   function execucaoGeral(db, hoje) {
     hoje = hoje || new Date();
-    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e) / e.q), prev: previstoEtapa(e, hoje) }));
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje) }));
     const tot = linhas.reduce((s, x) => s + x.valor, 0);
     const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
     const st = real >= 99.5 ? 'concluida' : real >= prev ? 'andamento' : real >= prev * 0.7 ? 'atencao' : 'atrasada';
@@ -219,7 +227,8 @@
   /* ---------- o que precisa de atenção (painel) ---------- */
   const FMT_BRL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // criado uma vez: toLocaleString a cada chamada era ~50 vezes mais lento (auditoria 14/10)
   const brl = v => 'R$ ' + FMT_BRL.format(n(v));
-  const dt = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
+  // só dígitos e traço passam: a data vai direto para o HTML, então nada que não seja data chega à tela
+  const dt = s => s ? String(s).slice(0, 10).replace(/[^0-9-]/g, '').split('-').reverse().join('/') : '—';
   const venceu = (e, hoje) => iso(fimMes(e.fim)) < iso(hoje || new Date());   // a etapa só vence depois do último dia do mês final
   /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
   function alertas(db, hoje) {
@@ -247,19 +256,20 @@
     });
     const hj = iso(hoje);   // datas comparadas como texto AAAA-MM-DD: o dia previsto e o último dia do mês ainda não são atraso
     db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && iso(pronto(l)) < hj) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
-    D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
+    D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
     // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
     return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
   }
 
   /* ---------- indicadores da Meta 5 ---------- */
-  function indicadores(db) {
+  function indicadores(db, ate) {
+    ate = ateDia(ate); const vs = db.visitas.filter(v => ateh(v.data, ate));
     // só entra quem tem as duas pontas: linha de base com gasto informado E visita com gasto (campo vazio não é zero)
-    const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
+    const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto) && ateh(x.data, ate)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
     const m0 = comp.reduce((s, c) => s + c[0], 0) / (comp.length || 1), m1 = comp.reduce((s, c) => s + c[1], 0) / (comp.length || 1);
-    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo));
+    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate));   // atividade planejada não soma participantes
     return { pares: comp.length, base: m0, atual: m1, variacao: comp.length && m0 ? (m1 - m0) / m0 * 100 : null,
-      visitas: db.visitas.length, usou: db.visitas.filter(v => v.usou === 'Sim').length,
+      visitas: vs.length, usou: vs.filter(v => v.usou === 'Sim').length,
       participantes: ev.reduce((s, e) => s + n(e.part), 0), mulheres: ev.reduce((s, e) => s + n(e.mulheres), 0) };
   }
 
@@ -288,6 +298,7 @@
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
+    if (tabela === 'visitas' && r.data) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da visita está no futuro. Registre a visita depois de feita.'; }
     if (tabela === 'presencas') {
       if (!(db.eventos || []).some(e => e.id === r.evento)) return 'Escolha a atividade.';
       if (String(r.nome || '').trim().length < 3) return 'Informe o nome de quem participou.';

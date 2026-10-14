@@ -59,6 +59,11 @@ select 'correções da auditoria de 14/10 (20)',
 union all
 select 'histórico de downloads (21)', case when to_regprocedure('public.registrar_download(text,integer)') is null then 'FALTA: rode o 21' else 'ok' end
 union all
+select 'correções da auditoria formal (22)',
+       case when not exists (select 1 from pg_trigger where tgname = 'b_visita_data' and tgrelid = 'public.visitas'::regclass) then 'FALTA: rode o 22'
+            when (select qual from pg_policies where schemaname = 'public' and tablename = 'auditoria' and policyname = 'auditoria_ler') like '%AS meu_perfil) =%' then 'CONFIRA: o 15 foi rodado depois do 22 (histórico lento); rode o 22 de novo'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

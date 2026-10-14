@@ -6,7 +6,9 @@
   let sb = null, euCache = null, semItem = false;   // semItem: o banco ainda não tem a coluna "item" em despesas (falta rodar o script 06)
   const CHAVE_EU = 'sqc-eu', CHAVE_DADOS = 'sqc-dados', CHAVE_QUANDO = 'sqc-dados-em';
   const PRAZO_OFFLINE = 72 * 3600 * 1000;   // sem falar com o servidor há mais de 72 h, o aparelho não abre os dados guardados
-  const copiaValida = () => { const t = +ler(CHAVE_QUANDO) || 0; return t > 0 && Date.now() - t < PRAZO_OFFLINE; };
+  // passou do prazo: a cópia não serve mais e é apagada (não fica guardada no aparelho sem uso)
+  const copiaValida = () => { const t = +ler(CHAVE_QUANDO) || 0, ok = t > 0 && Date.now() - t < PRAZO_OFFLINE;
+    if (!ok && t > 0) { guardar(CHAVE_DADOS, null); guardar(CHAVE_QUANDO, null); } return ok; };
 
   const erro = e => {
     const x = new Error(R.mensagemErro(e)); x.original = e; x.code = e && e.code;

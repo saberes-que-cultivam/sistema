@@ -129,7 +129,8 @@ fieldset input{width:auto}
 .rel{padding:28px;display:flex;flex-direction:column;gap:20px}
 
 .rel section{display:flex;flex-direction:column;gap:8px;min-width:0}
-.rel h4{font:700 var(--t-base) var(--display);margin:0}
+.rel h3{font:700 var(--t-base) var(--display);margin:0} .rel .rel-sup{font-size:var(--t-lg);font-weight:600;color:var(--txt-1);margin:0}
+.box>h2.bx{font-size:var(--t-lg);font-weight:600;letter-spacing:0;line-height:1.15;margin:0}
 .rel p{margin:0;max-width:75ch}
 tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 @media (max-width:520px){ h1{font-size:var(--t-2xl)} .rel{padding:16px} }
@@ -195,7 +196,7 @@ button.b:disabled{opacity:.6;cursor:default}
 
 
 
-@media (max-width:980px){.dx-topo{grid-template-columns:1fr}.dx-exec{border-right:0;border-bottom:1px solid var(--line)}}
+@media (max-width:980px){.dx-topo{grid-template-columns:minmax(0,1fr)}.dx-exec{border-right:0;border-bottom:1px solid var(--line)}}
 @media (max-width:640px){.dx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dx-kpi{padding:18px 14px}.dx-kpi+.dx-kpi{border-left:0}.dx-kpi:nth-child(even){border-left:1px solid var(--line)}.dx-kpi:nth-child(n+3){border-top:1px solid var(--line)}.dx-exec{padding:20px 16px}.dx-kpi-r{min-height:0}}
 .dx-kpis.fin .dx-kpi-n b{font-size:var(--t-3xl);display:block}
 .dx-kpis.fin .dx-kpi-n small{display:block;white-space:nowrap;font-size:var(--t-md);margin-top:2px}
@@ -359,7 +360,7 @@ header.top #net{background:var(--ferment-soft);color:#5a3a06}
 
 /* ---------- controle de duas ou três opções (entrada e filtro do mapa) ---------- */
 .seg{display:flex;border:1.5px solid color-mix(in srgb,var(--ink) 35%,var(--line));border-radius:99px;overflow:hidden;background:var(--surface)}
-.seg button{flex:1;border:0;background:none;color:var(--ink);font:500 var(--t-base) var(--body);padding:12px 14px;cursor:pointer;white-space:nowrap}
+.seg button{flex:1;border:0;background:none;color:var(--ink);font:500 var(--t-base) var(--body);padding:12px 14px;cursor:pointer}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-selected="true"]{background:var(--topo);color:var(--topo-ink)}
 .seg.peq button{padding:8px 16px;font-size:var(--t-md)}
@@ -473,7 +474,7 @@ input,select,textarea,button{font-family:var(--body);font-variant-numeric:tabula
 h1,h2,h3,h4{font-family:var(--body);font-weight:600;line-height:1.15;margin:0;text-wrap:balance;text-transform:none;color:var(--txt-1)}
 h1,.ent-h{font-size:var(--t-h1);letter-spacing:-.01em}
 h2,.head h2,.at-cab h2,.fm-cab h2,.ent-t,.pc-cab h2,.rel h2,.fin-t{font-size:var(--t-2xl);font-weight:600;letter-spacing:-.01em;line-height:1.15}
-h3,h4,.fm-sec,.rel h4,.rb-c h3{font-size:var(--t-lg);font-weight:600;letter-spacing:0;text-transform:none;color:var(--txt-1)}
+h3,h4,.fm-sec,.rel h3,.rb-c h3{font-size:var(--t-lg);font-weight:600;letter-spacing:0;text-transform:none;color:var(--txt-1)}
 .fin-t small{font:500 var(--t-md)/1.3 var(--body);color:var(--txt-3);letter-spacing:0}
 /* marca: o único texto com serifa */
 .marca-nome,.ent-marca b,.pe-m b{font:700 var(--t-2xl)/1.15 var(--marca);letter-spacing:0;margin:0}
@@ -574,8 +575,8 @@ ul.ent-uf i{width:24px;height:24px;font:700 var(--t-2xs)/1 var(--body);font-styl
 #authcorpo{gap:24px} #painel_acesso{display:flex;flex-direction:column;gap:24px}
 #auth form{display:flex;flex-direction:column;gap:16px}
 /* seletor "Já tenho senha | Primeiro acesso" */
-.sg{position:relative;display:grid;grid-template-columns:1fr 1fr;height:48px;padding:4px;border-radius:14px;background:var(--sunken)}
-.sg button{position:relative;border:0;background:none;border-radius:10px;font:600 var(--t-md)/1.2 var(--body);color:var(--txt-2);cursor:pointer;white-space:nowrap;transition:color .18s,background-color .18s,box-shadow .18s}
+.sg{position:relative;display:grid;grid-template-columns:1fr 1fr;min-height:48px;padding:4px;border-radius:14px;background:var(--sunken)}
+.sg button{position:relative;border:0;background:none;border-radius:10px;font:600 var(--t-md)/1.2 var(--body);color:var(--txt-2);cursor:pointer;transition:color .18s,background-color .18s,box-shadow .18s}
 .sg button:hover{color:var(--txt-1)} .sg button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);box-shadow:0 1px 3px rgba(24,36,28,.22)}
 /* campos */
 .cp{display:flex;flex-direction:column;gap:8px}
@@ -1091,7 +1092,7 @@ dialog.dlg-ap .fm-corpo{flex:none;gap:18px;padding-block:22px 24px}
   table.tc td{display:block;padding:0;border:0;text-align:left;white-space:normal;min-width:0}
   table.tc td::before{content:attr(data-r);display:block;margin-bottom:2px;font:600 var(--t-xs)/1.3 var(--body);color:var(--txt-2)}
   table.tc td:first-child{font-size:var(--t-md)}
-  table.tc td.a{position:absolute;top:12px;right:12px;box-shadow:none;background:none}
+  table.tc td.a{position:absolute;top:12px;right:12px;width:auto;box-shadow:none;background:none}   /* width:auto: o 1% da tabela larga virava 4 px e os botões vazavam da tela */
   table.tc td.a .ac{flex-direction:column}
   table.tc td.a::before{content:none}
   table.tc td.n{text-align:left}
@@ -1305,3 +1306,8 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 .hs-d dt{color:var(--txt-2)} .hs-d dd{margin:0;overflow-wrap:anywhere} .hs-d s{color:var(--txt-3)}
 @media (max-width:640px){.hs-d dl{grid-template-columns:1fr}.hs-d dd{margin-bottom:6px}}
 .hs-f input,.hs-f select{min-height:44px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--ink) 26%,var(--line));border-radius:10px;background:var(--surface);color:var(--txt-1);font:var(--t-base) var(--body)}
+
+/* 14/10 · auditoria formal: texto com espaçamento ampliado (WCAG 1.4.12) quebra a linha em vez de ser cortado nos indicadores */
+.dx-topo .chip{white-space:normal}
+.dx-kpi,.dx-kpi *{min-width:0;overflow-wrap:anywhere}
+@media (max-width:400px){.dx-exec-sub span{white-space:normal}}

@@ -153,3 +153,28 @@ test('link de cadastro: nome e termo obrigatórios; CPF e CEP conferidos; campos
   ['funcao', 'inicio', 'fim', 'motivo', 'obs', 'id', 'criado_por'].forEach(k => assert.ok(!R.CAMPOS_CONVITE.includes(k), k));
   R.CAMPOS_RESERVADOS.forEach(k => assert.ok(R.CAMPOS_CONVITE.includes(k), k));
 });
+test('auditoria formal 14/10: o que tem data depois do dia de corte é planejado e não conta', () => {
+  const db = base(), e = id => SQC.dados.ETAPAS.find(x => x.id === id);
+  db.eventos.push({ tipo: 'Capacitação', data: '2026-09-10', part: 10 }, { tipo: 'Capacitação', data: '2099-01-01', part: 30 }, { tipo: 'Dia de campo', data: '2099-01-01', part: 40 });
+  db.agricultores[0].kit = true; db.agricultores[0].kitdata = '2099-01-01';
+  db.entregas.push({ etapa: '5.2', data: '2099-01-01' }, { etapa: '6.1', data: '2026-09-01' });
+  assert.strictEqual(R.feito(db, e('3.2')), 1); assert.strictEqual(R.feito(db, e('5.1')), 0); assert.strictEqual(R.feito(db, e('3.3')), 0);
+  assert.strictEqual(R.feito(db, e('5.2')), 0); assert.strictEqual(R.feito(db, e('6.1')), 1);
+  assert.strictEqual(R.indicadores(db).participantes, 10);   // a estimativa das atividades futuras não soma
+  // com data de corte (relatório até 05/09/2026): a capacitação de 10/09 e a entrega de 01/09... só a entrega
+  assert.strictEqual(R.feito(db, e('3.2'), '2026-09-05'), 0); assert.strictEqual(R.feito(db, e('6.1'), '2026-09-05'), 1);
+});
+test('auditoria formal 14/10: acompanhada exige visita no dia da primeira entrega ou depois; visita no futuro é recusada', () => {
+  const db = base(), e = id => SQC.dados.ETAPAS.find(x => x.id === id);
+  db.visitas.push({ id: 'v0', data: '2026-08-10', agricultor: 'a1', usou: 'Não' });   // linha de base, antes da entrega de 20/08
+  assert.strictEqual(R.feito(db, e('4.1')), 0);
+  assert.strictEqual(R.acompanhada(db, db.agricultores[0]), false);
+  db.visitas.push({ id: 'v1', data: '2026-08-20', agricultor: 'a1', usou: 'Sim' });   // no mesmo dia da entrega já conta
+  assert.strictEqual(R.feito(db, e('4.1')), 1);
+  assert.strictEqual(R.feito(db, e('4.1'), '2026-08-19'), 0);
+  assert.match(R.validar(db, 'visitas', { id: 'n', data: '2099-01-01', agricultor: 'a1' }), /visita está no futuro/);
+  assert.strictEqual(R.validar(db, 'visitas', { id: 'n', data: '2026-09-01', agricultor: 'a1' }), '');
+});
+test('auditoria formal 14/10: data na tela só leva dígitos e traço', () => {
+  assert.strictEqual(R.dt('2026-10-14'), '14/10/2026'); assert.strictEqual(R.dt('<img src=x>'), ''); assert.strictEqual(R.dt(''), '—');
+});
