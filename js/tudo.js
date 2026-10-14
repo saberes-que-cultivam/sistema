@@ -1789,21 +1789,50 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   <p class="g-leg"><span><i class="g-k jan"></i>período da etapa</span><span><i class="g-k fei"></i>já registrado</span><span><i class="g-k fut"></i>ainda não começou</span><span><i class="g-k late"></i>prazo vencido</span><span><i class="g-k hj"></i>hoje</span></p></div>
   <div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><div class="gantt"><div class="g-row cab"><span></span><div class="g-months">${meses.map((m, i) => `<span class="${i === (hoje().getFullYear() - G0.getFullYear()) * 12 + hoje().getMonth() - G0.getMonth() ? 'g-at' : ''}">${m}</span>`).join('')}<i class="g-hj" style="left:${pos(hoje())}%">hoje</i></div><span></span></div>${g}</div></div></section>
  <div class="two">
-  <div class="panel box"><h3>Produção e distribuição</h3>${Object.keys(prod).length ? `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table><thead><tr><th>Tipo</th><th class="n">Produzido</th><th class="n">Distribuído</th></tr></thead><tbody>${Object.entries(prod).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${num(v[0])} ${esc(v[2])}</td><td class="n">${num(v[1])} ${esc(v[2])}</td></tr>`).join('')}</tbody></table></div>` : '<div class="small">Nenhum lote registrado.</div>'}</div>
-  <div class="panel box"><h3>Indicadores para a avaliação (Meta 5)</h3><dl class="kv">
-   <dt>Gasto médio com insumos comprados, linha de base</dt><dd>${I.pares ? brl(I.base) + '/mês' : '—'}</dd>
-   <dt>Gasto médio na última visita</dt><dd>${I.pares ? brl(I.atual) + '/mês' : '—'}</dd>
-   <dt>Variação (${I.pares} unidade(s) com os dois dados)</dt><dd>${I.variacao == null ? '—' : num(I.variacao) + '%'}</dd>
-   <dt>Visitas em que o bioinsumo foi aplicado</dt><dd>${I.visitas ? `${I.usou} de ${I.visitas}` : '—'}</dd>
-   <dt>Participantes em capacitações e dias de campo</dt><dd>${I.participantes ? `${num(I.participantes)} (${num(I.mulheres / I.participantes * 100)}% mulheres)` : '—'}</dd></dl></div>
+  ${prodDist(prod)}
+  ${indMeta5(I)}
  </div>`;
+  }
+  /* indicadores da Meta 5: cada um com ícone, o número e uma linha dizendo de onde ele sai */
+  const IC5 = {
+    base: '<path d="M3 7h18v10H3z"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 7V5.5h11V7"/>',
+    atual: '<path d="M9 4h6v3H9z"/><path d="M8 5.5H6.5A1.5 1.5 0 0 0 5 7v12.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V7a1.5 1.5 0 0 0-1.5-1.5H16"/><path d="m9 14 2 2 4-4"/>',
+    cai: '<path d="M3 6l7 7 4-4 7 7"/><path d="M15 16h6v-6"/>',
+    sobe: '<path d="M3 18l7-7 4 4 7-7"/><path d="M15 8h6v6"/>',
+    usou: '<path d="M12 21v-8"/><path d="M12 13c0-4 3-7 8-7 0 5-3 8-8 7z"/><path d="M12 15c0-3-2.5-5.5-7-5.5 0 4 2.5 6 7 5.5z"/>',
+    caixa: '<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+    pino: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    gente: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2a5 5 0 0 1 4.5 5"/>'
+  };
+  function indMeta5(I) {
+    const ic = (k, cls) => `<span class="i5-ic ${cls || ''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC5[k]}</svg></span>`;
+    const barra = (pc, cls) => `<span class="i5-bar" aria-hidden="true"><i class="${cls || ''}" style="width:${Math.max(0, Math.min(100, pc)).toFixed(1)}%"></i></span>`;
+    const caiu = I.variacao != null && I.variacao < 0, maxG = Math.max(I.base, I.atual) || 1;
+    const item = (icone, rot, valor, como, extra) => `<li class="i5">${icone}<div class="i5-t"><span class="i5-r">${rot}</span><b class="i5-v">${valor}</b>${extra || ''}<small>${como}</small></div></li>`;
+    return `<section class="panel mts i5-p" aria-label="Indicadores para a avaliação"><div class="mts-cab"><h2>Indicadores para a avaliação</h2><p>Meta 5 · calculados a partir das visitas e das atividades registradas; resultados ainda a validar com as agricultoras e agricultores</p></div><ul class="i5-l">
+     ${item(ic('base'), 'Gasto com insumos comprados, antes do projeto', I.pares ? brl(I.base) + '<small class="i5-u">/mês</small>' : '—', 'Média da linha de base (diagnóstico inicial) das unidades que também têm gasto na última visita.', I.pares ? barra(I.base / maxG * 100, 'ant') : '')}
+     ${item(ic('atual'), 'Gasto com insumos comprados, hoje', I.pares ? brl(I.atual) + '<small class="i5-u">/mês</small>' : '—', 'Média do gasto informado na visita mais recente de cada unidade.', I.pares ? barra(I.atual / maxG * 100) : '')}
+     ${item(ic(caiu ? 'cai' : 'sobe', I.variacao == null ? '' : caiu ? 'ok' : 'bad'), 'Variação do gasto', I.variacao == null ? '—' : `<span class="${caiu ? 'i5-ok' : 'i5-bad'}">${I.variacao > 0 ? '+' : ''}${num(I.variacao)}%</span>`, `Comparação entre as duas médias acima, nas ${I.pares} unidade(s) produtiva(s) com os dois dados. Queda = economia com insumo comprado.`)}
+     ${item(ic('usou'), 'Visitas em que o bioinsumo foi aplicado', I.visitas ? `${num(I.usou)} <small class="i5-u">de ${num(I.visitas)}</small>` : '—', 'Visitas de monitoramento em que a resposta foi “Sim, aplicou”. “Parcial” e “Não” ficam de fora.', I.visitas ? barra(I.usou / I.visitas * 100) : '')}
+     ${item(ic('gente'), 'Participantes em capacitações e dias de campo', I.participantes ? `${num(I.participantes)} <small class="i5-u">${num(I.mulheres / I.participantes * 100)}% mulheres</small>` : '—', 'Soma dos participantes das atividades já realizadas (as agendadas não contam). A barra é a parte de mulheres.', I.participantes ? barra(I.mulheres / I.participantes * 100, 'mul') : '')}
+    </ul></section>`;
+  }
+  /* produção e distribuição por tipo de bioinsumo, no mesmo desenho dos indicadores */
+  function prodDist(prod) {
+    const L = Object.entries(prod);
+    const ic = '<span class="i5-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></svg></span>';
+    return `<section class="panel mts i5-p" aria-label="Produção e distribuição"><div class="mts-cab"><h2>Produção e distribuição</h2><p>Por tipo de bioinsumo, somando os lotes (menos os descartados) · barra: parte já distribuída</p></div>
+     ${L.length ? `<ul class="i5-l">${L.map(([k, v]) => { const pc = v[0] ? v[1] / v[0] * 100 : 0, nl = db.lotes.filter(l => l.tipo === k && l.status !== 'Descartado').length;
+       return `<li class="i5">${ic}<div class="i5-t"><span class="i5-r">${esc(k)}</span><b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b><span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>
+        <small>${num(v[1])} ${esc(v[2])} distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])} · ${nl} lote(s)</small></div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
   }
   /* ---------- unidades produtivas: indicadores, cartão por pessoa e ficha com o histórico ---------- */
   const iniciais = n => String(n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).map(x => x[0]).filter((x, i, a) => i === 0 || i === a.length - 1).join('').toUpperCase() || '?';
   function situacaoAgr(a) {
     if (!a.diag) return ['bad', 'Sem linha de base'];
     const r = recebeu(a.id).length, v = visitasDe(a.id).length;
-    if (r && v) return ['ok', 'Acompanhada'];
+    if (r && v && acompanhada(a)) return ['ok', 'Acompanhada'];   // mesma regra da Meta 4: visita no dia da 1ª entrega ou depois
     if (r) return ['f', 'Recebeu, falta visita'];
     return ['', 'Aguardando bioinsumo'];
   }
@@ -1889,8 +1918,20 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   ${R.podeGravar(eu, 'visitas') ? `<button type="button" class="b" data-new="visitas" data-pre="${esc(id)}">Registrar visita</button><button type="button" class="b" data-new="distribuicoes" data-pre="${esc(id)}">Registrar entrega</button><button type="button" class="b p" data-edit="agricultores:${esc(id)}">Editar cadastro</button>` : ''}</div></div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
   }
+  /* município aberto no mapa: o que dá para saber dali sem sair da Visão geral (para o SEAB/MDA, os nomes já chegam numerados pelo banco) */
+  function detalheMun(g) {
+    const L = g.l.slice().sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+    const ent = L.reduce((t, a) => t + recebeu(a.id).length, 0), vis = L.reduce((t, a) => t + visitasDe(a.id).length, 0), kits = L.filter(a => a.kit && String(a.kitdata || '') <= iso(hoje())).length;
+    const ult = L.map(a => (visitasDe(a.id)[0] || {}).data).filter(Boolean).sort().pop();
+    const bios = [...new Set(L.map(a => a.unidade).filter(Boolean))].map(id => by('unidades', id)).filter(Boolean);
+    return `<div class="mp-det" role="region" aria-label="Dados de ${esc(g.nome)}"><div class="mp-det-c"><h3>${esc(g.nome)}</h3><button type="button" class="b s" data-mapamun="" aria-label="Fechar os dados de ${esc(g.nome)}">Fechar</button></div>
+     <dl class="mp-det-n">${[['gente', 'Unidades produtivas', g.n], ['atual', 'Acompanhadas', g.ac], ['caixa', 'Kits entregues', kits], ['usou', 'Entregas de bioinsumo', ent], ['pino', 'Visitas', vis], ['cal', 'Última visita', ult ? dt(ult) : '—']]
+       .map(([k, t, v]) => `<div><span class="md-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC5[k]}</svg></span><dt>${t}</dt><dd>${v}</dd></div>`).join('')}</dl>
+     ${bios.length ? `<p class="small">Atendidas por: ${bios.map(u => esc(u.nome)).join(', ')}</p>` : ''}
+     <ul class="mp-det-l">${L.map(a => { const st = situacaoAgr(a); return `<li><span>${esc(a.nome)}${a.comunidade ? `<small>${esc(a.comunidade)}</small>` : ''}</span><span class="chip ${st[0]}">${st[1]}</span></li>`; }).join('')}</ul></div>`;
+  }
   /* ---------- mapa: onde estão as biofábricas e as unidades produtivas (Ceará e Rio Grande do Norte) ---------- */
-  let mapaUF = 'todos';
+  let mapaUF = 'todos', mapaMun = '';   // mapaMun: município aberto no mapa (clique ou Enter no círculo)
   const semAcento = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
   const pontoDe = (mun, uf) => SQC.GEO.mun[semAcento(mun) + '/' + String(uf || '').toUpperCase().trim()] || null;
   function mapa() {
@@ -1902,7 +1943,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const noRecorte = a => ufs.includes(String(a.uf || '').toUpperCase().trim());
     // unidades produtivas agrupadas por município
     const grupos = {}; let fora = 0; const L = db.agricultores;
-    L.forEach(a => { const p = pontoDe(a.municipio, a.uf); if (!p) { fora++; return; } if (!noRecorte(a)) return; const k = semAcento(a.municipio) + '/' + String(a.uf).toUpperCase().trim(); (grupos[k] = grupos[k] || { p, nome: a.municipio + '/' + String(a.uf).toUpperCase().trim(), n: 0, ac: 0 }).n++; if (acompanhada(a)) grupos[k].ac++; });
+    L.forEach(a => { const p = pontoDe(a.municipio, a.uf); if (!p) { fora++; return; } if (!noRecorte(a)) return; const k = semAcento(a.municipio) + '/' + String(a.uf).toUpperCase().trim(); (grupos[k] = grupos[k] || { k, p, nome: a.municipio + '/' + String(a.uf).toUpperCase().trim(), n: 0, ac: 0, l: [] }).n++; grupos[k].l.push(a); if (acompanhada(a)) grupos[k].ac++; });
     const pts = Object.values(grupos).sort((a, c) => c.n - a.n), bio = db.unidades.map(u => ({ u, p: pontoDe(u.municipio, u.uf) })).filter(x => x.p && noRecorte(x.u));
     const visiveis = L.filter(a => pontoDe(a.municipio, a.uf) && noRecorte(a)), cont = {}; visiveis.forEach(a => { const s = situacaoAgr(a)[1]; cont[s] = (cont[s] || 0) + 1; });
     const ORDEM = [['Acompanhada', 'ok'], ['Recebeu, falta visita', 'f'], ['Aguardando bioinsumo', ''], ['Sem linha de base', 'bad']];
@@ -1919,15 +1960,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     nos.forEach(o => { o.x = Math.max(o.r + 2, Math.min(W - o.r - 2, o.x)); o.y = Math.max(o.r + 2, Math.min(H - o.r - 2, o.y)); });
     return `<section class="mp panel" aria-label="Mapa do projeto"><div class="head"><div><h2>Onde o projeto está</h2><p>${visiveis.length} unidade(s) produtiva(s) e ${bio.length} biofábrica(s) no mapa${fora ? ` · ${fora} cadastro(s) fora do mapa (município não reconhecido no CE ou no RN)` : ''}</p></div>
    <div class="seg peq" role="tablist">${[['todos', 'Todos'], ['CE', 'CE'], ['RN', 'RN']].map(o => `<button type="button" role="tab" aria-selected="${mapaUF === o[0]}" data-mapa="${o[0]}">${o[1]}</button>`).join('')}</div></div>
-  <div class="mp-g"><div class="mp-m"><svg data-vb="${W}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Os mesmos números estão na lista ao lado.">
+  <div class="mp-g"><div class="mp-m"><svg data-vb="${W}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Cada círculo abre os dados do município; os mesmos números estão na lista ao lado.">
     ${ufs.map(u => G.uf[u].r.map(r => `<path class="mp-uf" d="${anel(r)}"/>`).join('') + `<text class="mp-sg" x="${X((G.uf[u].b[0] + G.uf[u].b[2]) / 2)}" y="${Y((G.uf[u].b[1] + G.uf[u].b[3]) / 2 - (u === 'CE' ? 0.9 : 0.35))}" text-anchor="middle">${u}</text>`).join('')}
-    ${nos.filter(o => o.g).map(o => { const g = o.g; return `<g class="mp-p"><title>${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s)</title><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${o.r.toFixed(1)}"/><text x="${o.x.toFixed(1)}" y="${(o.y + 4.5).toFixed(1)}" text-anchor="middle">${g.n}</text></g>`; }).join('')}
+    ${nos.filter(o => o.g).map(o => { const g = o.g; return `<g class="mp-p${g.k === mapaMun ? ' sel' : ''}" role="button" tabindex="0" data-mapamun="${esc(g.k)}" aria-pressed="${g.k === mapaMun}" aria-label="${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s). Ver detalhes"><title>${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s) · clique para ver</title><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${o.r.toFixed(1)}"/><text x="${o.x.toFixed(1)}" y="${(o.y + 4.5).toFixed(1)}" text-anchor="middle">${g.n}</text></g>`; }).join('')}
     ${nos.filter(o => o.b).map(o => { const x = o.b, cx = o.x, cy = o.y; return `<g class="mp-b"><title>${esc(x.u.nome)} (${esc(x.u.municipio)}/${esc(x.u.uf)}): ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação</title><g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)})">${FRASCO}</g><text x="${(cx + 17).toFixed(1)}" data-esq="${(cx - 17).toFixed(1)}" y="${(cy + 4).toFixed(1)}">${esc(x.u.sigla)}</text></g>`; }).join('')}
    </svg><div class="leg"><span><i class="mk c"></i>Unidades produtivas no município (o número é quantas)</span><span><svg class="mk-f" viewBox="-13 -13 26 26" width="20" height="20" aria-hidden="true" focusable="false">${FRASCO}</svg>Biofábrica</span></div></div>
-   <div class="mp-l"><div class="mp-n"><b>${visiveis.length}</b><span><strong>unidades produtivas</strong>${pts.length} município(s) · meta de 30</span></div>
+   <div class="mp-l">${(() => { const g = pts.find(x => x.k === mapaMun); return g ? detalheMun(g) : ''; })()}<div class="mp-n"><b>${visiveis.length}</b><span><strong>unidades produtivas</strong>${pts.length} município(s) · meta de 30</span></div>
     <div><h3>Situação</h3><ul class="mp-s">${ORDEM.map(o => `<li><span class="chip ${o[1]}">${o[0]}</span><b>${cont[o[0]] || 0}</b></li>`).join('')}</ul></div>
     <div><h3>Biofábricas</h3>${bio.length ? `<ul class="mp-s bf">${bio.map(x => `<li><svg class="mk-f" viewBox="-13 -13 26 26" width="28" height="28" aria-hidden="true" focusable="false">${FRASCO}</svg><span>${esc(x.u.nome)}<small>${esc(x.u.municipio)}/${esc(x.u.uf)}${x.u.conta === 'Sim' ? '' : ' · apoio'}</small></span><b>${nCheck(x.u)}/${D.CHECK.length}</b></li>`).join('')}</ul>` : '<p class="small">Nenhuma neste recorte.</p>'}</div>
-    <div><h3>Municípios com mais unidades produtivas</h3>${pts.length ? `<ul class="mp-s pt">${pts.slice(0, 8).map(g => `<li><span>${esc(g.nome)}</span><b>${g.n}</b></li>`).join('')}</ul>` : '<p class="small">Nenhuma unidade produtiva cadastrada neste recorte.</p>'}</div></div></div></section>`;
+    <div><h3>Municípios com mais unidades produtivas</h3>${pts.length ? `<ul class="mp-s pt">${pts.slice(0, 8).map(g => `<li><button type="button" class="mp-mun" data-mapamun="${esc(g.k)}" aria-pressed="${g.k === mapaMun}"><span>${esc(g.nome)}</span><b>${g.n}</b></button></li>`).join('')}</ul>` : '<p class="small">Nenhuma unidade produtiva cadastrada neste recorte.</p>'}</div></div></div></section>`;
   }
   /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
   let ritmoAtual = null;   // o que o gráfico mostrou por último (a dica ao passar o mouse lê daqui)
@@ -2792,7 +2833,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   /* ---------- cliques ---------- */
   async function aoClicar(ev) {
-    const t = ev.target.closest('button,label'); if (!t) return; const d = t.dataset;
+    const t = ev.target.closest('button,label,g[data-mapamun]'); if (!t) return; const d = t.dataset;
     if (!t.closest('dialog')) { const k = chaveFoco(t); if (k) gatilho = k; }
     if (d.auth) trocarModo(d.auth, true);
     else if (d.olho) { const c = $('#' + d.olho), mostrar = c.type === 'password'; c.type = mostrar ? 'text' : 'password'; t.setAttribute('aria-pressed', mostrar); t.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha'); }
@@ -2802,7 +2843,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.ajuda !== undefined) abrirAjuda();
     else if (d.relatar !== undefined) abrirRelato();
     else if (d.relatook !== undefined) await gerarRelato(t);
-    else if (d.mapa) { const y = window.scrollY; mapaUF = d.mapa; render(); window.scrollTo(0, y); }
+    else if (d.mapa) { const y = window.scrollY; mapaUF = d.mapa; mapaMun = ''; render(); window.scrollTo(0, y); }
+    else if (d.mapamun !== undefined) { const y = window.scrollY, antes = mapaMun; mapaMun = d.mapamun === mapaMun ? '' : d.mapamun; render(); window.scrollTo(0, y);
+      // abriu: o foco vai para os dados do município; fechou: volta para o círculo de onde veio
+      const alvo = mapaMun ? document.querySelector('.mp-det') : document.querySelector(`g[data-mapamun="${CSS.escape(antes)}"]`);
+      if (alvo) { if (mapaMun) alvo.setAttribute('tabindex', '-1'); alvo.focus({ preventScroll: true }); if (mapaMun && window.innerWidth < 720) alvo.scrollIntoView({ block: 'nearest' }); } }
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial não pode ser depois da final.'); }
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);
@@ -2935,6 +2980,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     document.addEventListener('input', ev => { const c = ev.target.closest && ev.target.closest('#fauth .cp.erro'); if (!c) return; c.classList.remove('erro'); const e = c.querySelector('.cp-e'); e.hidden = true; e.textContent = ''; ev.target.removeAttribute('aria-invalid'); ev.target.removeAttribute('aria-describedby'); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
     document.addEventListener('toggle', ev => { if (ev.target.open && ev.target.matches && ev.target.matches('details')) abrirTarde(ev.target); }, true);
+    document.addEventListener('keydown', ev => { const t = ev.target; if ((ev.key === 'Enter' || ev.key === ' ') && t.matches && t.matches('g[data-mapamun]')) { ev.preventDefault(); t.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
     document.addEventListener('keydown', teclaGrafico); document.addEventListener('focusout', ev => { if (ev.target.matches && ev.target.matches('[data-rg]')) { mesTeclado = -1; const d = document.querySelector('[data-dica]'), c = document.querySelector('[data-cr]'); if (d) d.hidden = true; if (c) c.setAttribute('hidden', ''); } });
     let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });
     ['online', 'offline'].forEach(e => window.addEventListener(e, () => { if (eu) { $('#net').hidden = navigator.onLine !== false && !api.offline; if (e === 'online') sincronizar(); } }));

@@ -152,7 +152,7 @@ async function novaPagina(b, opcoes) {
     const base = pares.reduce((s, c) => s + c[0], 0) / pares.length, atual = pares.reduce((s, c) => s + c[1], 0) / pares.length, varia = (atual - base) / base * 100;
     const I = await ind(); ok(pares.length === 2 && base === 175.25 && atual === 110, 'Meta 5 (à mão): pares A1 (200 → 120, a visita mais recente sem gasto é pulada) e A2 (150,50 → 100); base 175,25; atual 110');
     ok(I.pares === 2 && Math.abs(I.base - base) < 1e-9 && Math.abs(I.atual - atual) < 1e-9 && Math.abs(I.variacao - varia) < 1e-9, 'Meta 5: indicadores() bate com a conta à mão', JSON.stringify(I));
-    await aba('painel'); const kv = await p.$$eval('.panel.box', bs => { const x = bs.find(b => /Indicadores para a avaliação/.test(b.textContent)); return [...x.querySelectorAll('dd')].map(d => d.textContent.trim()); });
+    await aba('painel'); const kv = await p.$$eval('.i5-p', bs => { const x = bs.find(b => /Indicadores para a avaliação/.test(b.textContent)); return [...x.querySelectorAll('.i5-v')].map(d => d.textContent.replace(/\s+/g, ' ').trim()); });
     ok(kv[0] === brl(175.25) + '/mês' && kv[1] === brl(110) + '/mês' && kv[2] === '-37%', 'Meta 5: Visão geral mostra R$ 175,25 → R$ 110,00 (−37%)', kv.join(' | '));
     const usou = d.visitas.filter(v => v.usou === 'Sim').length; ok(kv[3] === `${usou} de ${d.visitas.length}`, `Meta 5: visitas em que aplicou = ${usou} de ${d.visitas.length}`, kv[3]); }
   // visita com data no futuro: aceita? entra na contagem e no indicador?
