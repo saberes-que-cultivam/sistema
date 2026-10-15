@@ -96,6 +96,9 @@ select 'documento das entregas e substituta (27)',
             when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'documentos_%') <> 3 then 'CONFIRA: deviam ser 3 regras documentos_* (rode o 27 de novo)'
             else 'ok' end
 union all
+select 'cargo de quem acompanha (28)',
+       case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'pessoas' and column_name = 'cargo') then 'FALTA: rode o 28' else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

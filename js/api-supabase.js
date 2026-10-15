@@ -21,7 +21,7 @@
 
   /* colunas que o sistema grava em cada tabela (o resto — carimbos, código do lote — é do banco) */
   const COLUNAS = {
-    pessoas: ['nome', 'email', 'perfil', 'orgao', 'ativo'],
+    pessoas: ['nome', 'email', 'perfil', 'orgao', 'cargo', 'ativo'],
     unidades: ['nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])).concat(['funcionando_em']),
     itens: ['unidade', 'descricao', 'valor', 'rubrica', 'status', 'data'],
     lotes: ['unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
@@ -280,6 +280,8 @@
         const o = e.original || {};
         // banco sem o 26 (coluna funcionando_em): grava o resto; a data de funcionamento fica para depois de rodar o script
         if (tabela === 'unidades' && (o.code === 'PGRST204' || o.code === '42703') && /funcionando_em/.test(String(o.message)) && COLUNAS.unidades.includes('funcionando_em')) { COLUNAS.unidades = COLUNAS.unidades.filter(k => k !== 'funcionando_em'); return await this.salvar(tabela, reg, op); }
+        // banco sem o 28 (coluna cargo em pessoas): grava o resto; o cargo fica para depois de rodar o script
+        if (tabela === 'pessoas' && (o.code === 'PGRST204' || o.code === '42703') && /cargo/.test(String(o.message)) && COLUNAS.pessoas.includes('cargo')) { COLUNAS.pessoas = COLUNAS.pessoas.filter(k => k !== 'cargo'); return await this.salvar(tabela, reg, op); }
         // banco sem o 27 (coluna substitui): grava o resto; a ligação com quem saiu fica de fora
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703') && /substitui/.test(String(o.message)) && COLUNAS.membros.includes('substitui')) { semSubst = true; COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'substitui'); return await this.salvar(tabela, reg, op); }
         // banco sem o 23 (coluna termo_em): grava o resto e deixa a data do termo para depois

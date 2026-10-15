@@ -268,7 +268,7 @@ button.b:disabled{opacity:.6;cursor:default}
 .rb-c h3{margin:10px 0 4px}
 .rb-tot{border-top:2px solid var(--line);font-weight:700}
 @media (max-width:980px){.fin-2{grid-template-columns:1fr}}
-@media (max-width:860px){
+@media (max-width:640px){
   .rb-h{display:none}
   .rb summary{grid-template-columns:1fr 1fr;gap:6px 12px;padding:12px 14px}
   .rb-n,.rb-e{grid-column:1/-1} .rb-e{justify-content:flex-start} .rb-e .medidor{max-width:none}
@@ -737,7 +737,7 @@ button.dx-kpi:hover{background:color-mix(in srgb,var(--kc) 6%,var(--surface))}
 .rb-in small{font-size:var(--t-xs);color:var(--txt-3)}
 .rb-d{padding:16px 24px 24px 76px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--sunken) 30%,var(--surface))} .rb-d h3{margin:0 0 8px}
 .rb summary:focus-visible{outline-offset:-4px;border-radius:12px}
-@media (max-width:860px){
+@media (max-width:640px){
   .rb-h,.rb summary,.rb-tot,.rb-i{padding:14px 16px;gap:6px 12px}
   .rb-i{grid-template-columns:1fr 1fr} .rb-in{grid-column:1/-1;padding-left:24px} .rb-in::before{left:4px}
   .rb-d{padding:14px 16px 16px}
@@ -762,7 +762,7 @@ button.dx-kpi:hover{background:color-mix(in srgb,var(--kc) 6%,var(--surface))}
 .rb-i[open]{background:color-mix(in srgb,var(--sunken) 40%,var(--surface))}
 .rb-x dt{font:600 var(--t-2xs)/1.3 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--txt-2)} .rb-x dd{margin:4px 0 0;font-size:var(--t-base);color:var(--txt-1);font-variant-numeric:tabular-nums} .rb-x dd.neg b{color:var(--bad)}
 .rb-si{margin:0;padding:12px 24px 12px 76px;border-top:1px solid var(--line);font-size:var(--t-sm);color:var(--ferment-ink);background:var(--ferment-soft)}
-@media (max-width:860px){
+@media (max-width:640px){
   .rb-i>summary{grid-template-columns:1fr 1fr;gap:6px 12px;padding:14px 16px} .rb-i .rb-in,.rb-i .rb-e{grid-column:1/-1}
   .rb-x{margin:0 16px 14px 16px;padding:14px 16px;gap:12px 24px} .rb-si{padding:12px 16px}
 }
@@ -1528,3 +1528,51 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 #frm .sn-b:focus-visible,#fpub .sn-b:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 @media (max-width:520px){.sn-q{grid-template-columns:1fr}.sn-par{justify-self:start}}
 .conv-botoes a.b.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font:600 var(--t-md)/1 var(--body);border-radius:12px} .conv-botoes a.b.p:hover{background:color-mix(in srgb,var(--accent) 86%,#000)} .conv-botoes .b{border-radius:12px}
+/* tablet em pé (iPad, 641 a 1023 px): tabelas cabem sem rolar para o lado — células mais justas e Lista/Fotos só com ícone e número */
+@media (min-width:641px) and (max-width:1023px){
+  th,td{padding-left:8px;padding-right:8px}
+  .evb .evb-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .evb{padding:0 10px}
+}
+/* campo de data no Safari do iPad/iPhone: sem isto ele tem largura mínima própria e passa por cima do campo ao lado */
+input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;display:block}
+input[type=date]::-webkit-date-and-time-value{text-align:left;min-height:1.4em}
+input[type=date]::-webkit-calendar-picker-indicator{margin-left:auto}
+/* Relatórios: datas e botões em blocos que descem de linha inteiros (no iPad em pé o "Gerar" ia por cima da data) */
+.ctrl .fld{flex:1 1 170px;max-width:220px}
+.ctrl-b{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.ctrl-b .b{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.ctrl-b .b svg{flex:none}
+@media (max-width:640px){.ctrl .fld{max-width:none}.ctrl-b{width:100%}.ctrl-b .b{flex:1 1 auto;justify-content:center}}
+/* rodapé no tablet em pé (iPad, 641 a 860 px): marca e dados à esquerda, botões à direita, em vez de tudo empilhado */
+@media (min-width:641px) and (max-width:860px){
+  .pe .wrap{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"m a" "i a";gap:14px 28px;align-items:start}
+  .pe-m{grid-area:m} .pe-i{grid-area:i} .pe-a{grid-area:a;align-items:flex-end;align-self:center} .pe-a p{text-align:right}
+}
+/* metas da Visão geral: botão para registrar a entrega da etapa (antes um botão pequeno solto) */
+.mt-novo{align-self:stretch;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 16px;border:1.5px dashed color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:10px;background:transparent;color:var(--accent);font:600 var(--t-md)/1.2 var(--body);cursor:pointer}
+.mt-novo span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:var(--t-base);line-height:1}
+.mt-novo:hover{background:color-mix(in srgb,var(--accent-soft) 60%,transparent);border-style:solid}
+#view .mt-novo:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.mt-gi{flex-wrap:nowrap} .mt-gi>span:first-child{min-width:0} .mt-ac{flex:none;flex-wrap:nowrap}
+/* Financeiro no tablet em pé (641 a 1023 px): continua tabela, com cabeçalho; colunas mais justas, % sem a barrinha */
+@media (min-width:641px) and (max-width:1023px){
+  .rb-h,.rb summary,.rb-tot,.rb-i>summary{grid-template-columns:minmax(0,1.45fr) repeat(4,minmax(0,1fr)) 48px;gap:6px 8px;padding:12px 12px}
+  .rb-h{display:grid;padding-top:14px;padding-bottom:14px} .rb-h span{white-space:normal;font-size:var(--t-2xs)}
+  .rb-v,.rb-tot span{font-size:var(--t-sm)} .rb-v b{font-size:var(--t-sm)}
+  .rb-n{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:center} .rb-n>.rb-s{grid-row:1/3} .rb-n .chip{margin-left:0;justify-self:start}
+  .rb-e .medidor{display:none} .rb-e{gap:0}
+  .rb-h,.rb summary,.rb-tot,.rb-i>summary{grid-template-columns:minmax(0,1.8fr) repeat(4,minmax(0,1fr)) 56px}
+  .rb-h .rb-hx{display:none} .rb-h .rb-hp{display:inline}
+  .rb-d,.rb-si{padding-left:16px;padding-right:16px} .rb-x{margin-left:16px;margin-right:16px}
+}
+/* Acompanhamento externo no tablet: os dois botões lado a lado, do tamanho do texto (antes ocupavam a linha inteira) */
+@media (min-width:641px) and (max-width:980px){.ae-a{flex-direction:row;flex-wrap:wrap}.ae-b{width:auto}}
+.ae-t small{display:block;font-size:var(--t-xs);color:var(--txt-2)}
+
+.rb-hp{display:none}
+/* menu de cima no tablet (641 a 1100 px, iPad em pé e deitado): os 4 grupos em 2 linhas, tudo visível sem rolar para o lado */
+@media (min-width:641px) and (max-width:1100px){
+  #tabs{display:grid;grid-template-columns:repeat(2,max-content);row-gap:6px;overflow-x:visible}
+  #tabs .ng:nth-child(odd){border-left:0;padding-left:0}
+}
