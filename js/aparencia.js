@@ -29,7 +29,11 @@
     document.querySelectorAll('[data-aparencia]').forEach(b => { b.classList.toggle('ligado', v.sol); b.setAttribute('aria-label', 'Aparência da tela: modo sol, claro ou escuro' + (v.sol ? ' (modo sol ligado)' : '')); });
     return v;
   }
-  function mudar(campo, valor) { const v = ler(); v[campo] = valor; try { G.localStorage.setItem(CHAVE, JSON.stringify(v)); } catch (e) { /* vale só até fechar */ } aplicar(v); return v; }
+  /* Safari e todo navegador do iPad e do iPhone (motor WebKit) deixam partes da tela com as cores do tema anterior, mesmo depois
+     de trocar de aba: só recarregar a página resolve. Neles, a troca de aparência recarrega a página sozinha (a aba e o login continuam). */
+  const webkit = () => { const u = (G.navigator && G.navigator.userAgent) || ''; return /AppleWebKit/.test(u) && !/Chrome\/|Chromium|Edg\/|Android/.test(u); };
+  const recarregar = () => { try { G.sessionStorage.setItem('sqc-aparencia-aberta', '1'); } catch (e) {} setTimeout(() => G.location.reload(), 250); };
+  function mudar(campo, valor) { const v = ler(); v[campo] = valor; try { G.localStorage.setItem(CHAVE, JSON.stringify(v)); } catch (e) { /* vale só até fechar */ } aplicar(v); if (webkit()) recarregar(); return v; }
   const ICONE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>';
   /* conteúdo da janela "Aparência da tela" (a janela é a mesma das outras: #dlg) */
   function janela() {
@@ -47,9 +51,10 @@
   /* uma escolha só para o aparelho inteiro: vale a ÚLTIMA, feita na entrada ou dentro do sistema, em qualquer aba ou janela aberta.
      Outra aba que muda a escolha avisa esta (evento storage); ao voltar para a aba ou para a página guardada pelo navegador, lê de novo. */
   if (G.addEventListener) {
-    G.addEventListener('storage', e => { if (e.key === CHAVE || e.key === null) aplicar(); });
+    G.addEventListener('storage', e => { if (e.key !== CHAVE && e.key !== null) return; aplicar();
+      if (webkit() && typeof document !== 'undefined' && !document.querySelector('dialog[open]')) G.location.reload(); });   // outra aba trocou: aqui também (sem janela aberta, para não perder o que se digita)
     G.addEventListener('pageshow', () => aplicar());
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) aplicar(); });
   }
-  SQC.aparencia = { ler, aplicar, mudar, janela, ICONE, TEMAS, CHAVE };
+  SQC.aparencia = { ler, aplicar, mudar, janela, ICONE, TEMAS, CHAVE, webkit };
 })();

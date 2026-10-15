@@ -1643,5 +1643,11 @@
   }
 
   SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, abas, _estado: () => ({ eu, db, pend, tab }) };
-  if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar(); }
+  /* depois de recarregar por causa da troca de aparência (Safari): a janela de aparência volta aberta, como a pessoa deixou */
+  async function partir() {
+    await iniciar();
+    let volta = false; try { volta = sessionStorage.getItem('sqc-aparencia-aberta') === '1'; sessionStorage.removeItem('sqc-aparencia-aberta'); } catch (e) {}
+    if (volta) setTimeout(() => { const b = [...document.querySelectorAll('[data-aparencia]')].find(x => x.offsetParent); if (b) b.click(); }, 400);
+  }
+  if (typeof document !== 'undefined' && !SQC.SEM_PARTIDA) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', partir); else partir(); }
 })();
