@@ -39,6 +39,11 @@
   const mesAno = s => String(s).split('-').reverse().join('/');
   const exChip = r => (r.ex ? ' <span class="chip ex">exemplo</span>' : '') + (r._erro ? ' <span class="chip bad">não enviado</span>' : r._pendente ? ' <span class="chip pend">aguardando envio</span>' : '');
   const bar = (v, t, c = '') => `<div class="bar ${c}"><i style="width:${Math.max(0, Math.min(100, t ? v / t * 100 : 0))}%"></i></div>`;
+  /* documento da entrega: botão que abre o arquivo (quem pode ler a pasta) e/ou o link; SEAB/MDA e formador(a) só sabem que existe */
+  const podeDoc = () => !!eu && ['Coordenação', 'Equipe', 'Auxiliar'].includes(eu.perfil);
+  const docLinks = g => [g.arquivo ? (podeDoc() ? `<button type="button" class="lk-in" data-doc="${esc(g.id)}" title="${esc(g.arquivo_nome || 'documento')}">abrir o documento</button>` : '<span class="small">documento guardado com a equipe</span>') : '',
+    /^https?:\/\//i.test(String(g.link || '')) ? `<a href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">abrir o link</a>` : ''].filter(Boolean).join(' · ');
+  const IC_ANEXO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>';
   const link = (u, txt) => /^https?:\/\//i.test(String(u || '')) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${txt || 'abrir'}</a>` : (u ? esc(u) : '<span class="chip f">sem link</span>');
   const saldo = l => R.saldo(db, l), nCheck = R.nCheck;
   /* de que biofábricas a unidade produtiva recebeu de fato: pelas entregas até hoje (o cadastro guarda só a de referência) */
@@ -111,11 +116,11 @@
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
         ['Evidência', e => link(e.link), '', 'equipe']] },
-    entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida.', dicas: { link: 'Onde o documento está guardado.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
+    entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida. Anexe o arquivo (ou informe o link): é a evidência para a prestação de contas.', dicas: { link: 'Use se o documento estiver no Drive ou num site. Se anexou o arquivo acima, não precisa.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
       campos: [['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`])],
-        ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['link', 'Link do documento', 'text'], ['obs', 'Observações', 'textarea']],
+        ['titulo', 'Título', 'text', 1], ['data', 'Data', 'date', 1], ['_arq', 'Documento', 'arquivo'], ['link', 'Ou o link do documento (Drive, site)', 'text'], ['obs', 'Observações', 'textarea']],
       cols: [['Etapa', g => `<span class="mono">${esc(g.etapa)}</span>`], ['Entrega', g => `${esc(g.titulo)}${exChip(g)}${g.obs ? `<div class="small">${esc(g.obs)}</div>` : ''}`], ['Data', g => dt(g.data)],
-        ['Evidência', g => link(g.link)]] },
+        ['Evidência', g => docLinks(g) || '<span class="chip f">sem documento</span>']] },
     despesas: { um: 'Despesa', oque: 'Lançamento de acompanhamento. O registro oficial é o da FUNCERN: confira os dois antes de cada prestação de contas.', dicas: { rubrica: 'É por rubrica que a fundação controla o gasto.', item: 'Opcional. Escolha um item da mesma rubrica: é o que permite ver, no Financeiro, quanto de cada item já foi gasto.', status: 'Enquanto não estiver “Pago”, conta como comprometido.' }, nome: 'Despesas', titulo: 'Despesas do projeto', desc: 'Vêm da planilha de solicitações da FUNCERN: suba a planilha atualizada e o sistema mostra o que mudou antes de gravar. Enquanto não estiver paga, a despesa conta como comprometida.', novo: 'Lançar despesa', restrito: 1,
       campos: [['data', 'Data', 'date', 1], ['etapa', 'Etapa do plano', 'select', 1, D.ETAPAS.map(e => [e.id, `${e.id} · ${e.nome}`])], ['rubrica', 'Rubrica', 'select', 1, () => [['', 'Escolha']].concat(optRubrica())],
         ['item', 'Item do plano', 'select', 0, () => [['', 'Sem item indicado']].concat(D.DESEMBOLSO.itens.map(i => [i.id, `${nomeRubrica(i.rubrica)} · ${i.nome}`]))],
@@ -125,19 +130,22 @@
         ['Descrição', d => `${esc(d.descricao)}<div class="small">${esc(nomeRubrica(d.rubrica) || 'sem rubrica')}${d.favorecido ? ' · ' + esc(d.favorecido) : ''}${d.doc ? ' · ' + esc(d.doc) : ''}</div>`],
         ['Situação', d => `<span class="chip ${d.status === 'Pago' ? 'ok' : 'f'}">${esc(d.status)}</span>`], ['Valor', d => brl(d.valor), 'n']] },
     membros: { um: 'Pessoa da equipe', oque: 'Quem ocupa uma função no projeto. Quando a pessoa sair, preencha o desligamento: o registro fica como histórico e a vaga volta a aparecer aberta.', dicas: { fim: 'Deixe vazio enquanto a pessoa estiver na equipe.', vinculo: 'Exemplo: IFRN Campus Apodi, ou o curso do estudante.', inicio: 'Sugerimos hoje. Mude se a pessoa começou em outro dia.', lgpd: 'Conta bancária e chave Pix não entram aqui: vão direto para a FUNCERN, que faz o pagamento.', cpf: 'Só a coordenação e o auxiliar administrativo veem (para o cadastro na FUNCERN). Guardado só com os números.', email: 'É o login no sistema: a pessoa entra com este e-mail.', termo_em: 'Marcado pela coordenação ou pelo auxiliar administrativo quando a FUNCERN confirmar.', cep: 'Só os 8 números. Com internet, rua, bairro e município se preenchem sozinhos.', socio: 'Com uma equipe pequena não dá para esconder de quem é cada resposta: por isso ela fica só com a coordenação e não entra em relatório.', siape: 'Deixe vazio se não for.', organizacao: 'Exemplo: sindicato, associação, cooperativa.', outra_bolsa: 'A fundação confere acúmulo de bolsas antes de pagar.', arlo: 'É o sistema em que a FUNCERN cadastra quem recebe. Sem esse cadastro a bolsa não é paga.', nome: 'Escreva como aparece na planilha da FUNCERN, para o sistema ligar a pessoa às bolsas.' }, nome: 'Equipe', titulo: 'Equipe', desc: '', novo: 'Cadastrar', restrito: 1,
-      campos: [['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente'], ['formador', 'Formador(a)']]],
-        ['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome completo', 'text', 1], ['cpf', 'CPF', 'text', 1], ['telefone', 'Celular com WhatsApp', 'tel', 1], ['email', 'E-mail', 'email', 1], ['municipio', 'Município onde mora', 'text'],
-        ['siape', 'Matrícula SIAPE (só se for servidor(a) público(a) federal)', 'text'], ['vinculo', 'Instituição ou curso', 'text'], ['organizacao', 'Organização ou movimento', 'text'],
-        ['_s2b', 'Perfil no campo', 'sec', { so: ['discente', 'formador'] }], ['agricultor', 'É agricultor(a)? (produz alimento em quintal, roça ou lote)', 'select', 0, opt(['', 'Sim', 'Não'])], ['atua_af', 'Atua junto a agricultoras e agricultores familiares do território?', 'select', 0, opt(['', 'Sim', 'Não'])], ['zona_rural', 'Mora na zona rural?', 'select', 0, opt(['', 'Sim', 'Não'])], ['celular_internet', 'Tem celular com internet?', 'select', 0, opt(['', 'Sim', 'Não'])],
+      campos: [['_s0', '', 'sec'], ['funcao', 'Função', 'select', 1, [['coordenacao', 'Coordenação do projeto'], ['auxiliar', 'Auxiliar administrativo'], ['discente', 'Bolsista discente'], ['formador', 'Formador(a)']]],
+        ['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome completo', 'text', 1], ['cpf', 'CPF', 'text', 1], ['telefone', 'Celular com WhatsApp', 'tel', 1], ['email', 'E-mail', 'email', 1],
+        ['siape', 'Matrícula SIAPE (só se for servidor(a) público(a) federal)', 'text'], ['organizacao', 'Organização ou movimento', 'text'], ['vinculo', 'Instituição ou curso', 'text'],
+        ['_s2b', 'Perfil no campo', 'sec', { dica: 'Se souber, marque: o projeto busca pessoas ligadas ao campo e à agricultura familiar.' }], ['agricultor', 'É agricultor(a)? (produz alimento em quintal, roça ou lote)', 'simnao'], ['atua_af', 'Atua junto a agricultoras e agricultores familiares do território?', 'simnao'], ['zona_rural', 'Mora na zona rural?', 'simnao'], ['celular_internet', 'Tem celular com internet?', 'simnao'],
+        ['outra_bolsa', 'Recebe hoje outra bolsa, de qualquer instituição?', 'simnao'],
         ['experiencia', 'Experiência com agricultura familiar ou agroecologia', 'select', 0, opt(['', 'Nenhuma ainda', 'Estudo ou estágio na área', 'Até 2 anos de trabalho', 'Mais de 2 anos de trabalho', 'É de família agricultora'])],
-        ['_s3b', 'Cadastro na FUNCERN (sistema Arlo)', 'sec'], ['_arloq', '', 'html', '<details class="fm-arlo"><summary>O que é o Arlo?</summary><p>É o sistema da FUNCERN, a fundação que paga as bolsas. Toda pessoa que recebe bolsa precisa estar cadastrada nele, com documentos e endereço. Quem já tem cadastro no Arlo (de outro projeto, por exemplo) não precisa informar de novo os dados abaixo.</p></details>'],
-        ['arlo', 'A pessoa já tem cadastro no sistema Arlo, da FUNCERN?', 'select', 0, opt(['', 'Sim', 'Não'])], ['termo_em', 'Termo de compromisso assinado na FUNCERN em', 'date'],
+        ['_s3b', 'Cadastro na FUNCERN (sistema Arlo)', 'sec'], ['arlo', 'A pessoa já tem cadastro no sistema Arlo, da FUNCERN?', 'simnao'],
+        ['_arloq', '', 'html', 0, '<details class="fm-arlo"><summary>O que é o Arlo?</summary><p>É o sistema da FUNCERN, a fundação que paga as bolsas. Toda pessoa que recebe bolsa precisa estar cadastrada nele, com documentos e endereço. Quem já tem cadastro no Arlo (de outro projeto, por exemplo) não precisa informar de novo os dados abaixo.</p></details>'],
         ['_s2', 'Mais dados pessoais', 'sec', { semArlo: 1 }], ['nome_social', 'Nome social (se usar)', 'text'], ['nascimento', 'Data de nascimento', 'date'], ['pis', 'PIS/NIS/PASEP (se tiver)', 'text'],
-        ['_s1b', 'Endereço', 'sec', { semArlo: 1 }], ['cep', 'CEP', 'text'], ['numero', 'Número', 'text'], ['logradouro', 'Logradouro (rua, sítio, estrada)', 'text'], ['complemento', 'Complemento', 'text'], ['bairro', 'Bairro ou comunidade', 'text'], ['uf', 'Estado', 'select', 0, opt(['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'])],
+        ['_s1b', 'Endereço', 'sec', { semArlo: 1, dica: 'Usado para o cadastro na FUNCERN, que paga a bolsa.' }], ['cep', 'CEP', 'text'], ['numero', 'Número', 'text'], ['logradouro', 'Logradouro (rua, sítio, estrada)', 'text'], ['complemento', 'Complemento', 'text'], ['bairro', 'Bairro ou comunidade', 'text'],
+        ['_s1e', '', 'sec'], ['municipio', 'Município onde mora', 'text'], ['uf', 'Estado', 'select', 0, opt(['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'])],
         ['_s1c', 'Questionário socioeconômico (opcional)', 'sec'], ['socio', 'Responder. Só a coordenação vê estas respostas.', 'check'],
         ['_s1d', '', 'sec', { socio: 1 }], ['escolaridade', 'Escolaridade', 'select', 0, opt(['', 'Fundamental incompleto', 'Fundamental completo', 'Médio incompleto', 'Médio completo', 'Técnico', 'Superior incompleto', 'Superior completo', 'Pós-graduação'])], ['raca_cor', 'Raça/cor', 'select', 0, opt(['', 'Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Prefiro não informar'])], ['renda', 'Renda familiar por mês (R$)', 'number'], ['pessoas_casa', 'Pessoas na casa', 'number'],
-        ['_s3', 'Bolsa', 'sec'], ['inicio', 'Início da bolsa', 'date', 1], ['outra_bolsa', 'Recebe hoje outra bolsa, de qualquer instituição?', 'select', 0, opt(['', 'Não', 'Sim'])],
+        ['_s3', 'Bolsa', 'sec'], ['inicio', 'Início da bolsa', 'date', 1],
         ['_s4', 'Proteção de dados', 'sec'], ['lgpd', 'A pessoa foi informada e concorda que estes dados sejam usados só para a gestão do projeto e o pagamento da bolsa (Lei nº 13.709/2018).', 'check'],
+        ['_s3c', 'Habilitação na FUNCERN', 'sec', { edicao: 1 }], ['termo_em', 'Termo de compromisso assinado na FUNCERN em', 'date'],
         ['_s5', 'Desligamento', 'sec', { edicao: 1 }], ['fim', 'Data do desligamento', 'date'], ['motivo', 'Motivo', 'text'], ['obs', 'Observações', 'textarea']], cols: [] },
     presencas: { um: 'Participante', nome: 'Presença', novo: 'Adicionar participante', titulo: 'Lista de presença', desc: '', cols: [],
       campos: [['evento', 'Atividade', 'ref', 1, 'eventos'], ['nome', 'Nome', 'text', 1], ['comunidade', 'Comunidade', 'text'], ['municipio', 'Município', 'text'], ['mulher', 'Mulher', 'check'],
@@ -228,7 +236,7 @@
     const mesCurto = d => d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2);
     /* etapa que não é contada sozinha pelo sistema: as entregas (relatório, material, produto) são registradas e listadas aqui mesmo */
     const entregasDe = e => { const gs = db.entregas.filter(g => g.etapa === e.id).sort((a, b) => a.data < b.data ? 1 : -1), pode = R.podeGravar(eu, 'entregas');
-      return `<div class="mt-g">${gs.map(g => `<div class="mt-gi"><span>${esc(g.titulo)}${g._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${dt(g.data)}${/^https?:\/\//i.test(g.link || '') ? ` · <a href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">abrir a evidência</a>` : ''}</small></span><span class="acts">${pode ? `<button class="b s" data-edit="entregas:${esc(g.id)}">Editar</button>` : ''}${R.podeExcluir(eu, 'entregas', g) && !g._pendente ? `<button class="b s d" data-del="entregas:${esc(g.id)}">Excluir</button>` : ''}</span></div>`).join('')}
+      return `<div class="mt-g">${gs.map(g => `<div class="mt-gi"><span>${esc(g.titulo)}${g._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${dt(g.data)}${docLinks(g) ? ' · ' + docLinks(g) : ' · <span class="chip f">sem documento</span>'}</small></span><span class="acts">${pode ? `<button class="b s" data-edit="entregas:${esc(g.id)}">Editar</button>` : ''}${R.podeExcluir(eu, 'entregas', g) && !g._pendente ? `<button class="b s d" data-del="entregas:${esc(g.id)}">Excluir</button>` : ''}</span></div>`).join('')}
         ${pode ? `<button class="b s" data-new="entregas" data-pre="${e.id}">Registrar entrega desta etapa</button>` : gs.length ? '' : '<span class="small">Nenhuma entrega registrada.</span>'}</div>`; };
     const metas = X.porMeta.map(pm => {
       // o ritmo segue o cronograma da equipe nas etapas que ele trata; nas outras, o plano de trabalho (TED)
@@ -922,10 +930,14 @@
     const campo = ([k, l, t, req, o, filtro]) => {
       const v = r[k] == null ? '' : r[k], idc = 'f_' + k, Rq = req ? ' required' : '', L = l + (req ? OBR : '');
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
-      if (t === 'check') return `<div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
-      if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || '—'}</option>`).join('')}</select></div>`; }
+      if (t === 'check') return `<div class="fld w"><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
+      if (t === 'select') { const ops = typeof o === 'function' ? o() : o; return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || 'Selecione…'}</option>`).join('')}</select></div>`; }
       if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'html') return `<div class="fld w fm-html">${o}</div>`;
+      if (t === 'simnao') return `<div class="fld w"><div class="sn-q" role="group" aria-labelledby="l_${k}"><span class="sn-t" id="l_${k}">${L}</span><span class="sn-par">${['Sim', 'Não'].map(x => `<button type="button" class="sn-b" data-sn="${k}" data-v="${x}" aria-pressed="${v === x}">${x}</button>`).join('')}</span></div><input type="hidden" id="${idc}" value="${esc(v)}"></div>`;
+      if (t === 'arquivo') return `<div class="fld w"><label for="f_arquivo">${l} <span class="fm-opc">(PDF, Word, Excel, PowerPoint, LibreOffice ou imagem; até 20 MB)</span></label>
+        ${r.arquivo ? `<p class="doc-at"><span>Anexado: <b>${esc(r.arquivo_nome || 'documento')}</b></span>${podeDoc() ? `<button type="button" class="lk" data-doc="${esc(r.id)}">abrir</button>` : ''}<label class="doc-x"><input type="checkbox" id="f_tirardoc"> tirar este documento</label></p>` : ''}
+        <div class="doc-esc"><input type="file" id="f_arquivo" class="doc-in" accept="${Object.keys(R.DOC_TIPOS).map(x => '.' + x).join(',')}"><label for="f_arquivo" class="b">${IC_ANEXO}<span>${r.arquivo ? 'Trocar o arquivo' : 'Escolher o arquivo'}</span></label><span class="doc-n" id="f_arquivo_n" aria-live="polite">nenhum arquivo escolhido</span></div><span class="fm-dica">${r.arquivo ? 'Escolher outro arquivo troca o atual. ' : ''}Precisa de internet: o arquivo vai para uma pasta protegida do sistema, que só a equipe abre.</span></div>`;
       if (t === 'textarea') return `<div class="fld w"><label for="${idc}">${l}</label><textarea id="${idc}">${esc(v)}</textarea></div>`;
       if (t === 'geo') { const tem = r.lat != null && r.lat !== ''; return `<div class="fld w"><span class="geo-r" id="f_local_r">${l}</span><div class="geo" role="group" aria-labelledby="f_local_r"><input type="hidden" id="f_lat" value="${tem ? esc(r.lat) : ''}"><input type="hidden" id="f_lng" value="${tem ? esc(r.lng) : ''}"><input type="hidden" id="f_precisao" value="${tem && r.precisao != null ? esc(r.precisao) : ''}">
         <button type="button" class="b geo-b" data-geo>${IC_PINO}<span>${tem ? 'Pegar de novo' : 'Pegar a localização'}</span></button><span class="geo-t" id="f_geo_t" aria-live="polite">${tem ? textoLocal(r) : 'Ainda não registrada.'}</span>${tem ? '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>' : ''}</div></div>`; }
@@ -939,7 +951,7 @@
     M.campos.forEach(c => {
       if (c[2] === 'sec') { pend = c; pular = !!(c[3] && c[3].edicao && !id); return; }
       if (pular || (quais && !quais.includes(c[0]) && c[2] !== 'html')) return;
-      if (pend) { corpo += (aberto ? '</div></div>' : '') + `<div class="fm-g"${atr(pend[3] || {})}>${pend[1] ? `<h3 class="fm-sec">${pend[1]}</h3>` : ''}<div class="fields">`; aberto = true; pend = null; }
+      if (pend) { corpo += (aberto ? '</div></div>' : '') + `<div class="fm-g"${atr(pend[3] || {})}>${pend[1] ? `<h3 class="fm-sec">${pend[1]}</h3>` : ''}${pend[3] && pend[3].dica ? `<p class="fm-sdica">${esc(pend[3].dica)}</p>` : ''}<div class="fields">`; aberto = true; pend = null; }
       if (!aberto) { corpo += '<div class="fm-g"><div class="fields">'; aberto = true; }
       corpo += campo(c).replace(/<\/div>$/, dica(c[0]) + '</div>');
     });
@@ -954,7 +966,7 @@
     root.querySelectorAll('.fm-g[data-semarlo]').forEach(g => { g.hidden = arlo === 'Sim'; });
     root.querySelectorAll('.fm-g[data-socio]').forEach(g => { g.hidden = !soc; });
     const faz = root.querySelector('#fm_faz'), F = FUNCOES.find(x => x[0] === fun);
-    if (faz) { faz.hidden = !F; faz.innerHTML = F ? `<span>${esc(NOME_FUNCAO[fun])}</span><p>${esc(F[4])}</p>` : ''; }
+    if (faz) { faz.hidden = !F; faz.innerHTML = F ? `<span>Função</span><b>${esc(NOME_FUNCAO[fun])}</b><p>${esc(F[4])}</p>` : ''; }
   }
   /* CEP: com internet, preenche rua, bairro, município e estado (só o que estiver vazio). Vai para o ViaCEP apenas o CEP. */
   let cepUlt = '';
@@ -969,27 +981,40 @@
       por('f_municipio', j.localidade && j.uf ? `${j.localidade}/${j.uf}` : ''); por('f_uf', j.uf);
     } catch (e) { /* sem internet ou ViaCEP fora do ar: a pessoa digita */ }
   }
+  /* abre o documento de uma entrega: a janela abre na hora do toque (senão o navegador bloqueia) e recebe o endereço
+     temporário (5 minutos) quando ele chega do servidor */
+  async function abrirDocumento(id) {
+    const g = by('entregas', id); if (!g || !g.arquivo) return;
+    const w = window.open('', '_blank');
+    try { const u = await api.urlDocumento(g.arquivo); if (w) w.location.href = u; else location.assign(u); }
+    catch (e) { if (w) w.close(); toast(e.message || String(e)); }
+  }
   /* ---------- link de cadastro da equipe ---------- */
+  let cadSubst = null;   // desligamento → “Cadastrar substituta”: id de quem saiu
   let convites, preMembro = null;   // convites: undefined = ainda não carregou; null = o banco não tem (falta o script 11); lista = carregado
   const NOME_FUNCAO = { coordenacao: 'Coordenação do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Bolsista discente', formador: 'Formador(a)' };
   async function carregarConvites() { try { convites = await api.convites(); } catch (e) { convites = []; toast(e.message); } if (tab === 'equipe') render(); }
-  function abrirEscolha(funcao) {
-    ed = null; $('#frm').className = 'fm';
-    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Cadastrar</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+  function abrirEscolha(funcao, subst) {
+    ed = null; cadSubst = subst || null; $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${subst ? 'Cadastrar substituta' : 'Cadastrar'}</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="aj-p">Como você quer fazer este cadastro?</p>
       <button type="button" class="esc" data-gerarlink="${funcao}"><span class="esc-r">Recomendado</span><b>Gerar link de cadastro</b><span>A pessoa preenche os próprios dados pelo celular e aceita o termo de uso dos dados. Você confere e aprova. Menos digitação e menos erro.</span></button>
       <button type="button" class="esc" data-digitar="${funcao}"><b>Digitar os dados agora</b><span>Você digita os dados. Use quando já tem tudo em mãos ou a pessoa não tem internet.</span></button></div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button></div></div>`;
-    if (!$('#dlg').open) $('#dlg').showModal();
+     <div class="fm-pe so-msg"><div class="err" id="ferr" role="alert"></div></div>`;
+    if (!$('#dlg').open) $('#dlg').showModal(); else focarDlg();
   }
   /* a janela já estava aberta e o conteúdo mudou: o foco vai ao primeiro campo (ou ao ×), não se perde na página */
   const focarDlg = () => { const f = $('#frm').querySelector('input:not([type=hidden]):not([disabled]),select,textarea,[autofocus]') || $('#frm .fm-x'); if (f) f.focus(); };
   function mostrarLink(funcao, token) {
     const link = location.origin + location.pathname + '#c=' + token, msg = `Olá! Para entrar na equipe do projeto Saberes que Cultivam (${NOME_FUNCAO[funcao]}), preencha o seu cadastro neste link. Ele vale 7 dias e serve uma vez só: ${link}`;
-    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Link de cadastro</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
-     <div class="fm-corpo"><div class="fm-oque"><span>Link gerado</span><p>Mande para a pessoa. Vale 7 dias e serve uma vez só. Depois que ela preencher, o cadastro aparece na aba Equipe para você conferir e aprovar.</p></div>
-      <div class="fields"><div class="fld w"><label for="lk_txt">Link</label><input id="lk_txt" readonly value="${esc(link)}"><span class="fm-dica">Copie agora: por segurança o sistema não guarda o link e não consegue mostrá-lo de novo. Se perder, cancele este e gere outro.</span></div></div></div>
-     <div class="fm-pe"><div class="err" id="ferr" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button><a class="b" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener noreferrer">Mandar pelo WhatsApp</a><button type="button" class="b p" data-copiarlink>Copiar o link</button></div></div>`;
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${cadSubst ? 'Cadastrar substituta' : 'Cadastrar'}</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><button type="button" class="cad-modo" data-digitar="${funcao}"><b>Prefere digitar os dados você mesmo?</b><span>Abra o formulário e preencha agora, sem mandar link.</span><i aria-hidden="true">→</i></button>
+      <div class="conv-pronto"><span class="conv-selo"><span aria-hidden="true">✓</span> Link pronto</span><b>Mande para a pessoa</b>
+       <p>Ela preenche os próprios dados pelo celular e aceita o termo. O cadastro aparece na aba Equipe, em “Cadastros enviados pelo link”, para você conferir e aprovar.</p>
+       <input id="lk_txt" readonly value="${esc(link)}" aria-label="Link de cadastro">
+       <div class="conv-botoes"><a class="b p" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener noreferrer">Enviar pelo WhatsApp</a><button type="button" class="b" data-copiarlink>Copiar link</button></div>
+       <p class="small">Vale 7 dias e só pode ser usado uma vez. Copie ou envie agora: por segurança, o sistema não mostra este link de novo.</p></div></div>
+     <div class="fm-pe so-msg"><div class="err" id="ferr" role="status"></div></div>`;
     focarDlg();
   }
   /* página do link: sem login. A pessoa só fala com duas funções do banco (ver se o link vale; enviar uma vez). */
@@ -1003,7 +1028,7 @@
     if (!funcao) return aviso('Este link não vale mais', 'Ele já foi usado ou passou dos 7 dias. Peça outro à coordenação do projeto.');
     pub = { token, funcao }; try { history.replaceState(null, '', location.pathname); } catch (x) {}   // o código sai do endereço e do histórico enquanto a pessoa preenche (fica só na memória)
     const M = MOD.membros, rotLgpd = 'Autorizo o projeto Saberes que Cultivam (IFRN, MDA e FUNCERN) a usar estes dados só para a gestão do projeto e o pagamento da bolsa, conforme a Lei nº 13.709/2018 (LGPD).';
-    const Mp = Object.assign({}, M, { membrosPub: true, campos: M.campos.map(c => c[0] === 'lgpd' ? ['lgpd', rotLgpd, 'check'] : c[0] === 'socio' ? ['socio', 'Quero responder. Só a coordenação do projeto vê estas respostas.', 'check'] : c[0] === 'arlo' ? ['arlo', 'Você já tem cadastro no sistema Arlo, da FUNCERN?', 'select', 0, c[4]] : c),
+    const Mp = Object.assign({}, M, { membrosPub: true, campos: M.campos.map(c => c[0] === 'lgpd' ? ['lgpd', rotLgpd, 'check'] : c[0] === 'socio' ? ['socio', 'Quero responder. Só a coordenação do projeto vê estas respostas.', 'check'] : c[0] === 'arlo' ? ['arlo', 'Você já tem cadastro no sistema Arlo, da FUNCERN?', 'simnao'] : c),
       dicas: Object.assign({}, M.dicas, { nome: '', vinculo: 'Exemplo: IFRN Campus Apodi, ou o seu curso.', cpf: 'Só a coordenação do projeto vê.', socio: '' }) });
     P.innerHTML = `<div class="pub">${cab}<form id="fpub" class="fm panel pub-c" novalidate><div class="fm-cab"><div><span class="fm-eye">Cadastro na equipe</span><h1>${NOME_FUNCAO[funcao]}</h1></div></div>
       <div class="fm-corpo"><ol class="pub-passos" aria-label="Etapas do cadastro"><li class="pp-at" aria-current="step"><b>1</b>Seus dados</li><li><b>2</b>A coordenação confere</li><li><b>3</b>Você cria a senha</li></ol>
@@ -1142,13 +1167,21 @@
   }
   function abrir(m, id, pre) {
     const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : m === 'presencas' ? { evento: pre } : { agricultor: pre }) : {}); ed = { m, id, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
+    // equipe: quem sai e quem entra ficam ligados (script 27); sem escolha explícita, a vaga é da última pessoa que saiu da função e ainda não tem substituta
+    const memNovo = m === 'membros' && !id && pre, antigo = memNovo ? (cadSubst && by('membros', cadSubst) || R.equipePorFuncao(db, pre, iso(hoje())).antigos.find(a => !db.membros.some(x => x.substitui === a.id))) : null;
+    if (memNovo && antigo) { r.substitui = antigo.id; ed.substitui = antigo.id; } cadSubst = null;
     const corpo = corpoForm(M, r, id);
-    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${memNovo ? (antigo ? 'Cadastrar substituta' : 'Cadastrar') : id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(memNovo ? NOME_FUNCAO[pre] || M.um : m === 'membros' && id ? r.nome : M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      ${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span>Vai aplicar no papel?</span><button type="button" class="b s" data-imprimir="${m}">Imprimir em branco</button></div>` : ''}
-     <div class="fm-corpo">${M.oque && !id ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${m === 'membros' && !id && pre ? (() => { const u = R.equipePorFuncao(db, pre, iso(hoje())).antigos[0]; return u ? `<p class="fm-sub">Substitui <b>${esc(u.nome)}</b>, desligada(o) em ${dt(u.fim)}. O histórico liga as duas pessoas.</p>` : ''; })() : ''}${corpo}</div>
+     <div class="fm-corpo">${memNovo && !ed.convite && convites !== null ? `<button type="button" class="cad-modo" data-gerarlink="${esc(pre)}"><b>Prefere que a pessoa preencha?</b><span>Gere um link e mande pelo WhatsApp.</span><i aria-hidden="true">→</i></button>` : ''}${M.oque && !id && m !== 'membros' ? `<div class="fm-oque"><span>O que é</span><p>${esc(M.oque)}</p></div>` : ''}${m !== 'membros' && M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${antigo ? `<p class="fm-sub">Substitui <b>${esc(antigo.nome)}</b>, desligada(o) em ${dt(antigo.fim)}. O histórico liga as duas pessoas.</p>` : ''}${corpo}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'visitas' && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="visitas:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === 'visitas' && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
+    if (memNovo && $('#f_funcao')) $('#f_funcao').closest('.fm-g').hidden = true;   // a função já veio escolhida: aparece no quadro "Função"
+    if (memNovo) $('#fsalvar').textContent = 'Cadastrar';
     if (m === 'membros') ajustarFormMembro($('#frm'));
+    // "Registrar entrega desta etapa" (Visão geral): a etapa já vem escolhida e fica fixa
+    if (m === 'entregas' && !id && pre && $('#f_etapa')) { const s_ = $('#f_etapa'), e_ = D.ETAPAS.find(x => x.id === pre); s_.closest('.fld').hidden = true;
+      s_.closest('.fields').insertAdjacentHTML('afterbegin', `<div class="fld w"><div class="fm-fixo"><span>Etapa do plano</span><b>${esc(pre)} · ${esc(e_ ? e_.nome : '')}</b><small>Meta ${e_ ? e_.m + ' · ' + esc(D.METAS[e_.m]) : ''}</small></div></div>`); }
     ed.foto = fotoForm(); ed.avisado = false;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
   }
@@ -1189,7 +1222,7 @@
     const er = t => { $('#ferr').textContent = t; };
     if (m === 'membros' && ant && ant._sr) return er('Os dados pessoais desta pessoa (CPF, endereço…) não foram carregados, porque o sistema abriu sem internet. Para não apagá-los, feche, espere a conexão voltar e abra o cadastro de novo.');
     for (const [k, l, t, req] of M.campos) {
-      if (t === 'sec' || t === 'html') continue;
+      if (t === 'sec' || t === 'html' || t === 'arquivo') continue;
       if (t === 'checks') { D.CHECK.forEach(c => { r[c[0]] = $('#f_' + c[0]).checked; }); continue; }
       if (t === 'geo') { const la = $('#f_lat').value, lo = $('#f_lng').value, pr = $('#f_precisao').value; r.lat = la === '' ? null : +la; r.lng = lo === '' ? null : +lo; r.precisao = la === '' || pr === '' ? null : +pr; continue; }
       const el = $('#f_' + k); if (!el) continue;   // campo que só existe na edição (desligamento)
@@ -1202,12 +1235,24 @@
     if (m === 'lotes' && !r.dias && r.dias !== 0) r.dias = (D.TIPOS[r.tipo] || [0, 30])[1];
     if (m === 'pessoas') r.email = r.email.toLowerCase();
     if (m === 'membros') R.normalizarMembro(r);
+    if (m === 'membros' && !id && ed.substitui) r.substitui = ed.substitui;
     const conviteAberto = ed.convite;
     const msg = R.validar(db, m, r, ant); if (msg) return er(msg);
+    const doc = m === 'entregas' && $('#f_arquivo') && $('#f_arquivo').files[0], tiraDoc = m === 'entregas' && $('#f_tirardoc') && $('#f_tirardoc').checked;
+    if (doc) { const md = R.validarDocumento(doc); if (md) { $('#f_arquivo').focus(); return er(md); } if (!navigator.onLine) return er('Para anexar o arquivo é preciso internet. Salve sem o arquivo (ou com o link) e anexe quando a conexão voltar.'); }
     const b = $('#fsalvar'); b.disabled = true; b.textContent = 'Salvando…';
     const res = await gravarRegistro(m, r, ant);
-    b.disabled = false; b.textContent = 'Salvar';
+    b.disabled = false; b.textContent = m === 'membros' && !id ? 'Cadastrar' : 'Salvar';
     if (!res.ok) return er(res.msg);
+    if (doc || (tiraDoc && ant && ant.arquivo)) {   // o registro já está gravado: agora o arquivo (sem internet a entrega fica sem ele e avisa)
+      const b2 = $('#fsalvar'); if (b2) { b2.disabled = true; b2.textContent = doc ? 'Enviando o arquivo…' : 'Salvando…'; }
+      try {
+        if (res.fila) throw new Error('A entrega ficou guardada no aparelho; o arquivo só pode ser anexado com internet. Abra a entrega depois e anexe.');
+        const g = by('entregas', r.id) || r;
+        if (doc) { const cam = await api.enviarDocumento(r.id, doc); g.arquivo = cam; g.arquivo_nome = doc.name.slice(0, 200); }
+        else { await api.tirarDocumento(r.id); g.arquivo = null; g.arquivo_nome = null; }
+      } catch (e) { if (b2) { b2.disabled = false; b2.textContent = 'Salvar'; } $('#dlg').close(); ed = null; render(); return toast('Entrega salva, mas o documento não: ' + (e.message || e)); }
+    }
     if (conviteAberto) { try { await api.conviteEncerrar(conviteAberto, 'aprovado'); } catch (e) { toast('Cadastro gravado, mas o convite não foi encerrado: ' + e.message); } convites = undefined; }
     let acesso = '';
     if (m === 'membros' && !id && !res.fila && coord() && r.email) acesso = await criarAcessoDaFuncao(r);
@@ -1267,11 +1312,46 @@
       ${bloco('Bolsa', l('Início', dt(m.inicio)) + l('Desligamento', m.fim ? dt(m.fim) + (m.motivo ? ' · ' + esc(m.motivo) : '') : '') + l('Outra bolsa hoje', esc(m.outra_bolsa)))}
       ${res ? bloco('Habilitação na FUNCERN', l('Cadastro no Arlo', esc(m.arlo || 'não informado')) + l('Termo assinado em', m.termo_em ? dt(m.termo_em) : 'ainda não')) : ''}
       ${res ? bloco('Dados para o cadastro no Arlo (reservados)', l('CPF', m.cpf ? fmtCpf(m.cpf) : '') + l('PIS/NIS', esc(m.pis)) + l('Nascimento', m.nascimento ? dt(m.nascimento) : '') + l('Endereço', end)) : ''}
-      ${['discente', 'formador'].includes(m.funcao) && perf ? bloco('Perfil no campo', l('Respostas', perf) + l('Experiência', esc(m.experiencia))) : ''}
+      ${perf || m.experiencia ? bloco('Perfil no campo', l('Respostas', perf) + l('Experiência', esc(m.experiencia))) : ''}
       ${coord() ? bloco('Questionário socioeconômico', l('Respondeu', m.socio ? 'Sim (só a coordenação vê as respostas, no formulário de edição)' : 'Não')) : ''}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button>${res ? `<button type="button" class="b" data-habilitar="${esc(m.id)}">Marcar habilitação</button>` : ''}${R.podeGravar(eu, 'membros') ? `<button type="button" class="b p" data-edit="membros:${esc(m.id)}">Editar cadastro</button>` : ''}</div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button>${res ? `<button type="button" class="b" data-habilitar="${esc(m.id)}">Marcar habilitação</button>` : ''}${coord() && ativo && !m.fim ? `<button type="button" class="b d" data-desligar="${esc(m.id)}">Desligar da equipe</button>` : ''}${R.podeGravar(eu, 'membros') ? `<button type="button" class="b p" data-edit="membros:${esc(m.id)}">Editar cadastro</button>` : ''}</div></div>`;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
     carregarFotosEq();
+  }
+  /* desligar da equipe: data e motivo; a vaga volta a aparecer aberta e o sistema oferece cadastrar a substituta */
+  const MOTIVOS_DESL = ['Pediu para sair', 'Concluiu, trancou ou mudou de curso', 'Passou a receber outra bolsa ou emprego', 'Terminou o período previsto', 'Decisão da coordenação', 'Outro'];
+  let desl = null;
+  function abrirDesligamento(id) {
+    const m = by('membros', id); if (!m) return; ed = null; $('#frm').className = 'fm'; desl = { id, base: m.atualizado_em };
+    const p = db.pessoas.find(x => x.ativo && String(x.email || '').toLowerCase() === String(m.email || '').toLowerCase());
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Desligar da equipe</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="fm-sub">${esc(NOME_FUNCAO[m.funcao] || '')} desde ${dt(m.inicio)}. O cadastro continua no histórico; a vaga volta a aparecer aberta na aba Equipe.</p>
+      <div class="fields"><div class="fld"><label for="dl_fim">Data do desligamento${OBR}</label><input type="date" id="dl_fim" required value="${iso(hoje())}" min="${esc(m.inicio)}"><span class="fm-dica">Último dia da pessoa no projeto (a bolsa vai até aqui).</span></div>
+       <div class="fld"><label for="dl_mot">Motivo${OBR}</label><select id="dl_mot" required><option value="">Escolha</option>${MOTIVOS_DESL.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+       <div class="fld w"><label for="dl_obs">Detalhe (opcional)</label><input id="dl_obs" maxlength="200"></div>
+       ${p ? `<div class="fld w"><fieldset><label><input type="checkbox" id="dl_acesso" checked> Tirar também o acesso ao sistema (${esc(p.email)})</label></fieldset><span class="fm-dica">Se a data for no futuro, o acesso só sai quando você desligar de novo, na aba Dados.</span></div>` : ''}</div></div>
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button><button type="button" class="b d" data-salvardesl>Desligar</button></div></div>`;
+    if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
+  }
+  async function salvarDesligamento() {
+    const m = by('membros', desl && desl.id), er = t => { $('#ferr').textContent = t; }; if (!m) return;
+    const fim = $('#dl_fim').value, mot = $('#dl_mot').value, det = $('#dl_obs').value.trim(), tira = $('#dl_acesso') && $('#dl_acesso').checked;
+    if (!fim) { $('#dl_fim').focus(); return er('Informe a data do desligamento.'); }
+    if (fim < m.inicio) { $('#dl_fim').focus(); return er('O desligamento não pode ser antes do início da bolsa (' + dt(m.inicio) + ').'); }
+    if (!mot) { $('#dl_mot').focus(); return er('Escolha o motivo.'); }
+    const b = $('[data-salvardesl]'); b.disabled = true; b.textContent = 'Salvando…';
+    const r = Object.assign({}, m, { fim, motivo: (mot + (det ? ': ' + det : '')).slice(0, 300) });
+    const res = await gravarRegistro('membros', r, m);
+    if (!res.ok) { b.disabled = false; b.textContent = 'Desligar'; return er(res.msg); }
+    let aviso = '';
+    if (tira && fim <= iso(hoje())) { const p = db.pessoas.find(x => x.ativo && String(x.email || '').toLowerCase() === String(m.email || '').toLowerCase());
+      if (p) { const rp = await gravarRegistro('pessoas', Object.assign({}, p, { ativo: false }), p); aviso = rp.ok ? ' O acesso ao sistema foi tirado.' : ' O acesso não foi tirado: ' + rp.msg; } }
+    desl = null; render();
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Desligamento registrado</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><p class="aj-p">Desligado(a) em ${dt(fim)}.${esc(aviso)} A vaga de ${esc(NOME_FUNCAO[m.funcao] || '')} volta a aparecer aberta.</p>
+      ${coord() ? `<button type="button" class="esc" data-substituta="${esc(m.funcao)}:${esc(m.id)}"><span class="esc-r">Próximo passo</span><b>Cadastrar a substituta agora</b><span>O cadastro novo fica ligado a ${esc(m.nome)} no histórico.</span></button>` : ''}</div>
+     <div class="fm-pe"><div class="frow"><button type="button" class="b" data-fechar>Agora não</button></div></div>`;
+    focarDlg();
   }
   function abrirHabilitacao(id, msg) {
     const m = by('membros', id); if (!m) return; ed = null; $('#frm').className = 'fm'; hab = { id, base: m.atualizado_em };
@@ -1301,7 +1381,7 @@
   }
   /* ---------- planilhas e cópia ---------- */
   function csv(m) {
-    const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks' && c[2] !== 'sec' && c[2] !== 'html'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const M = MOD[m], cs = M.campos.filter(c => c[2] !== 'checks' && c[2] !== 'sec' && c[2] !== 'html' && c[2] !== 'arquivo'), q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
     // texto que começa com = + - @ vira fórmula no Excel: um apóstrofo na frente desarma
     // (número negativo, como -5 ou -12,50, fica número)
     const seguro = v => typeof v === 'string' && /^[=+\-@\t\r\n]/.test(v) && !/^-\d+(,\d+)?$/.test(v) ? "'" + v : v;
@@ -1535,9 +1615,15 @@
     else if (d.fichamembro) abrirFichaMembro(d.fichamembro);
     else if (d.habilitar) abrirHabilitacao(d.habilitar);
     else if (d.habsalvar !== undefined) await salvarHabilitacao(t);
+    else if (d.doc) abrirDocumento(d.doc);
     else if (d.edit) { const [m, id] = d.edit.split(':'); abrir(m, id); if (d.deslig !== undefined && $('#f_fim')) { if (!$('#f_fim').value) $('#f_fim').value = iso(hoje()); $('#f_fim').focus(); } }
     else if (d.cadeq) { if (convites === null) abrir('membros', null, d.cadeq); else abrirEscolha(d.cadeq); }
     else if (d.digitar) abrir('membros', null, d.digitar);
+    else if (d.sn) { const h = $('#f_' + d.sn), novo = h.value === d.v ? '' : d.v; h.value = novo;   // tocar de novo no mesmo desmarca
+      t.parentElement.querySelectorAll('[data-sn]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.v === novo))); h.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (d.desligar) abrirDesligamento(d.desligar);
+    else if (d.salvardesl !== undefined) salvarDesligamento();
+    else if (d.substituta) { const [f, sid] = d.substituta.split(':'); if (convites === null) { cadSubst = sid; abrir('membros', null, f); } else abrirEscolha(f, sid); }
     else if (d.gerarlink) { t.disabled = true; try { const tk = await api.criarConvite(d.gerarlink); convites = undefined; mostrarLink(d.gerarlink, tk); render(); } catch (e) { t.disabled = false; $('#ferr').textContent = e.message; } }
     else if (d.copiarlink !== undefined) { const c = $('#lk_txt'); try { await navigator.clipboard.writeText(c.value); $('#ferr').textContent = 'Link copiado.'; } catch (e) { c.select(); $('#ferr').textContent = 'Selecionei o link: copie com Ctrl+C (ou segure o dedo e escolha Copiar).'; } }
     else if (d.cvaprovar) { const c = (convites || []).find(x => x.id === d.cvaprovar); if (c) { preMembro = { dados: c.dados || {}, convite: c.id }; abrir('membros', null, c.funcao); } }
@@ -1666,6 +1752,8 @@
     document.addEventListener('toggle', ev => { if (ev.target.open && ev.target.matches && ev.target.matches('details')) abrirTarde(ev.target); }, true);
     document.addEventListener('keydown', ev => { const t = ev.target; if ((ev.key === 'Enter' || ev.key === ' ') && t.matches && t.matches('g[data-mapamun]')) { ev.preventDefault(); t.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
     document.addEventListener('change', ev => { const t = ev.target, f = t.closest && t.closest('#frm, #fpub'); if (f && /^f_(funcao|arlo|socio)$/.test(t.id)) ajustarFormMembro(f); });
+    document.addEventListener('change', ev => { const t = ev.target; if (t.id !== 'f_arquivo') return; const a = t.files && t.files[0], n = $('#f_arquivo_n');
+      if (n) n.textContent = a ? `${a.name} (${a.size >= 1048576 ? num(Math.round(a.size / 104857.6) / 10) + ' MB' : Math.max(1, Math.round(a.size / 1024)) + ' KB'})` : 'nenhum arquivo escolhido'; });
     document.addEventListener('input', ev => { const t = ev.target, f = t.closest && t.closest('#frm, #fpub'); if (!f) return; if (t.id === 'f_cep') buscarCep(f); if (f.id === 'fpub') rascunhoGuardar(); });
     document.addEventListener('keydown', teclaGrafico); document.addEventListener('focusout', ev => { if (ev.target.matches && ev.target.matches('[data-rg]')) { mesTeclado = -1; const d = document.querySelector('[data-dica]'), c = document.querySelector('[data-cr]'); if (d) d.hidden = true; if (c) c.setAttribute('hidden', ''); } });
     let rz = null, larg = window.innerWidth; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!eu || !db) return; const cruzou = (larg < 720) !== (window.innerWidth < 720); larg = window.innerWidth; if (cruzou && !$('#dlg').open) render(); else escalaDesenhos(); }, 150); });

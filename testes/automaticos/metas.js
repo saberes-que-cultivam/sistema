@@ -206,7 +206,7 @@ async function novaPagina(b, opcoes) {
   /* =================== METAS 1, 5 (relatório) e 6: entregas do plano =================== */
   await aba('painel');
   { const s = await p.$$('.mts-l details.mt'); await s[0].evaluate(d => { d.open = true; }); await p.waitForSelector('[data-new="entregas"][data-pre="1.1"]');
-    await p.click('[data-new="entregas"][data-pre="1.1"]'); await p.waitForSelector('#f_etapa'); const ops = await p.$$eval('#f_etapa option', o => o.map(x => x.value)); await fechar();
+    await p.click('[data-new="entregas"][data-pre="1.1"]'); await p.waitForSelector('#f_etapa', { state: 'attached' }); const ops = await p.$$eval('#f_etapa option', o => o.map(x => x.value)); await fechar();
     ok(['2.1', '3.2', '3.3', '4.1', '5.1'].every(x => !ops.includes(x)) && ['1.1', '5.2', '6.2'].every(x => ops.includes(x)), 'Entregas: etapas contadas sozinhas não aparecem para registro manual'); }
   ok(/Preencha “Título”/.test(await form('[data-new="entregas"][data-pre="1.1"]', { data: dia(-5) })), 'Meta 1: entrega sem título é recusada');
   ok(await form('[data-new="entregas"][data-pre="1.1"]', { titulo: 'Relatório do diagnóstico (exemplo)', data: dia(-5) }) === '', 'Meta 1: relatório de diagnóstico registrado pela Visão geral');

@@ -92,6 +92,17 @@
       const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(falha('Não foi possível ler a foto.')); r.readAsDataURL(blob); });
       const m = db.membros.find(x => x.id === membro); m.foto = url; persistir(); return url;
     },
+    /* documento das entregas na demonstração: o arquivo fica só na memória enquanto a página está aberta (o nome fica gravado) */
+    _docs: {},
+    async enviarDocumento(entrega, arquivo) {
+      if (!eu || !['Coordenação', 'Equipe'].includes(eu.perfil)) throw falha('Só a equipe do projeto anexa documento às entregas.');
+      const msg = R.validarDocumento(arquivo); if (msg) throw falha(msg);
+      const g = db.entregas.find(x => x.id === entrega); if (!g) throw falha(R.MSG_EXCLUIDO);
+      const caminho = `${entrega}/${SQC.novoId()}.${R.extDocumento(arquivo.name)}`; this._docs[caminho] = arquivo;
+      g.arquivo = caminho; g.arquivo_nome = String(arquivo.name || '').slice(0, 200); g.atualizado_em = new Date().toISOString(); persistir(); return caminho;
+    },
+    async tirarDocumento(entrega) { const g = db.entregas.find(x => x.id === entrega); if (g) { g.arquivo = null; g.arquivo_nome = null; persistir(); } },
+    async urlDocumento(caminho) { const a = this._docs[caminho]; if (!a) throw falha('Na demonstração o arquivo fica só enquanto a página está aberta. Envie de novo para ver.'); return URL.createObjectURL(a); },
     async tirarFotoEquipe(membro) { const m = db.membros.find(x => x.id === membro); if (m) { m.foto = null; persistir(); } },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */

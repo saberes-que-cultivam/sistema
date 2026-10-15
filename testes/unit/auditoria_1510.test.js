@@ -74,3 +74,12 @@ test('previsto: o do plano de trabalho não muda; o da equipe usa a janela dela 
 test('territórios: Sertão do Apodi está na lista (cronograma da equipe atende Apodi)', () => {
   assert.ok(D.TERRITORIOS.includes('Sertão do Apodi/RN'));
 });
+test('documento das entregas (27): tipos aceitos, vazio e acima de 20 MB recusados', () => {
+  assert.strictEqual(R.validarDocumento({ name: 'Relatório Final.PDF', size: 1000 }), '');
+  assert.strictEqual(R.extDocumento('Relatório Final.PDF'), 'pdf');
+  assert.match(R.validarDocumento({ name: 'planilha.exe', size: 10 }), /não é aceito/);
+  assert.match(R.validarDocumento({ name: 'sem-extensao', size: 10 }), /não é aceito/);
+  assert.match(R.validarDocumento({ name: 'vazio.docx', size: 0 }), /vazio/);
+  assert.match(R.validarDocumento({ name: 'grande.pdf', size: 21 * 1024 * 1024 }), /20 MB/);
+  assert.match(R.validarDocumento(null), /Escolha o arquivo/);
+});

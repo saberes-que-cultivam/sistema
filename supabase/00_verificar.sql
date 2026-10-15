@@ -89,6 +89,13 @@ select 'Meta 2: data de entrada em funcionamento (26)',
               or not exists (select 1 from pg_trigger where tgname = 'b_unidade_data' and tgrelid = 'public.unidades'::regclass) then 'FALTA: rode o 26'
             else 'ok' end
 union all
+select 'documento das entregas e substituta (27)',
+       case when to_regprocedure('public.definir_documento(uuid,text,text)') is null
+              or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'membros' and column_name = 'substitui') then 'FALTA: rode o 27'
+            when exists (select 1 from storage.buckets where id = 'documentos' and public) then 'ABERTO: a pasta de documentos está pública; rode o 27 de novo'
+            when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'documentos_%') <> 3 then 'CONFIRA: deviam ser 3 regras documentos_* (rode o 27 de novo)'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

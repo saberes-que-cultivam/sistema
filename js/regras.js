@@ -460,6 +460,15 @@
     return m || 'Não foi possível concluir. Tente de novo.';
   }
 
-  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  /* documento das entregas (script 27): extensões aceitas e o tipo que vai para a pasta; até 20 MB */
+  const DOC_TIPOS = { pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', odt: 'application/vnd.oasis.opendocument.text',
+    ods: 'application/vnd.oasis.opendocument.spreadsheet', odp: 'application/vnd.oasis.opendocument.presentation', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+  const DOC_MAX = 20 * 1024 * 1024;
+  const extDocumento = nome => { const m = String(nome || '').toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ''; };
+  const validarDocumento = a => !a ? 'Escolha o arquivo.' : !DOC_TIPOS[extDocumento(a.name)] ? 'Este tipo de arquivo não é aceito. Envie PDF, Word, Excel, PowerPoint, LibreOffice, JPEG ou PNG.'
+    : !(a.size > 0) ? 'O arquivo está vazio.' : a.size > DOC_MAX ? 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' : '';
+  SQC.regras = { DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

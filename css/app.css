@@ -1494,3 +1494,37 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 .dx-exec-prev{display:flex;flex-wrap:wrap;gap:4px 16px;margin:4px 0 0;font-size:var(--t-sm);color:var(--txt-2)} .dx-exec-prev span{display:inline-flex;align-items:center;gap:6px}
 .dx-exec-prev b{color:var(--txt-1);font-variant-numeric:tabular-nums}
 .pv-eq,.pv-ted{display:inline-block;width:3px;height:14px;background:var(--ink);border-radius:1px} .pv-ted{width:8px;background:var(--surface);border:2px solid var(--ink);border-radius:3px}
+/* documento anexado à entrega do plano */
+.doc-at{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:var(--t-sm)}
+.doc-at b{overflow-wrap:anywhere} .doc-x{display:inline-flex;align-items:center;gap:6px;color:var(--txt-2)}
+.fm-opc{font-weight:400;color:var(--txt-2)}
+.lk-in{background:none;border:0;padding:0;margin:0;color:var(--accent);font:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer;min-height:24px} #view .lk-in:focus-visible,#frm .lk-in:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.doc-esc{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.doc-esc .doc-in{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.doc-esc label.b{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.doc-esc .doc-in:focus-visible + label{outline:3px solid var(--accent);outline-offset:2px}
+.doc-n{font-size:var(--t-sm);color:var(--txt-2);overflow-wrap:anywhere}
+.fm-fixo{display:grid;gap:2px;padding:12px 14px;border-radius:12px;background:color-mix(in srgb,var(--sunken) 60%,var(--surface));border:1px solid var(--line)}
+.fm-fixo span{font-size:var(--t-xs);color:var(--txt-2)} .fm-fixo b{font-size:var(--t-md);font-weight:600;color:var(--txt-1)} .fm-fixo small{font-size:var(--t-xs);color:var(--txt-2)}
+/* cadastro da equipe no padrão do Mulheres & Quintais (15/10/2026): trocar de modo, link pronto, função fixa, Sim/Não em botões */
+.cad-modo{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:2px;align-items:center;width:100%;margin:0 0 4px;padding:14px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--txt-2);font:400 var(--t-base)/1.45 var(--body);text-align:left;cursor:pointer}
+.cad-modo b{grid-column:1;font:600 var(--t-lg)/1.3 var(--body);color:var(--txt-1)} .cad-modo span{grid-column:1} .cad-modo i{grid-column:2;grid-row:1/3;font-style:normal;font-size:var(--t-xl);color:var(--accent)}
+.cad-modo:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+#frm .cad-modo:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.conv-pronto{display:grid;gap:10px;padding:20px;border:1.5px solid var(--accent);border-radius:16px;background:var(--surface);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent)}
+.conv-selo{font:700 var(--t-xs)/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)} .conv-pronto>b{font:600 var(--t-xl)/1.25 var(--body);color:var(--txt-1)}
+.conv-pronto p{margin:0;color:var(--txt-2);font-size:var(--t-base);line-height:1.5} .conv-pronto p.small{font-size:var(--t-sm)}
+.conv-pronto input{width:100%;min-height:46px;padding:0 12px;border:1px solid var(--line);border-radius:12px;font:500 var(--t-md) var(--body);background:var(--surface);color:var(--txt-1)}
+.conv-botoes{display:grid;grid-template-columns:1fr 1fr;gap:10px} .conv-botoes .b{justify-content:center;text-align:center;min-height:46px;display:inline-flex;align-items:center;text-decoration:none}
+@media (max-width:420px){.conv-botoes{grid-template-columns:1fr}}
+.fm-pe.so-msg{padding-block:6px} .fm-pe.so-msg:not(:has(.err:not(:empty))){display:none}
+.fm-faz b{display:block;margin-top:2px;font:600 var(--t-xl)/1.25 var(--body);color:var(--txt-1)} .fm-faz span{color:var(--txt-2);text-transform:none;letter-spacing:0;font-weight:500}
+.fm-sdica{margin:-4px 0 10px;font-size:var(--t-sm);color:var(--txt-2)}
+.sn-q{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 16px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.sn-t{font-size:var(--t-base);color:var(--txt-1)}
+.sn-par{display:inline-flex;padding:4px;gap:4px;border-radius:14px;background:color-mix(in srgb,var(--sunken) 70%,var(--surface));border:1px solid var(--line)}
+.sn-b{min-width:64px;min-height:40px;padding:0 14px;border:0;border-radius:10px;background:none;color:var(--txt-1);font:500 var(--t-base) var(--body);cursor:pointer}
+.sn-b[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+#frm .sn-b:focus-visible,#fpub .sn-b:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (max-width:520px){.sn-q{grid-template-columns:1fr}.sn-par{justify-self:start}}
+.conv-botoes a.b.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font:600 var(--t-md)/1 var(--body);border-radius:12px} .conv-botoes a.b.p:hover{background:color-mix(in srgb,var(--accent) 86%,#000)} .conv-botoes .b{border-radius:12px}

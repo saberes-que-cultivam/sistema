@@ -635,4 +635,44 @@ alter table public.unidades disable trigger b_unidade_passos; alter table public
 insert into public.unidades (id, nome, sigla, conta, funcionando) values ('cccccccc-0000-4000-8000-0000000000aa', 'Antiga', 'ANT', 'Sim', true);
 alter table public.unidades enable trigger b_unidade_passos; alter table public.unidades enable trigger b_unidade_data;
 update public.unidades set obs = 'ok' where id = 'cccccccc-0000-4000-8000-0000000000aa';
+-- ===== script 27: documento das entregas =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare g uuid := 'abababab-0000-4000-8000-000000000001'; cam text := 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000001.pdf'; antes text; begin
+  insert into public.entregas (id, etapa, titulo, data) values (g, '1.1', 'Relatório de teste', current_date);
+  begin perform public.definir_documento(g, cam, 'relatorio.pdf'); raise exception 'FALHOU: ligou documento que não existe na pasta';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  insert into storage.objects (bucket_id, name) values ('documentos', cam);
+  begin insert into storage.objects (bucket_id, name) values ('documentos', 'abababab-0000-4000-8000-000000000099/cdcdcdcd-0000-4000-8000-000000000002.pdf'); raise exception 'FALHOU: aceitou arquivo de entrega que não existe';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into storage.objects (bucket_id, name) values ('documentos', 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000003.exe'); raise exception 'FALHOU: aceitou extensão estranha';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  antes := public.definir_documento(g, cam, 'relatorio.pdf');
+  if antes is not null or (select arquivo_nome from public.entregas where id = g) <> 'relatorio.pdf' then raise exception 'FALHOU: documento não ficou na entrega'; end if;
+  begin update public.entregas set arquivo = 'abababab-0000-4000-8000-000000000002/cdcdcdcd-0000-4000-8000-000000000001.pdf' where id = g; raise exception 'FALHOU: entrega apontou para arquivo de outra entrega';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-00000000000a', 'aux@teste.br');
+set role authenticated;
+do $$ begin
+  if not exists (select 1 from storage.objects where bucket_id = 'documentos') then raise exception 'FALHOU: auxiliar não lê os documentos'; end if;
+  begin insert into storage.objects (bucket_id, name) values ('documentos', 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000004.pdf'); raise exception 'FALHOU: auxiliar enviou documento';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin perform public.definir_documento('abababab-0000-4000-8000-000000000001', null, null); raise exception 'FALHOU: auxiliar tirou documento';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ begin
+  if exists (select 1 from storage.objects where bucket_id = 'documentos') then raise exception 'FALHOU: SEAB/MDA lê os documentos das entregas'; end if;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-00000000000b', 'form@teste.br');
+set role authenticated;
+do $$ begin
+  if exists (select 1 from storage.objects where bucket_id = 'documentos') then raise exception 'FALHOU: formador(a) lê os documentos das entregas'; end if;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

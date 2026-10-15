@@ -70,7 +70,7 @@ const fechado = p => p.waitForSelector('#dlg:not([open])', { state: 'attached' }
     await q.goto(link); await q.reload(); await q.waitForSelector('#fpub');
     ok(await q.evaluate(() => document.querySelector('#app').hidden && !document.querySelector('#view').innerHTML && !document.querySelector('#f_funcao') && !document.querySelector('#f_inicio') && !document.querySelector('#f_fim')), 'link de cadastro: a página não mostra nada do sistema nem os campos da coordenação');
     antes = await n(p, 'membros'); await q.fill('#f_nome', X + ' Sobrenome'); await q.fill('#f_telefone', '(84) 98888-0000'); await q.fill('#f_email', 'link@exemplo.br'); await q.fill('#f_nascimento', '2000-01-01');
-    for (const k of ['agricultor', 'atua_af', 'zona_rural', 'celular_internet']) if (await q.isVisible('#f_' + k)) await q.selectOption('#f_' + k, 'Não');
+    for (const k of ['agricultor', 'atua_af', 'zona_rural', 'celular_internet']) if (await q.isVisible(`[data-sn="${k}"][data-v="Não"]`)) await q.click(`[data-sn="${k}"][data-v="Não"]`);   // Sim/Não em botões (15/10/2026)
     await q.fill('#f_cpf', '123.456.789-00'); await q.check('#f_lgpd'); await q.click('#penviar'); ok(/CPF/.test(await q.textContent('#perr')), 'link de cadastro: CPF inválido é recusado');
     await q.fill('#f_cpf', '529.982.247-25'); await q.uncheck('#f_lgpd'); await q.click('#penviar'); ok(/concorda/.test(await q.textContent('#perr')), 'link de cadastro: sem aceitar o termo não envia');
     await q.check('#f_lgpd'); await q.click('#penviar'); await q.click('#penviar').catch(() => {}); await q.waitForSelector('text=Cadastro enviado');

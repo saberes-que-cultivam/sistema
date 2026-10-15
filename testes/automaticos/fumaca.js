@@ -73,7 +73,7 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   // (auditoria de 15/10/2026: a data de funcionamento da biofábrica ficou de fora na v85)
   { const falta = await p.evaluate(() => { const C = SQC.apiSupabase && SQC.apiSupabase.COLUNAS, M = SQC.app.MOD, out = []; if (!C) return ['sem COLUNAS'];
       Object.keys(C).forEach(t => { if (!M[t] || !M[t].campos) return; M[t].campos.forEach(([k, , tipo]) => {
-        const ks = tipo === 'checks' ? SQC.dados.CHECK.map(c => c[0]) : tipo === 'geo' ? ['lat', 'lng', 'precisao'] : ['sec', 'html'].includes(tipo) ? [] : [k];
+        const ks = tipo === 'checks' ? SQC.dados.CHECK.map(c => c[0]) : tipo === 'geo' ? ['lat', 'lng', 'precisao'] : ['sec', 'html', 'arquivo'].includes(tipo) ? [] : [k];
         ks.forEach(x => { if (!C[t].includes(x)) out.push(t + '.' + x); }); }); });
       return out; });
     ok(!falta.length, 'todo campo de formulário é gravado no modo produção (COLUNAS)' + (falta.length ? ': falta ' + falta.join(', ') : '')); }

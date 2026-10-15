@@ -30,7 +30,7 @@
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas', 'lat', 'lng', 'precisao'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs'],
     entregas: ['etapa', 'titulo', 'data', 'link', 'obs'],
-    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs', 'termo_em']),
+    membros: ['funcao', 'nome', 'nome_social', 'vinculo', 'siape', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'experiencia', 'lgpd', 'organizacao', 'agricultor', 'atua_af', 'zona_rural', 'celular_internet'].concat(R.CAMPOS_RESERVADOS).concat(['inicio', 'fim', 'motivo', 'obs', 'termo_em', 'substitui']),
     despesas: ['data', 'etapa', 'rubrica', 'item', 'descricao', 'favorecido', 'doc', 'valor', 'status'],
     presencas: ['evento', 'nome', 'comunidade', 'municipio', 'mulher', 'agricultor'],
     fotos: ['tabela', 'registro', 'caminho', 'tirada_em', 'legenda']
@@ -40,7 +40,8 @@
      e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
   let semCompleto = false;
   let semFoto = false;   // o banco ainda não tem a coluna da foto (falta rodar o script 24): lê sem ela
-  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(semFoto ? [] : ['foto']).concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
+  let semSubst = false;  // o banco ainda não tem a coluna substitui (falta rodar o script 27): lê e grava sem ela
+  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(semFoto ? [] : ['foto']).concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k) && !(semSubst && k === 'substitui'))).join(',');
   const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
   /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
   const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); x._sr = true; return x; }) });   // _sr: "sem os reservados" — não pode ser regravado
@@ -58,6 +59,7 @@
     for (let de = 0; de < 100000;) {
       let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
       if (error && tabela === 'membros' && !semFoto && (error.code === '42703' || error.code === 'PGRST204') && /foto/.test(String(error.message))) { semFoto = true; de = 0; tudo = []; continue; }
+      if (error && tabela === 'membros' && !semSubst && (error.code === '42703' || error.code === 'PGRST204') && /substitui/.test(String(error.message))) { semSubst = true; COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'substitui'); de = 0; tudo = []; continue; }
       if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
       if (error && (tabela === 'presencas' || tabela === 'fotos') && (error.code === '42P01' || error.code === 'PGRST205' || new RegExp(tabela).test(String(error.message)))) { SQC.apiSupabase.semEvidencias = true; return []; }   // falta rodar o script 13
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
@@ -130,6 +132,26 @@
     async tirarFotoEquipe(membro) {
       const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: null }); if (error) throw erro(error);
       if (antes) await sb.storage.from('equipe').remove([antes]).catch(() => {});
+    },
+    /* ----- documento das entregas (script 27): pasta privada "documentos", caminho <id da entrega>/<código>.<extensão> ----- */
+    async enviarDocumento(entrega, arquivo) {
+      const msg = R.validarDocumento(arquivo); if (msg) throw erro({ code: 'P0001', message: msg });
+      const ext = R.extDocumento(arquivo.name), caminho = `${entrega}/${SQC.novoId()}.${ext}`, pasta = sb.storage.from('documentos');
+      const up = await pasta.upload(caminho, arquivo, { contentType: arquivo.type || R.DOC_TIPOS[ext], upsert: false, cacheControl: '0' });
+      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'O envio de documentos ainda não foi ligado no banco: a coordenação precisa rodar o script 27_documentos_e_substituta.sql no Supabase. Enquanto isso, use o link.' } : /size|large|limit/i.test(m) ? { code: 'P0001', message: 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' } : up.error); }
+      const { data: antes, error } = await sb.rpc('definir_documento', { p_entrega: entrega, p_caminho: caminho, p_nome: String(arquivo.name || '').slice(0, 200) });
+      if (error) { await pasta.remove([caminho]).catch(() => {}); throw erro(error); }
+      if (antes) await pasta.remove([antes]).catch(() => {});
+      return caminho;
+    },
+    async tirarDocumento(entrega) {
+      const { data: antes, error } = await sb.rpc('definir_documento', { p_entrega: entrega, p_caminho: null, p_nome: null }); if (error) throw erro(error);
+      if (antes) await sb.storage.from('documentos').remove([antes]).catch(() => {});
+    },
+    async urlDocumento(caminho) {
+      const { data, error } = await sb.storage.from('documentos').createSignedUrl(caminho, 300);
+      if (error) throw erro(/not found|404/i.test(String(error.message)) ? { code: 'P0001', message: 'O arquivo deste documento não está mais no servidor. Envie de novo.' } : error);
+      return data.signedUrl;
     },
     async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho);
       if (error && /not found|404|Object not found/i.test(String(error.message || error.statusCode || ''))) throw erro({ code: 'P0001', message: 'O arquivo desta foto não chegou ao servidor. Exclua e envie de novo.' });
@@ -258,6 +280,8 @@
         const o = e.original || {};
         // banco sem o 26 (coluna funcionando_em): grava o resto; a data de funcionamento fica para depois de rodar o script
         if (tabela === 'unidades' && (o.code === 'PGRST204' || o.code === '42703') && /funcionando_em/.test(String(o.message)) && COLUNAS.unidades.includes('funcionando_em')) { COLUNAS.unidades = COLUNAS.unidades.filter(k => k !== 'funcionando_em'); return await this.salvar(tabela, reg, op); }
+        // banco sem o 27 (coluna substitui): grava o resto; a ligação com quem saiu fica de fora
+        if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703') && /substitui/.test(String(o.message)) && COLUNAS.membros.includes('substitui')) { semSubst = true; COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'substitui'); return await this.salvar(tabela, reg, op); }
         // banco sem o 23 (coluna termo_em): grava o resto e deixa a data do termo para depois
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703') && /termo_em/.test(String(o.message)) && COLUNAS.membros.includes('termo_em')) { COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'termo_em'); return await this.salvar(tabela, reg, op); }
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });
