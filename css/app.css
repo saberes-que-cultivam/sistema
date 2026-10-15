@@ -1461,3 +1461,20 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 @media (max-width:820px){.hab-n{gap:8px}.hab-k{flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px}.hab-k b{font-size:var(--t-xl)}
   .hab-i{grid-template-columns:auto minmax(0,1fr) auto;row-gap:8px;gap:12px}.hab-ps{grid-column:2/-1;grid-row:2;align-items:center}.hab-i>.chip{grid-column:2/-1;grid-row:3;justify-self:start}.hab-i .mp-seta{grid-column:3;grid-row:1}
   .hab-i .pc-av{width:40px;height:40px}}
+/* biofábrica no mapa: o frasco abre o resumo dela (área de toque maior que o desenho) */
+.mp-b{cursor:pointer} .mp-b .mp-b-alvo{fill:transparent;stroke:none}
+.mp-b:hover .mp-b-alvo{fill:color-mix(in srgb,var(--ferment-soft) 70%,transparent)}
+.mp-b.sel .mp-b-alvo{fill:color-mix(in srgb,var(--ferment) 25%,transparent);stroke:var(--ferment);stroke-width:2.5}
+.mp-b:focus{outline:none} .mp-b:focus-visible .mp-b-alvo{fill:var(--surface);stroke:var(--ink);stroke-width:3}
+.mp-bf{align-items:center;justify-content:flex-start} .mp-bf>span{flex:1;min-width:0} .mp-bf .mk-f{flex:none}
+.mp-det.mp-bio .mp-det-c h3{display:flex;align-items:center;gap:10px;min-width:0} .mp-det.mp-bio .mp-det-c h3 small{display:block;font-size:var(--t-xs);font-weight:400;color:var(--txt-2)}
+.mp-imp{display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.mp-imp-t{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:var(--t-sm)} .mp-imp-t span{color:var(--txt-2)}
+.mp-ck{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;font-size:var(--t-xs);color:var(--txt-2)}
+.mp-ck li{display:flex;align-items:flex-start;gap:6px} .mp-ck li.ok{color:var(--txt-1)}
+.mp-ck i{flex:none;display:inline-grid;place-items:center;width:15px;height:15px;margin-top:1px;border-radius:50%;border:1.5px solid var(--line);font-style:normal;font-size:var(--t-xs);line-height:1}
+.mp-ck li.ok i{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mp-h4{margin:0 0 6px;font-size:var(--t-sm);font-weight:600}
+.mp-disp{list-style:none;margin:0;padding:0;display:grid;gap:4px} .mp-disp li{display:flex;justify-content:space-between;gap:12px;font-size:var(--t-sm);padding:4px 0;border-bottom:1px dotted var(--line)} .mp-disp b{font-variant-numeric:tabular-nums}
+@media (max-width:520px){.mp-ck{grid-template-columns:minmax(0,1fr)}}
+.mp-ult{display:block;font-size:var(--t-xs);font-weight:400;color:var(--txt-2)}
