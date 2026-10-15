@@ -22,6 +22,11 @@
     const tema = v.sol || v.tema === 'claro' ? 'light' : v.tema === 'escuro' ? 'dark' : null;
     if (tema) raiz.setAttribute('data-theme', tema); else raiz.removeAttribute('data-theme');
     if (v.sol) raiz.setAttribute('data-sol', ''); else raiz.removeAttribute('data-sol');
+    // Safari (iPad, iPhone) não recalcula as cores feitas com color-mix() quando o tema muda: só depois de recarregar a página.
+    // Desligar e religar a folha de estilo na mesma tarefa obriga o navegador a refazer tudo, sem piscar (não há desenho no meio).
+    const chave = (tema || 'auto') + (v.sol ? '+sol' : '');
+    if (aplicar.ultima !== undefined && aplicar.ultima !== chave) document.querySelectorAll('link[rel="stylesheet"]').forEach(l => { l.disabled = true; void raiz.offsetHeight; l.disabled = false; });
+    aplicar.ultima = chave; raiz.style.colorScheme = tema === 'dark' ? 'dark' : tema === 'light' ? 'light' : '';
     const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', v.sol ? '#FFFFFF' : '#27663A');
     document.querySelectorAll('[data-aparencia]').forEach(b => { b.classList.toggle('ligado', v.sol); b.setAttribute('aria-label', 'Aparência da tela: modo sol, claro ou escuro' + (v.sol ? ' (modo sol ligado)' : '')); });
     return v;
