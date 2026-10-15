@@ -1035,7 +1035,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* colunas que o sistema grava em cada tabela (o resto — carimbos, código do lote — é do banco) */
   const COLUNAS = {
     pessoas: ['nome', 'email', 'perfil', 'orgao', 'ativo'],
-    unidades: ['nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])),
+    unidades: ['nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])).concat(['funcionando_em']),
     itens: ['unidade', 'descricao', 'valor', 'rubrica', 'status', 'data'],
     lotes: ['unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
     agricultores: ['nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata'],
@@ -1097,6 +1097,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   SQC.fetchComPrazo = fetchComPrazo;
   SQC.apiSupabase = {
+    COLUNAS,   // lido pelo teste que confere se todo campo de formulário é gravado (auditoria de 15/10/2026)
     modo: 'supabase', offline: false, recuperando: false,
     /* liga o cliente do banco sem entrar em conta nenhuma (o link de cadastro usa assim) */
     preparar() { if (!sb) sb = window.supabase.createClient(SQC.CONFIG.supabaseUrl, SQC.CONFIG.supabaseAnonKey, { global: { fetch: fetchComPrazo }, auth: { persistSession: true, detectSessionInUrl: true } }); },
@@ -1268,6 +1269,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       catch (e) {
         // banco sem a coluna "item" (script 06 ainda não rodado): despesa sem item segue normalmente; com item, avisa o que falta
         const o = e.original || {};
+        // banco sem o 26 (coluna funcionando_em): grava o resto; a data de funcionamento fica para depois de rodar o script
+        if (tabela === 'unidades' && (o.code === 'PGRST204' || o.code === '42703') && /funcionando_em/.test(String(o.message)) && COLUNAS.unidades.includes('funcionando_em')) { COLUNAS.unidades = COLUNAS.unidades.filter(k => k !== 'funcionando_em'); return await this.salvar(tabela, reg, op); }
         // banco sem o 23 (coluna termo_em): grava o resto e deixa a data do termo para depois
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703') && /termo_em/.test(String(o.message)) && COLUNAS.membros.includes('termo_em')) { COLUNAS.membros = COLUNAS.membros.filter(k => k !== 'termo_em'); return await this.salvar(tabela, reg, op); }
         if (tabela === 'membros' && (o.code === 'PGRST204' || o.code === '42703')) throw erro({ code: 'P0001', message: 'O cadastro da equipe ganhou campos novos e o banco ainda não os tem: a coordenação precisa rodar os scripts 08_equipe_dados.sql e 10_equipe_cadastro_completo.sql no Supabase.' });

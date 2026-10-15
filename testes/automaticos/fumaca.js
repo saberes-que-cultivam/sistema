@@ -69,6 +69,14 @@ const ok = (c, m) => { if (!c) throw new Error('FALHOU: ' + m); console.log('ok 
   await p.click('[data-sair]'); await p.click('[data-demo="Coordenação"]'); await p.waitForFunction(() => document.querySelector('#quem').textContent.includes('Coordenação')); await p.click('[data-tab="painel"]');
   if (FOTOS) { await p.screenshot({ path: `${FOTOS}/painel-final.png`, fullPage: true }); await p.setViewportSize({ width: 1280, height: 900 }); await p.screenshot({ path: `${FOTOS}/painel-largo.png`, fullPage: true }); await p.setViewportSize({ width: 390, height: 844 }); }
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'sem rolagem lateral no celular');
+  // todo campo de formulário precisa estar na lista do que o modo produção grava (api-supabase.js); senão o banco nunca recebe o valor
+  // (auditoria de 15/10/2026: a data de funcionamento da biofábrica ficou de fora na v85)
+  { const falta = await p.evaluate(() => { const C = SQC.apiSupabase && SQC.apiSupabase.COLUNAS, M = SQC.app.MOD, out = []; if (!C) return ['sem COLUNAS'];
+      Object.keys(C).forEach(t => { if (!M[t] || !M[t].campos) return; M[t].campos.forEach(([k, , tipo]) => {
+        const ks = tipo === 'checks' ? SQC.dados.CHECK.map(c => c[0]) : tipo === 'geo' ? ['lat', 'lng', 'precisao'] : ['sec', 'html'].includes(tipo) ? [] : [k];
+        ks.forEach(x => { if (!C[t].includes(x)) out.push(t + '.' + x); }); }); });
+      return out; });
+    ok(!falta.length, 'todo campo de formulário é gravado no modo produção (COLUNAS)' + (falta.length ? ': falta ' + falta.join(', ') : '')); }
   ok(!erros.length, 'sem erro no console' + (erros.length ? ': ' + erros.join(' | ').slice(0, 600) : ''));
   await b.close(); console.log('FUMAÇA: TUDO CERTO');
 })().catch(e => { console.error(String(e.message || e)); process.exit(1); });
