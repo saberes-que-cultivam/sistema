@@ -1573,6 +1573,13 @@ input[type=date]::-webkit-calendar-picker-indicator{margin-left:auto}
 .rb-hp{display:none}
 /* menu de cima no tablet (641 a 1100 px, iPad em pé e deitado): os 4 grupos em 2 linhas, tudo visível sem rolar para o lado */
 @media (min-width:641px) and (max-width:1100px){
-  #tabs{display:grid;grid-template-columns:repeat(2,max-content);row-gap:6px;overflow-x:visible}
+  /* duas colunas iguais na largura toda; linha contínua entre as colunas e entre as linhas; o traço da aba ativa não encosta no grupo de baixo */
+  nav .wrap{padding-top:0}
+  #tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;overflow-x:visible}
+  #tabs .ng{padding:12px 0 0 20px;gap:4px;border-left:1px solid var(--line)}
   #tabs .ng:nth-child(odd){border-left:0;padding-left:0}
+  #tabs .ng:nth-child(n+3){border-top:1px solid var(--line)}
+  #tabs .ng-a{flex-wrap:wrap;column-gap:4px}
+  #tabs .ng-r{padding:0 8px}
+  #tabs .ng:only-child,#tabs .ng:last-child:nth-child(odd){grid-column:1/-1}
 }

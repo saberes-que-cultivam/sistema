@@ -295,7 +295,7 @@
       // vale ao marcar (ou ao desmarcar um passo de quem já estava marcada); cadastro antigo já marcado continua editável
       if (!r.funcionando) r.funcionando_em = null;   // desmarcou: a data sai junto (o banco faz o mesmo, script 26)
       if (r.funcionando && falta.length && (!anterior || !anterior.funcionando || D.CHECK.some(c => anterior[c[0]] && !r[c[0]]))) return `Só marque “Em funcionamento” depois dos outros passos. Falta: ${falta.join('; ')}.`;
-      if (r.funcionando && !r.funcionando_em && (!anterior || !anterior.funcionando)) return 'Informe a data em que a unidade começou a funcionar.';
+      if (r.funcionando && !r.funcionando_em && (!anterior || !anterior.funcionando || anterior.funcionando_em)) return 'Informe a data em que a unidade começou a funcionar.';
       if (r.funcionando_em && String(r.funcionando_em) > iso(new Date())) return 'A data em que a unidade começou a funcionar não pode ser no futuro.';
     }
     const inteiro = v => vazio(v) || Number.isInteger(+v);

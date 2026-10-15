@@ -99,6 +99,22 @@ union all
 select 'cargo de quem acompanha (28)',
        case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'pessoas' and column_name = 'cargo') then 'FALTA: rode o 28' else 'ok' end
 union all
+select 'correções da auditoria das versões 85 a 89 (29)',
+       case when not exists (select 1 from pg_constraint where conname = 'membros_substitui_outra') then 'FALTA: rode o 29'
+            when (select qual from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'documentos_excluir') not like '%entregas%'
+              then 'VOLTOU ATRÁS: o 27 foi rodado depois do 29 (bolsista volta a apagar documento de qualquer entrega); rode o 29 de novo'
+            when pg_get_functiondef('public.unidade_data_funcionamento()'::regprocedure) not like '%old.funcionando_em is not null%'
+              then 'VOLTOU ATRÁS: o 26 foi rodado depois do 29; rode o 29 de novo'
+            else 'ok' end
+union all
+select 'colunas da equipe que a tela lê (23, 24, 27)',
+       case when to_regclass('public.membros') is null then 'ainda sem a tabela (rode o 07)'
+            when exists (select 1 from (values ('termo_em'), ('foto'), ('substitui')) v(c)
+                          where exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'membros' and column_name = v.c)
+                            and not has_column_privilege('authenticated', 'public.membros', v.c, 'select'))
+              then 'VOLTOU ATRÁS: o 10 foi rodado depois do 23, 24 ou 27 (a aba Equipe fica vazia); rode do 23 ao último de novo'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

@@ -514,7 +514,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       // vale ao marcar (ou ao desmarcar um passo de quem já estava marcada); cadastro antigo já marcado continua editável
       if (!r.funcionando) r.funcionando_em = null;   // desmarcou: a data sai junto (o banco faz o mesmo, script 26)
       if (r.funcionando && falta.length && (!anterior || !anterior.funcionando || D.CHECK.some(c => anterior[c[0]] && !r[c[0]]))) return `Só marque “Em funcionamento” depois dos outros passos. Falta: ${falta.join('; ')}.`;
-      if (r.funcionando && !r.funcionando_em && (!anterior || !anterior.funcionando)) return 'Informe a data em que a unidade começou a funcionar.';
+      if (r.funcionando && !r.funcionando_em && (!anterior || !anterior.funcionando || anterior.funcionando_em)) return 'Informe a data em que a unidade começou a funcionar.';
       if (r.funcionando_em && String(r.funcionando_em) > iso(new Date())) return 'A data em que a unidade começou a funcionar não pode ser no futuro.';
     }
     const inteiro = v => vazio(v) || Number.isInteger(+v);
@@ -1361,6 +1361,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       catch (e) { return false; }
     },
     async excluir(tabela, id) {
+      const { data, error } = await sb.from(tabela).delete().eq('id', id).select(tabela === 'entregas' ? 'id,arquivo' : 'id');
+      if (error && tabela === 'entregas' && /arquivo/.test(String(error.message))) return this.excluirSemArquivo(tabela, id);   // banco sem o 27
+      if (error) throw erro(error);
+      if (!data || !data.length) throw erro({ code: '42501', message: 'permission denied' });
+      // entrega excluída: o documento não fica esquecido na pasta (pode ter dado pessoal). Falhou? Fica solto e pode ser apagado depois (29).
+      if (tabela === 'entregas' && data[0].arquivo) await sb.storage.from('documentos').remove([data[0].arquivo]).catch(() => {});
+    },
+    async excluirSemArquivo(tabela, id) {
       const { data, error } = await sb.from(tabela).delete().eq('id', id).select('id');
       if (error) throw erro(error);
       if (!data || !data.length) throw erro({ code: '42501', message: 'permission denied' });

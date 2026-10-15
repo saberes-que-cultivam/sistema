@@ -25,6 +25,8 @@ test('Meta 2: a tela não deixa marcar "Em funcionamento" antes dos outros passo
   assert.match(R.validar(db, 'unidades', { ...pronta, montada: false }, pronta), /Falta: Estrutura montada/);   // desmarcar passo de quem já funciona
   const antiga = { id: 'v', sigla: 'VE', conta: 'Sim', funcionando: true };
   assert.strictEqual(R.validar(db, 'unidades', { ...antiga, obs: 'x' }, antiga), '');                         // cadastro antigo continua editável
+  assert.match(R.validar(db, 'unidades', { ...pronta, funcionando_em: '' }, pronta), /Informe a data/);         // 29: data informada não some
+  assert.strictEqual(R.validar(db, 'unidades', { ...pronta, funcionando_em: '2026-08-20' }, pronta), '');      // corrigir a data continua livre
 });
 test('Meta 2 (26): conta a partir da data em que começou a funcionar; cadastro antigo sem data conta e vira aviso', () => {
   const db = vazio();

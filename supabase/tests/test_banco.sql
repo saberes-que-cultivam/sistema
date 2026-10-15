@@ -675,4 +675,33 @@ do $$ begin
   if exists (select 1 from storage.objects where bucket_id = 'documentos') then raise exception 'FALHOU: formador(a) lê os documentos das entregas'; end if;
 end $$;
 reset role;
+-- ===== script 29: bolsista só apaga documento solto; coordenação apaga qualquer um =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare ligado text := 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000001.pdf';
+               solto text := 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000005.pdf'; begin
+  delete from storage.objects where bucket_id = 'documentos' and name = ligado;
+  if not exists (select 1 from storage.objects where bucket_id = 'documentos' and name = ligado) then raise exception 'FALHOU: bolsista apagou documento ligado a uma entrega'; end if;
+  insert into storage.objects (bucket_id, name) values ('documentos', solto);
+  delete from storage.objects where bucket_id = 'documentos' and name = solto;
+  if exists (select 1 from storage.objects where bucket_id = 'documentos' and name = solto) then raise exception 'FALHOU: bolsista não apagou o arquivo solto (troca ou envio que falhou)'; end if;
+end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+do $$ declare u uuid; m uuid; begin
+  -- 29: a data de funcionamento não some depois de informada
+  insert into public.unidades (nome, sigla, conta, local_ok, parceiro_ok, termo, itens_ok, orcamento, entregue, montada, funcionando, funcionando_em)
+    values ('Unidade com data', 'UCD', 'Sim', true, true, true, true, true, true, true, true, current_date - 5) returning id into u;
+  begin update public.unidades set funcionando_em = null where id = u; raise exception 'FALHOU: apagou a data de uma unidade em funcionamento';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  update public.unidades set funcionando_em = current_date - 6 where id = u;   -- corrigir a data continua livre
+  -- 29: ninguém substitui a si mesmo
+  select id into m from public.membros limit 1;
+  begin update public.membros set substitui = m where id = m; raise exception 'FALHOU: pessoa ficou como substituta de si mesma';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  delete from storage.objects where bucket_id = 'documentos' and name = 'abababab-0000-4000-8000-000000000001/cdcdcdcd-0000-4000-8000-000000000001.pdf';
+  if exists (select 1 from storage.objects where bucket_id = 'documentos') then raise exception 'FALHOU: coordenação não apagou o documento'; end if;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

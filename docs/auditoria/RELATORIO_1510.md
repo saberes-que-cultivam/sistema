@@ -313,3 +313,20 @@ Não há falha crítica ou alta pendente.
 - falta teste com usuárias e usuários reais e com Safari/iPhone.
 
 A ausência de erros nos testes automáticos não prova ausência de falhas: a cobertura e os limites estão nas seções 3 e 17.
+
+## 21. Adendo: versões 85 a 90 (15/10/2026, à tarde)
+
+Revisão independente das mudanças da v85 à v89 (data de funcionamento, cadastro no padrão do M&Q, desligamento e substituta, documento das entregas, iPad em pé, cargo do acompanhamento). Nada crítico ou alto.
+
+| Achado | Nível | Correção (v90, script `29`) |
+|---|---|---|
+| Qualquer bolsista apagava, pela API, o documento ligado à entrega de outra pessoa | Médio | Bolsista só apaga arquivo solto (sem entrega apontando para ele); a coordenação apaga qualquer um |
+| Entrega excluída deixava o documento na pasta | Baixo | Excluir a entrega apaga o documento junto |
+| Data de funcionamento podia ser apagada depois de informada | Baixo | Banco e tela recusam; corrigir a data continua livre |
+| Rodar o `10` sozinho depois do `23`/`24`/`27` esvaziava a aba Equipe sem aviso | Baixo | `00_verificar` aponta; CLAUDE.md traz a receita (rode do `23` ao último) |
+| Pessoa podia constar como substituta de si mesma | Baixo | Regra no banco |
+| Manuais sem desligamento, substituta e documento | Baixo | Texto incluído e manuais gerados de novo |
+
+Ficam como estão, por decisão consciente: o SEAB/MDA vê o **nome** do arquivo anexado (não o arquivo) — evite dado pessoal no nome; o cadastro novo de uma função se liga sozinho à última pessoa desligada sem substituta.
+
+Regressão da v90: unitários 64; banco (inclui o `29`, a matriz de acesso, as metas tela × SQL e as novas conferências do `00_verificar` para o `10`, `26` e `27` rodados fora de ordem); estresse; desempenho; fumaça; robustez; metas 141; simulação; aparência; evidências; trazidos 1 e 2; auditoria 12/10; teclado (1280 e 390); cadastro e entregas; tipografia (normal, sol, escuro); acessibilidade 105/0; segurança 113/0. Tudo passou. Safari de verdade no iPad continua sem teste automático.
