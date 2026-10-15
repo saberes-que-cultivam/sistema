@@ -15,18 +15,45 @@
   };
   /* q = quantidade prevista, v = valor unitário; ini/fim = mês de início e fim no cronograma físico-financeiro */
   const ETAPAS = [
-    { id: '1.1', m: 1, nome: 'Diagnóstico socioeconômico, produtivo e tecnológico', un: 'relatório técnico', q: 1, v: 35000, ini: '2026-07', fim: '2027-07' },
-    { id: '2.1', m: 2, nome: 'Estruturação física e operacional das unidades', un: 'unidade em funcionamento', q: 2, v: 82500, ini: '2026-08', fim: '2027-01' },
+    { id: '1.1', m: 1, nome: 'Diagnóstico socioeconômico, produtivo e tecnológico', un: 'relatório técnico', q: 1, v: 35000, ini: '2026-07', fim: '2027-07', eq: { ini: '2026-10', fim: '2026-12' } },
+    { id: '2.1', m: 2, nome: 'Estruturação física e operacional das unidades', un: 'unidade em funcionamento', q: 2, v: 82500, ini: '2026-08', fim: '2027-01', eq: { ini: '2026-10', fim: '2027-02' } },
     { id: '3.1', m: 3, nome: 'Materiais didáticos e instrumentos de apoio', un: 'material didático', q: 1, v: 10000, ini: '2026-10', fim: '2027-05' },
-    { id: '3.2', m: 3, nome: 'Ações de capacitação e formação', un: 'capacitação', q: 5, v: 5000, ini: '2026-11', fim: '2027-04' },
-    { id: '3.3', m: 3, nome: 'Orientação técnica e kits de apoio', un: 'kit distribuído', q: 30, v: 1000, ini: '2026-12', fim: '2027-05' },
-    { id: '4.1', m: 4, nome: 'Produção, distribuição e acompanhamento do uso', un: 'unidade produtiva', q: 30, v: 2000, ini: '2026-07', fim: '2027-06' },
+    { id: '3.2', m: 3, nome: 'Ações de capacitação e formação', un: 'capacitação', q: 5, v: 5000, ini: '2026-11', fim: '2027-04', eq: { ini: '2027-01', fim: '2027-04' } },
+    { id: '3.3', m: 3, nome: 'Orientação técnica e kits de apoio', un: 'kit distribuído', q: 30, v: 1000, ini: '2026-12', fim: '2027-05', eq: { ini: '2027-01', fim: '2027-04' } },
+    { id: '4.1', m: 4, nome: 'Produção, distribuição e acompanhamento do uso', un: 'unidade produtiva', q: 30, v: 2000, ini: '2026-07', fim: '2027-06', eq: { ini: '2027-02', fim: '2027-06' } },
     { id: '5.1', m: 5, nome: 'Dias de campo e validação participativa', un: 'dia de campo', q: 4, v: 2500, ini: '2026-07', fim: '2027-07' },
-    { id: '5.2', m: 5, nome: 'Sistematização e avaliação dos resultados', un: 'relatório de avaliação', q: 1, v: 5000, ini: '2026-07', fim: '2027-07' },
+    { id: '5.2', m: 5, nome: 'Sistematização e avaliação dos resultados', un: 'relatório de avaliação', q: 1, v: 5000, ini: '2026-07', fim: '2027-07', eq: { ini: '2027-06', fim: '2027-07' } },
     { id: '6.1', m: 6, nome: 'Materiais e ações de comunicação', un: 'produto de comunicação', q: 10, v: 1000, ini: '2026-07', fim: '2027-07' },
-    { id: '6.2', m: 6, nome: 'Monitoramento e prestação de contas', un: 'relatório', q: 1, v: 10000, ini: '2026-07', fim: '2027-07' },
+    { id: '6.2', m: 6, nome: 'Monitoramento e prestação de contas', un: 'relatório', q: 1, v: 10000, ini: '2026-07', fim: '2027-07', eq: { ini: '2027-07', fim: '2027-07' } },
     { id: '6.3', m: 6, nome: 'Gestão administrativa e financeira (FUNCERN)', un: 'contrato com a fundação', q: 1, v: 40000, ini: '2026-07', fim: '2027-07' }
   ];
+  /* eq = janela da mesma etapa no CRONOGRAMA DA EQUIPE (cronograma de atividades de 15/10/2026, TED 220/2026), quando ele trata dela.
+     ini/fim continuam sendo os do plano de trabalho assinado (TED): é com eles que se presta contas ao MDA. O painel mostra os dois.
+     Correspondência: 1.1 ← itens 1.3, 2.1, 2.2 e 3.1 (articulação, visitas técnicas e diagnóstico); 2.1 ← 1.2, 3.2 e 3.3 (projetos,
+     unidade modelo e cooperativas); 3.2 e 3.3 ← 3.4 (capacitações e kits); 4.1 ← 3.5 (acompanhamento); 5.2 ← 3.7 (avaliação final);
+     6.2 ← 3.8 (relatório final). As demais etapas não aparecem no cronograma da equipe. */
+  const CRONOGRAMA_EQUIPE = {
+    fonte: 'Cronograma de atividades da equipe (15/10/2026)',
+    itens: [
+      ['1.1', 'Readequação do cronograma físico-financeiro e do plano de trabalho', '2026-10-05', '2026-10-15', [6]],
+      ['1.2', 'Projetos técnicos e orçamentos da unidade de bioinsumos', '2026-10-06', '2026-10-20', [2]],
+      ['1.3', 'Articulação inicial e convites (cooperativas e movimentos)', '2026-10-28', '2026-10-30', [1]],
+      ['1.4', 'Divulgação das ações nas redes', '2026-10-19', '2026-10-31', [1]],
+      ['2.1', 'Visita técnica a São Paulo do Potengi (RN)', '2026-10-27', '2026-10-28', [1, 2]],
+      ['2.2', 'Visita técnica a Guaramiranga (CE)', '2026-11-03', '2026-11-05', [1, 2]],
+      ['2.3', 'Lançamento oficial do projeto (IFRN Campus Apodi)', '2026-11-11', '2026-11-11', [1, 2, 3]],
+      ['3.1', 'Diagnóstico territorial das 30 unidades produtivas', '2026-11-16', '2026-12-15', [1]],
+      ['3.2', 'Construção da unidade modelo de bioinsumos (área do minhocário, Apodi)', '2026-11-16', '2027-01-15', [2]],
+      ['3.3', 'Apoio e estruturação das unidades nas cooperativas parceiras', '2026-12-01', '2027-02-28', [2]],
+      ['3.4', 'Capacitações práticas, manejo seguro e distribuição de kits', '2027-01-15', '2027-04-30', [3]],
+      ['3.4.1', 'Elaboração e aprovação do curso FIC em bioinsumos', '2026-10-14', '2026-11-30', [3]],
+      ['3.5', 'Acompanhamento técnico e monitoramento dos 30 agricultores', '2027-02-01', '2027-06-30', [4]],
+      ['3.6', 'Liberação e execução da 2ª parcela do MDA', '2027-04-01', '2027-07-31', [6], 'dinheiro'],
+      ['3.7', 'Avaliação final dos resultados', '2027-06-01', '2027-07-15', [5]],
+      ['3.8', 'Relatório final e prestação de contas do TED', '2027-07-16', '2027-07-31', [6]]
+    ]
+  };
+
   /* etapas cujo "realizado" o sistema conta sozinho (as demais contam pelos registros da aba Entregas) */
   const ETAPAS_AUTOMATICAS = ['2.1', '3.2', '3.3', '4.1', '5.1'];
 
@@ -84,13 +111,13 @@
     NOME: 'Saberes que Cultivam',
     NOME_COMPLETO: 'Saberes que Cultivam: Bioinsumos, Agroecologia e Fortalecimento da Agricultura Familiar na Região Nordeste',
     IDENT: 'TED MDA/IFRN · Plano de Ação 30879420260055-006262 · Processo SEI 55000.010072/2026-02 · Execução: IFRN Campus Apodi, via FUNCERN (contrato 220/2026)',
-    METAS, ETAPAS, ETAPAS_AUTOMATICAS, RUBRICAS, TIPOS, CHECK, DESEMBOLSO,
+    METAS, ETAPAS, ETAPAS_AUTOMATICAS, CRONOGRAMA_EQUIPE, RUBRICAS, TIPOS, CHECK, DESEMBOLSO,
     VIGENCIA: { ini: '2026-08-01', fim: '2027-07-30' },
     TOTAL: 400000,
     /* parcelas do TED repassadas à FUNCERN. Chegou parcela nova? Acrescente aqui. */
     PARCELAS: [{ valor: 200000, data: '2026-09-22', doc: '2026NS001323', recebida: true }, { valor: 200000, previsao: '2027-03', recebida: false }],
     TETO_UNIDADE: 82500,
-    TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Outro'],
+    TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Sertão do Apodi/RN', 'Outro'],
     /* janela do cronograma na tela: jul/2026 a jul/2027 (13 meses) */
     G0: '2026-07-01', G1: '2027-08-01',
     TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas', 'membros', 'presencas', 'fotos']

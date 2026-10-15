@@ -607,4 +607,25 @@ do $$ declare alvo uuid; antes text; begin
   if antes is null or (select foto from public.membros where id = alvo) is not null then raise exception 'FALHOU: coordenação não tirou a foto (ou não recebeu o caminho antigo)'; end if;
 end $$;
 reset role;
+-- ===== script 25: "em funcionamento" só com os outros passos =====
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+do $$ declare u uuid; begin
+  insert into public.unidades (nome, sigla, conta, local_ok) values ('Unidade Meta 2', 'MDS', 'Sim', true) returning id into u;
+  begin update public.unidades set funcionando = true where id = u; raise exception 'FALHOU: marcou em funcionamento sem os outros passos';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; if sqlerrm not like '%Falta:%' then raise exception 'FALHOU: mensagem do 25 (%)', sqlerrm; end if; end;
+  update public.unidades set parceiro_ok = true, termo = true, itens_ok = true, orcamento = true, entregue = true, montada = true where id = u;
+  update public.unidades set funcionando = true where id = u;
+  begin update public.unidades set montada = false where id = u; raise exception 'FALHOU: desmarcou um passo de unidade em funcionamento';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  update public.unidades set obs = 'editada depois' where id = u;   -- editar outro campo continua livre
+  begin insert into public.unidades (nome, sigla, conta, funcionando) values ('Já nasce pronta', 'MDT', 'Sim', true); raise exception 'FALHOU: cadastrou unidade já em funcionamento sem os passos';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+-- cadastro antigo (marcado antes do 25) continua editável
+alter table public.unidades disable trigger b_unidade_passos;
+insert into public.unidades (id, nome, sigla, conta, funcionando) values ('cccccccc-0000-4000-8000-0000000000aa', 'Antiga', 'ANT', 'Sim', true);
+alter table public.unidades enable trigger b_unidade_passos;
+update public.unidades set obs = 'ok' where id = 'cccccccc-0000-4000-8000-0000000000aa';
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

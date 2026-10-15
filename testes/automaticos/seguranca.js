@@ -226,7 +226,7 @@ function arquivosFoto() {
     for (const s of ['[data-ajuda]', '[data-meus]', '[data-aparencia]']) { await fechar(); const e = await p.$(s); if (e) { await e.evaluate(x => x.click()).catch(() => {}); await esperar(150); } }
     await fechar(); await confere(`${perfil} · Ajuda, Meus dados e Aparência`);
   };
-  for (const perfil of ['Coordenação', 'Equipe', 'Acompanhamento']) await percorrer(perfil);
+  for (const perfil of ['Coordenação', 'Equipe', 'Auxiliar', 'Formador', 'Acompanhamento']) await percorrer(perfil);
   // pré-visualização "ver como SEAB/MDA"
   await entrar('Coordenação'); await forjarApi(); const vc = await p.$('[data-vercomo]'); if (vc) { await vc.click(); await esperar(300); for (const t of await p.evaluate(() => SQC.app.abas().map(t => t[0]))) { await p.click(`[data-tab="${t}"]`); await esperar(100); } await confere('pré-visualização SEAB/MDA'); }
   ok(!erros.length, 'sem erro de script durante a varredura' + (erros.length ? ': ' + [...new Set(erros)].slice(0, 3).join(' | ') : ''));

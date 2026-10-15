@@ -49,14 +49,19 @@
 
   /* ---------- execução física: quanto de cada etapa já foi feito ---------- */
   /* ate (opcional, AAAA-MM-DD): conta só o que tem data até esse dia. Sem ele, até hoje. */
+  /* biofábrica em funcionamento (Meta 2): conta para a meta e tem os 8 passos da implantação marcados (decisão da coordenação, 15/10/2026) */
+  const unidadePronta = u => u.conta === 'Sim' && nCheck(u) === D.CHECK.length;
+  /* atividade realizada (Metas 3 e 5): a data chegou E há participantes informados ou lista de presença. Data passada sem ninguém
+     registrado não conta: pode não ter acontecido (decisão da coordenação, 15/10/2026) */
+  const realizada = (db, x) => n(x.part) > 0 || (db.presencas || []).some(p => p.evento === x.id);
   function feito(db, e, ate) {
     ate = ateDia(ate);
     switch (e.id) {
-      case '2.1': return db.unidades.filter(u => u.conta === 'Sim' && u.funcionando).length;
-      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate)).length;
+      case '2.1': return db.unidades.filter(unidadePronta).length;
+      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate) && realizada(db, x)).length;
       case '3.3': return db.agricultores.filter(a => a.kit && ateh(a.kitdata, ate)).length;
       case '4.1': return db.agricultores.filter(a => acompanhada(db, a, ate)).length;
-      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate)).length;
+      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate) && realizada(db, x)).length;
       default: return db.entregas.filter(g => g.etapa === e.id && ateh(g.data, ate)).length;
     }
   }
@@ -65,20 +70,23 @@
      Cada etapa pesa o valor que o plano de trabalho destina a ela (quantidade x valor unitário); não é média simples.
      "Previsto" = quanto da etapa já deveria estar feito até o fim do mês passado, distribuído por igual na janela da etapa. */
   const mesesEntre = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
-  function previstoEtapa(e, hoje) {
-    const ini = pd(e.ini), total = mesesEntre(ini, pd(e.fim)) + 1;
+  /* fonte 'equipe': usa a janela do cronograma da equipe (e.eq) quando a etapa está nele; senão, a do plano de trabalho (TED) */
+  function previstoEtapa(e, hoje, fonte) {
+    const j = fonte === 'equipe' && e.eq ? e.eq : e, ini = pd(j.ini), total = mesesEntre(ini, pd(j.fim)) + 1;
     return Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth(), 1)) / total));
   }
   function execucaoGeral(db, hoje) {
     hoje = hoje || new Date();
-    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje) }));
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje), prevEq: previstoEtapa(e, hoje, 'equipe') }));
     const tot = linhas.reduce((s, x) => s + x.valor, 0);
     const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
-    const st = real >= 99.5 ? 'concluida' : real >= prev ? 'andamento' : real >= prev * 0.7 ? 'atencao' : 'atrasada';
-    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100, prev: l.reduce((s, x) => s + x.valor * x.prev, 0) / v * 100 }; });
+    const prevEq = linhas.reduce((s, x) => s + x.valor * x.prevEq, 0) / tot * 100;
+    const situacao = p => real >= 99.5 ? 'concluida' : real >= p ? 'andamento' : real >= p * 0.7 ? 'atencao' : 'atrasada';
+    const st = situacao(prev), stEq = situacao(prevEq);
+    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100, prev: l.reduce((s, x) => s + x.valor * x.prev, 0) / v * 100, prevEq: l.reduce((s, x) => s + x.valor * x.prevEq, 0) / v * 100, temEq: l.some(x => x.e.eq) }; });
     const meses = mesesEntre(pd(D.G0), pd(D.G1)), mes = Math.max(1, Math.min(meses, mesesEntre(pd(D.G0), hoje) + 1));
     const ant = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-    return { real, prev, st, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
+    return { real, prev, st, prevEq, stEq, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
   }
 
   /* ---------- financeiro ---------- */
@@ -257,6 +265,8 @@
     });
     const hj = iso(hoje);   // datas comparadas como texto AAAA-MM-DD: o dia previsto e o último dia do mês ainda não são atraso
     db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && iso(pronto(l)) < hj) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
+    db.eventos.forEach(x => { if (['Capacitação', 'Dia de campo'].includes(x.tipo) && String(x.data || '') < hj && !realizada(db, x))
+      add('f', 'Atividade', `${x.tipo} “${x.tema || 'sem tema'}” (${dt(x.data)}) está sem participantes registrados.`, 'Informe quantas pessoas participaram ou exclua, se não aconteceu. Sem isso, não conta para a meta.', '', 'eventos'); });
     D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
     // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
     return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
@@ -268,7 +278,7 @@
     // só entra quem tem as duas pontas: linha de base com gasto informado E visita com gasto (campo vazio não é zero)
     const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto) && ateh(x.data, ate)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
     const m0 = comp.reduce((s, c) => s + c[0], 0) / (comp.length || 1), m1 = comp.reduce((s, c) => s + c[1], 0) / (comp.length || 1);
-    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate));   // atividade planejada não soma participantes
+    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate) && realizada(db, e));   // atividade planejada não soma participantes
     return { pares: comp.length, base: m0, atual: m1, variacao: comp.length && m0 ? (m1 - m0) / m0 * 100 : null,
       visitas: vs.length, usou: vs.filter(v => v.usou === 'Sim').length,
       participantes: ev.reduce((s, e) => s + n(e.part), 0), mulheres: ev.reduce((s, e) => s + n(e.mulheres), 0) };
@@ -279,6 +289,9 @@
     if (tabela === 'unidades') {
       if (!/^[A-Za-z]{2,4}$/.test(String(r.sigla || ''))) return 'A sigla precisa ter de 2 a 4 letras, sem número nem espaço.';
       if (db.unidades.some(u => u.id !== r.id && String(u.sigla).toUpperCase() === String(r.sigla).toUpperCase())) return 'Já existe uma unidade com essa sigla.';
+      const falta = D.CHECK.filter(c => c[0] !== 'funcionando' && !r[c[0]]).map(c => c[1]);
+      // vale ao marcar (ou ao desmarcar um passo de quem já estava marcada); cadastro antigo já marcado continua editável
+      if (r.funcionando && falta.length && (!anterior || !anterior.funcionando || D.CHECK.some(c => anterior[c[0]] && !r[c[0]]))) return `Só marque “Em funcionamento” depois dos outros passos. Falta: ${falta.join('; ')}.`;
     }
     const inteiro = v => vazio(v) || Number.isInteger(+v);
     if (tabela === 'lotes') {
@@ -442,6 +455,6 @@
     return m || 'Não foi possível concluir. Tente de novo.';
   }
 
-  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();

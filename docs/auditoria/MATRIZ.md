@@ -5,6 +5,15 @@ Situação: **atende** (há função e teste que passou), **atende após correç
 
 Arquivos de teste citados: `testes/automaticos/metas.js` (fluxos pela tela, 130 conferências), `testes/unit/*.test.js` (52 testes), `supabase/tests/test_banco.sql` (banco com regras de acesso), `testes/automaticos/fumaca.js`, `evidencias.js`, `seguranca.js`, `acessibilidade.js`, `supabase/tests/carga/`.
 
+
+**Atualização de 15/10/2026 (sqc-v84, `RELATORIO_1510.md`):**
+- **Meta 2:** só conta biofábrica com os 8 passos; o banco não deixa marcar "em funcionamento" antes (script `25`). Atende após correção (F2).
+- **Metas 3 e 5:** capacitação e dia de campo só contam com participantes ou lista de presença. Atende após correção (F1).
+- **Previsto do painel:** cronograma da equipe e TED, lado a lado (F3).
+- **Indicadores:** todas as etapas conferidas contra uma contagem em SQL independente (`supabase/tests/conferir_metas.sql`).
+- **Acesso:** matriz perfil × tabela no banco (`test_matriz_perfis.sql`).
+- **Decisões pendentes da coordenação:** P1 (data do funcionamento), P2 (quais biofábricas contam: Mulungu × Guaramiranga × Apodi) e P3 (curso FIC).
+
 ## Meta 1 — Diagnóstico territorial e planejamento (1 relatório técnico)
 
 | Requisito | Funcionalidade no sistema | Cenário de teste | Resultado esperado | Risco | Evidência | Situação |

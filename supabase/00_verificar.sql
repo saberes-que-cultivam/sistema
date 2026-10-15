@@ -80,6 +80,10 @@ select 'foto de perfil da equipe (24)',
             when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'equipe_foto_%') <> 3 then 'CONFIRA: deviam ser 3 regras equipe_foto_* (rode o 24 de novo)'
             else 'ok' end
 union all
+select 'Meta 2: em funcionamento só com os passos (25)',
+       case when not exists (select 1 from pg_trigger where tgname = 'b_unidade_passos' and tgrelid = 'public.unidades'::regclass) then 'FALTA: rode o 25'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

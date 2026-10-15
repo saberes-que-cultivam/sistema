@@ -35,11 +35,12 @@ test('código do lote: sigla + tipo + sequência, sem repetir depois de exclusã
 test('execução física: unidade de apoio não conta na Meta 2; acompanhada exige entrega E visita', () => {
   const db = base(), e = id => SQC.dados.ETAPAS.find(x => x.id === id);
   assert.strictEqual(R.feito(db, e('2.1')), 0);
-  db.unidades[0].funcionando = true; assert.strictEqual(R.feito(db, e('2.1')), 1);
+  db.unidades[0].funcionando = true; assert.strictEqual(R.feito(db, e('2.1')), 0);   // 15/10/2026: só com os 8 passos
+  SQC.dados.CHECK.forEach(c => { db.unidades[0][c[0]] = true; }); assert.strictEqual(R.feito(db, e('2.1')), 1);
   assert.strictEqual(R.feito(db, e('4.1')), 0);
   db.visitas.push({ id: 'v1', data: '2026-09-25', agricultor: 'a1', usou: 'Sim', gasto: 150 });
   assert.strictEqual(R.feito(db, e('4.1')), 1);
-  db.eventos.push({ tipo: 'Capacitação' }, { tipo: 'Reunião' }, { tipo: 'Dia de campo' });
+  db.eventos.push({ tipo: 'Capacitação', part: 12 }, { tipo: 'Reunião', part: 5 }, { tipo: 'Dia de campo', part: 20 }, { tipo: 'Capacitação' });   // a última, sem participantes, não conta
   assert.strictEqual(R.feito(db, e('3.2')), 1); assert.strictEqual(R.feito(db, e('5.1')), 1);
   db.entregas.push({ etapa: '6.1' }, { etapa: '6.1' }); assert.strictEqual(R.feito(db, e('6.1')), 2);
 });

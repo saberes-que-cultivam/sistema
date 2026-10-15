@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const W = +(process.env.LARG || 1280);
 (async () => {
   const b = await chromium.launch(); let total = 0;
-  for (const perfil of ['Coordenação', 'Equipe', 'Acompanhamento']) {
+  for (const perfil of ['Coordenação', 'Equipe', 'Auxiliar', 'Formador', 'Acompanhamento']) {
     const p = await (await b.newContext({ viewport: { width: W, height: 900 }, serviceWorkers: 'block' })).newPage();
     await p.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.SQC=window.SQC||{};SQC.CONFIG={supabaseUrl:'',supabaseAnonKey:'',semServiceWorker:true};" }));
     await p.goto(process.env.URL_SISTEMA || 'http://localhost:8766/'); await p.click(`[data-demo="${perfil}"]`); await p.waitForSelector('.dx-topo');

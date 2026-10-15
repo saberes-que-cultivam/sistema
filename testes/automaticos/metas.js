@@ -69,10 +69,10 @@ async function novaPagina(b, opcoes) {
   // unidade nova cadastrada que conta para a Meta 2, sem nenhum passo: não conta só por existir
   ok(await form('[data-new="unidades"]', { nome: 'Biofábrica nova (exemplo)', sigla: 'NOV', conta: 'Sim' }) === '', 'Meta 2: biofábrica nova cadastrada');
   ok(await feito('2.1') === 1, 'Meta 2: biofábrica só cadastrada (0 de 8 passos) não conta');
-  // observação: "Em funcionamento" sem os passos anteriores (só a caixa final) é aceito e conta
-  { const id = await idPor('unidades', 'sigla', 'NOV'); await form(`[data-edit="unidades:${id}"]`, { funcionando: 1 }); const f = await feito('2.1');
-    nota(`biofábrica com só “Em funcionamento” marcado (0 dos 7 passos anteriores) é aceita e passa a contar: 2.1 = ${f}. O sistema não exige a ordem dos passos.`);
-    await form(`[data-edit="unidades:${id}"]`, { funcionando: 0 }); }
+  // 15/10/2026 (decisão da coordenação): "Em funcionamento" só depois dos outros 7 passos; sem eles a tela recusa e a meta não conta
+  { const id = await idPor('unidades', 'sigla', 'NOV'); const msg = await form(`[data-edit="unidades:${id}"]`, { funcionando: 1 });
+    ok(/Falta: Local definido/.test(msg), 'Meta 2: “Em funcionamento” sem os outros passos é recusado na tela', msg); await fechar();
+    ok(await feito('2.1') === 1, 'Meta 2: a biofábrica recusada continua sem contar (2.1 = 1)'); }
   { const d = await db(); const u2 = d.unidades.find(u => u.id === 'u2'); await aba('painel'); const A = await p.$$eval('.at-lista li', l => l.map(x => x.textContent.replace(/\s+/g, ' ')));
     ok(A.some(t => /Polo Mulungu: envie os orçamentos/.test(t)) && !A.some(t => /Polo São Paulo do Potengi: envie os orçamentos/.test(t)), 'Meta 2: aviso de orçamento só para a biofábrica que ainda não enviou (u2), não para a u1');
     ok(A.some(t => /Polo Mulungu: defina o parceiro institucional/.test(t)) === !u2.parceiro_ok, 'Meta 2: aviso de parceiro institucional bate com o cadastro'); }
@@ -173,6 +173,16 @@ async function novaPagina(b, opcoes) {
   const EV = [['Capacitação', dia(-20), 'Capacitação em compostagem (exemplo)', '12', '7'], ['Dia de campo', dia(-15), 'Dia de campo realizado (exemplo)', '20', '15'], ['Reunião', dia(-3), 'Reunião da equipe (exemplo)', '5', '2']];
   for (const [t, d, tema, pa, mu] of EV) ok(await form('[data-new="eventos"]', { tipo: t, data: d, tema, part: pa, mulheres: mu }) === '', `Atividade realizada gravada: ${tema}`);
   ok(await feito('3.2') === 1 && await feito('5.1') === 1, 'Meta 3/5: 1 capacitação e 1 dia de campo realizados; reunião não conta');
+  // 15/10/2026 (decisão da coordenação): data passada sem participantes não conta e vira aviso; com participantes, passa a contar
+  ok(await form('[data-new="eventos"]', { tipo: 'Capacitação', data: dia(-5), tema: 'Capacitação sem registro (exemplo)' }) === '', 'Atividade com data passada e sem participantes é gravada');
+  ok(await feito('3.2') === 1, 'Meta 3: capacitação passada sem participantes não conta na 3.2', '3.2 = ' + await feito('3.2'));
+  ok(/sem participantes: não conta/.test(await p.textContent('#view')), 'Formação: a atividade sem participantes aparece marcada “sem participantes: não conta”');
+  { await aba('painel'); const A = await p.$$eval('.at-lista li', l => l.map(x => x.textContent.replace(/\s+/g, ' ')));
+    ok(A.some(t => /Capacitação sem registro \(exemplo\).*sem participantes registrados/.test(t)), 'Avisos: “sem participantes registrados” aparece em O que pede atenção'); await aba('eventos');
+    const id = await idPor('eventos', 'tema', 'Capacitação sem registro (exemplo)');
+    ok(await form(`[data-edit="eventos:${id}"]`, { part: '9', mulheres: '4' }) === '', 'Participantes informados depois');
+    ok(await feito('3.2') === 2, 'Meta 3: com participantes, a capacitação passa a contar (3.2 = 2)', '3.2 = ' + await feito('3.2'));
+    await form(`[data-edit="eventos:${id}"]`, { tipo: 'Reunião' }); }   // volta ao ponto de partida das contas abaixo (reunião não conta)
   // atividades planejadas (datas futuras): o formulário não tem situação (planejada/realizada/cancelada); só a data diz que ainda não aconteceu
   { await p.click('[data-new="eventos"]'); await p.waitForSelector('#f_tipo'); const ids = await p.$$eval('#frm input,#frm select,#frm textarea', l => l.map(x => x.id)); await fechar();
     nota('campos do formulário de atividade: ' + ids.join(', ') + ' (não há situação planejada/realizada/cancelada)'); }
@@ -237,6 +247,9 @@ async function novaPagina(b, opcoes) {
   await p.fill('#rde', DE); await p.fill('#rate', ATE); await p.click('[data-rel]'); await p.waitForFunction(de => document.querySelector('.rel .rel-sup').textContent.includes(de), dt(DE));
   { const d = await db(); const no = s => s >= DE && s <= ATE;
     const sec = await p.$$eval('.rel section', ss => ss.map(s => ({ h: s.querySelector('h3').textContent, linhas: [...s.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim())), txt: s.textContent.replace(/\s+/g, ' ') })));
+    { const s2 = sec.find(s => /Unidades de produção/.test(s.h)), PASSOS = ['local_ok', 'parceiro_ok', 'termo', 'itens_ok', 'orcamento', 'entregue', 'montada', 'funcionando'];
+      const n8 = d.unidades.filter(u => PASSOS.every(k => u[k])).length;   // 15/10/2026: "em funcionamento" no relatório = os 8 passos, como na meta
+      ok(s2 && s2.txt.includes(`${n8} em funcionamento (com os 8 passos) de ${d.unidades.length} cadastrada(s)`), `Relatório, seção 2: ${n8} em funcionamento (8 passos) de ${d.unidades.length}`, s2 && s2.txt.slice(0, 160)); }
     const evP = d.eventos.filter(e => no(e.data)); ok(sec[2].linhas.length === evP.length && evP.length === 4 && !sec[2].txt.includes('Reunião da equipe') && !sec[2].txt.includes('planejad'), `Relatório: só as ${evP.length} atividades do período (2 da demonstração + capacitação e dia de campo; fora: reunião de ${dt(dia(-3))} e as futuras)`, sec[2].linhas.length + ' linhas');
     const tp = evP.reduce((s, e) => s + (+e.part || 0), 0), tm = evP.reduce((s, e) => s + (+e.mulheres || 0), 0);
     ok(tp === 34 && sec[2].txt.includes(`Total de ${tp} participações, ${Math.round(tm / tp * 100)}% de mulheres`), `Relatório: total de participações do período (2 + 12 + 20 = ${tp}; ${tm} mulheres)`);

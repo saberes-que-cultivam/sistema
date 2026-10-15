@@ -99,18 +99,45 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   };
   /* q = quantidade prevista, v = valor unitário; ini/fim = mês de início e fim no cronograma físico-financeiro */
   const ETAPAS = [
-    { id: '1.1', m: 1, nome: 'Diagnóstico socioeconômico, produtivo e tecnológico', un: 'relatório técnico', q: 1, v: 35000, ini: '2026-07', fim: '2027-07' },
-    { id: '2.1', m: 2, nome: 'Estruturação física e operacional das unidades', un: 'unidade em funcionamento', q: 2, v: 82500, ini: '2026-08', fim: '2027-01' },
+    { id: '1.1', m: 1, nome: 'Diagnóstico socioeconômico, produtivo e tecnológico', un: 'relatório técnico', q: 1, v: 35000, ini: '2026-07', fim: '2027-07', eq: { ini: '2026-10', fim: '2026-12' } },
+    { id: '2.1', m: 2, nome: 'Estruturação física e operacional das unidades', un: 'unidade em funcionamento', q: 2, v: 82500, ini: '2026-08', fim: '2027-01', eq: { ini: '2026-10', fim: '2027-02' } },
     { id: '3.1', m: 3, nome: 'Materiais didáticos e instrumentos de apoio', un: 'material didático', q: 1, v: 10000, ini: '2026-10', fim: '2027-05' },
-    { id: '3.2', m: 3, nome: 'Ações de capacitação e formação', un: 'capacitação', q: 5, v: 5000, ini: '2026-11', fim: '2027-04' },
-    { id: '3.3', m: 3, nome: 'Orientação técnica e kits de apoio', un: 'kit distribuído', q: 30, v: 1000, ini: '2026-12', fim: '2027-05' },
-    { id: '4.1', m: 4, nome: 'Produção, distribuição e acompanhamento do uso', un: 'unidade produtiva', q: 30, v: 2000, ini: '2026-07', fim: '2027-06' },
+    { id: '3.2', m: 3, nome: 'Ações de capacitação e formação', un: 'capacitação', q: 5, v: 5000, ini: '2026-11', fim: '2027-04', eq: { ini: '2027-01', fim: '2027-04' } },
+    { id: '3.3', m: 3, nome: 'Orientação técnica e kits de apoio', un: 'kit distribuído', q: 30, v: 1000, ini: '2026-12', fim: '2027-05', eq: { ini: '2027-01', fim: '2027-04' } },
+    { id: '4.1', m: 4, nome: 'Produção, distribuição e acompanhamento do uso', un: 'unidade produtiva', q: 30, v: 2000, ini: '2026-07', fim: '2027-06', eq: { ini: '2027-02', fim: '2027-06' } },
     { id: '5.1', m: 5, nome: 'Dias de campo e validação participativa', un: 'dia de campo', q: 4, v: 2500, ini: '2026-07', fim: '2027-07' },
-    { id: '5.2', m: 5, nome: 'Sistematização e avaliação dos resultados', un: 'relatório de avaliação', q: 1, v: 5000, ini: '2026-07', fim: '2027-07' },
+    { id: '5.2', m: 5, nome: 'Sistematização e avaliação dos resultados', un: 'relatório de avaliação', q: 1, v: 5000, ini: '2026-07', fim: '2027-07', eq: { ini: '2027-06', fim: '2027-07' } },
     { id: '6.1', m: 6, nome: 'Materiais e ações de comunicação', un: 'produto de comunicação', q: 10, v: 1000, ini: '2026-07', fim: '2027-07' },
-    { id: '6.2', m: 6, nome: 'Monitoramento e prestação de contas', un: 'relatório', q: 1, v: 10000, ini: '2026-07', fim: '2027-07' },
+    { id: '6.2', m: 6, nome: 'Monitoramento e prestação de contas', un: 'relatório', q: 1, v: 10000, ini: '2026-07', fim: '2027-07', eq: { ini: '2027-07', fim: '2027-07' } },
     { id: '6.3', m: 6, nome: 'Gestão administrativa e financeira (FUNCERN)', un: 'contrato com a fundação', q: 1, v: 40000, ini: '2026-07', fim: '2027-07' }
   ];
+  /* eq = janela da mesma etapa no CRONOGRAMA DA EQUIPE (cronograma de atividades de 15/10/2026, TED 220/2026), quando ele trata dela.
+     ini/fim continuam sendo os do plano de trabalho assinado (TED): é com eles que se presta contas ao MDA. O painel mostra os dois.
+     Correspondência: 1.1 ← itens 1.3, 2.1, 2.2 e 3.1 (articulação, visitas técnicas e diagnóstico); 2.1 ← 1.2, 3.2 e 3.3 (projetos,
+     unidade modelo e cooperativas); 3.2 e 3.3 ← 3.4 (capacitações e kits); 4.1 ← 3.5 (acompanhamento); 5.2 ← 3.7 (avaliação final);
+     6.2 ← 3.8 (relatório final). As demais etapas não aparecem no cronograma da equipe. */
+  const CRONOGRAMA_EQUIPE = {
+    fonte: 'Cronograma de atividades da equipe (15/10/2026)',
+    itens: [
+      ['1.1', 'Readequação do cronograma físico-financeiro e do plano de trabalho', '2026-10-05', '2026-10-15', [6]],
+      ['1.2', 'Projetos técnicos e orçamentos da unidade de bioinsumos', '2026-10-06', '2026-10-20', [2]],
+      ['1.3', 'Articulação inicial e convites (cooperativas e movimentos)', '2026-10-28', '2026-10-30', [1]],
+      ['1.4', 'Divulgação das ações nas redes', '2026-10-19', '2026-10-31', [1]],
+      ['2.1', 'Visita técnica a São Paulo do Potengi (RN)', '2026-10-27', '2026-10-28', [1, 2]],
+      ['2.2', 'Visita técnica a Guaramiranga (CE)', '2026-11-03', '2026-11-05', [1, 2]],
+      ['2.3', 'Lançamento oficial do projeto (IFRN Campus Apodi)', '2026-11-11', '2026-11-11', [1, 2, 3]],
+      ['3.1', 'Diagnóstico territorial das 30 unidades produtivas', '2026-11-16', '2026-12-15', [1]],
+      ['3.2', 'Construção da unidade modelo de bioinsumos (área do minhocário, Apodi)', '2026-11-16', '2027-01-15', [2]],
+      ['3.3', 'Apoio e estruturação das unidades nas cooperativas parceiras', '2026-12-01', '2027-02-28', [2]],
+      ['3.4', 'Capacitações práticas, manejo seguro e distribuição de kits', '2027-01-15', '2027-04-30', [3]],
+      ['3.4.1', 'Elaboração e aprovação do curso FIC em bioinsumos', '2026-10-14', '2026-11-30', [3]],
+      ['3.5', 'Acompanhamento técnico e monitoramento dos 30 agricultores', '2027-02-01', '2027-06-30', [4]],
+      ['3.6', 'Liberação e execução da 2ª parcela do MDA', '2027-04-01', '2027-07-31', [6], 'dinheiro'],
+      ['3.7', 'Avaliação final dos resultados', '2027-06-01', '2027-07-15', [5]],
+      ['3.8', 'Relatório final e prestação de contas do TED', '2027-07-16', '2027-07-31', [6]]
+    ]
+  };
+
   /* etapas cujo "realizado" o sistema conta sozinho (as demais contam pelos registros da aba Entregas) */
   const ETAPAS_AUTOMATICAS = ['2.1', '3.2', '3.3', '4.1', '5.1'];
 
@@ -168,13 +195,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     NOME: 'Saberes que Cultivam',
     NOME_COMPLETO: 'Saberes que Cultivam: Bioinsumos, Agroecologia e Fortalecimento da Agricultura Familiar na Região Nordeste',
     IDENT: 'TED MDA/IFRN · Plano de Ação 30879420260055-006262 · Processo SEI 55000.010072/2026-02 · Execução: IFRN Campus Apodi, via FUNCERN (contrato 220/2026)',
-    METAS, ETAPAS, ETAPAS_AUTOMATICAS, RUBRICAS, TIPOS, CHECK, DESEMBOLSO,
+    METAS, ETAPAS, ETAPAS_AUTOMATICAS, CRONOGRAMA_EQUIPE, RUBRICAS, TIPOS, CHECK, DESEMBOLSO,
     VIGENCIA: { ini: '2026-08-01', fim: '2027-07-30' },
     TOTAL: 400000,
     /* parcelas do TED repassadas à FUNCERN. Chegou parcela nova? Acrescente aqui. */
     PARCELAS: [{ valor: 200000, data: '2026-09-22', doc: '2026NS001323', recebida: true }, { valor: 200000, previsao: '2027-03', recebida: false }],
     TETO_UNIDADE: 82500,
-    TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Outro'],
+    TERRITORIOS: ['Potengi/RN', 'Maciço de Baturité/CE', 'Sertão do Apodi/RN', 'Outro'],
     /* janela do cronograma na tela: jul/2026 a jul/2027 (13 meses) */
     G0: '2026-07-01', G1: '2027-08-01',
     TABELAS: ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'entregas', 'despesas', 'pessoas', 'membros', 'presencas', 'fotos']
@@ -241,14 +268,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
   /* ---------- execução física: quanto de cada etapa já foi feito ---------- */
   /* ate (opcional, AAAA-MM-DD): conta só o que tem data até esse dia. Sem ele, até hoje. */
+  /* biofábrica em funcionamento (Meta 2): conta para a meta e tem os 8 passos da implantação marcados (decisão da coordenação, 15/10/2026) */
+  const unidadePronta = u => u.conta === 'Sim' && nCheck(u) === D.CHECK.length;
+  /* atividade realizada (Metas 3 e 5): a data chegou E há participantes informados ou lista de presença. Data passada sem ninguém
+     registrado não conta: pode não ter acontecido (decisão da coordenação, 15/10/2026) */
+  const realizada = (db, x) => n(x.part) > 0 || (db.presencas || []).some(p => p.evento === x.id);
   function feito(db, e, ate) {
     ate = ateDia(ate);
     switch (e.id) {
-      case '2.1': return db.unidades.filter(u => u.conta === 'Sim' && u.funcionando).length;
-      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate)).length;
+      case '2.1': return db.unidades.filter(unidadePronta).length;
+      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate) && realizada(db, x)).length;
       case '3.3': return db.agricultores.filter(a => a.kit && ateh(a.kitdata, ate)).length;
       case '4.1': return db.agricultores.filter(a => acompanhada(db, a, ate)).length;
-      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate)).length;
+      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate) && realizada(db, x)).length;
       default: return db.entregas.filter(g => g.etapa === e.id && ateh(g.data, ate)).length;
     }
   }
@@ -257,20 +289,23 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
      Cada etapa pesa o valor que o plano de trabalho destina a ela (quantidade x valor unitário); não é média simples.
      "Previsto" = quanto da etapa já deveria estar feito até o fim do mês passado, distribuído por igual na janela da etapa. */
   const mesesEntre = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
-  function previstoEtapa(e, hoje) {
-    const ini = pd(e.ini), total = mesesEntre(ini, pd(e.fim)) + 1;
+  /* fonte 'equipe': usa a janela do cronograma da equipe (e.eq) quando a etapa está nele; senão, a do plano de trabalho (TED) */
+  function previstoEtapa(e, hoje, fonte) {
+    const j = fonte === 'equipe' && e.eq ? e.eq : e, ini = pd(j.ini), total = mesesEntre(ini, pd(j.fim)) + 1;
     return Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth(), 1)) / total));
   }
   function execucaoGeral(db, hoje) {
     hoje = hoje || new Date();
-    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje) }));
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje), prevEq: previstoEtapa(e, hoje, 'equipe') }));
     const tot = linhas.reduce((s, x) => s + x.valor, 0);
     const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
-    const st = real >= 99.5 ? 'concluida' : real >= prev ? 'andamento' : real >= prev * 0.7 ? 'atencao' : 'atrasada';
-    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100, prev: l.reduce((s, x) => s + x.valor * x.prev, 0) / v * 100 }; });
+    const prevEq = linhas.reduce((s, x) => s + x.valor * x.prevEq, 0) / tot * 100;
+    const situacao = p => real >= 99.5 ? 'concluida' : real >= p ? 'andamento' : real >= p * 0.7 ? 'atencao' : 'atrasada';
+    const st = situacao(prev), stEq = situacao(prevEq);
+    const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100, prev: l.reduce((s, x) => s + x.valor * x.prev, 0) / v * 100, prevEq: l.reduce((s, x) => s + x.valor * x.prevEq, 0) / v * 100, temEq: l.some(x => x.e.eq) }; });
     const meses = mesesEntre(pd(D.G0), pd(D.G1)), mes = Math.max(1, Math.min(meses, mesesEntre(pd(D.G0), hoje) + 1));
     const ant = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-    return { real, prev, st, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
+    return { real, prev, st, prevEq, stEq, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
   }
 
   /* ---------- financeiro ---------- */
@@ -449,6 +484,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     });
     const hj = iso(hoje);   // datas comparadas como texto AAAA-MM-DD: o dia previsto e o último dia do mês ainda não são atraso
     db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && iso(pronto(l)) < hj) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
+    db.eventos.forEach(x => { if (['Capacitação', 'Dia de campo'].includes(x.tipo) && String(x.data || '') < hj && !realizada(db, x))
+      add('f', 'Atividade', `${x.tipo} “${x.tema || 'sem tema'}” (${dt(x.data)}) está sem participantes registrados.`, 'Informe quantas pessoas participaram ou exclua, se não aconteceu. Sem isso, não conta para a meta.', '', 'eventos'); });
     D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
     // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
     return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
@@ -460,7 +497,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     // só entra quem tem as duas pontas: linha de base com gasto informado E visita com gasto (campo vazio não é zero)
     const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto) && ateh(x.data, ate)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
     const m0 = comp.reduce((s, c) => s + c[0], 0) / (comp.length || 1), m1 = comp.reduce((s, c) => s + c[1], 0) / (comp.length || 1);
-    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate));   // atividade planejada não soma participantes
+    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate) && realizada(db, e));   // atividade planejada não soma participantes
     return { pares: comp.length, base: m0, atual: m1, variacao: comp.length && m0 ? (m1 - m0) / m0 * 100 : null,
       visitas: vs.length, usou: vs.filter(v => v.usou === 'Sim').length,
       participantes: ev.reduce((s, e) => s + n(e.part), 0), mulheres: ev.reduce((s, e) => s + n(e.mulheres), 0) };
@@ -471,6 +508,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (tabela === 'unidades') {
       if (!/^[A-Za-z]{2,4}$/.test(String(r.sigla || ''))) return 'A sigla precisa ter de 2 a 4 letras, sem número nem espaço.';
       if (db.unidades.some(u => u.id !== r.id && String(u.sigla).toUpperCase() === String(r.sigla).toUpperCase())) return 'Já existe uma unidade com essa sigla.';
+      const falta = D.CHECK.filter(c => c[0] !== 'funcionando' && !r[c[0]]).map(c => c[1]);
+      // vale ao marcar (ou ao desmarcar um passo de quem já estava marcada); cadastro antigo já marcado continua editável
+      if (r.funcionando && falta.length && (!anterior || !anterior.funcionando || D.CHECK.some(c => anterior[c[0]] && !r[c[0]]))) return `Só marque “Em funcionamento” depois dos outros passos. Falta: ${falta.join('; ')}.`;
     }
     const inteiro = v => vazio(v) || Number.isInteger(+v);
     if (tabela === 'lotes') {
@@ -634,7 +674,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return m || 'Não foi possível concluir. Tente de novo.';
   }
 
-  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  SQC.regras = { pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
@@ -1711,7 +1751,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const optRubrica = () => D.RUBRICAS.map(r => [r.id, r.nome]);
   const nomeRubrica = id => (D.RUBRICAS.find(r => r.id === id) || {}).nome || '';
   const MOD = {
-    unidades: { um: 'Unidade de produção de bioinsumos', oque: 'Biofábrica do projeto. As duas que contam para a Meta 2 do TED são as dos territórios; as outras são de apoio. Marque cada passo da implantação conforme for acontecendo.', dicas: { sigla: 'Aparece no código de todos os lotes desta unidade. Não mude depois de criar lotes.', parceiro: 'Associação, cooperativa, prefeitura ou escola. Bem público não pode ser doado a pessoa física.' }, nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Passos da implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
+    unidades: { um: 'Unidade de produção de bioinsumos', oque: 'Biofábrica do projeto. As duas que contam para a Meta 2 do TED são as dos territórios; as outras são de apoio. Marque cada passo da implantação conforme for acontecendo. “Em funcionamento” só pode ser marcado depois dos outros sete, e só então a unidade conta na meta.', dicas: { sigla: 'Aparece no código de todos os lotes desta unidade. Não mude depois de criar lotes.', parceiro: 'Associação, cooperativa, prefeitura ou escola. Bem público não pode ser doado a pessoa física.' }, nome: 'Biofábricas', titulo: 'Unidades de produção de bioinsumos', desc: 'Passos da implantação de cada unidade. Conta para a Meta 2 a unidade marcada como “em funcionamento”.', novo: 'Nova unidade',
       campos: [['_s1', 'Identificação', 'sec'], ['nome', 'Nome', 'text', 1], ['sigla', 'Sigla (2 a 4 letras, usada no código dos lotes)', 'text', 1], ['municipio', 'Município', 'text'], ['uf', 'UF', 'text'],
         ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)],
         ['modelo', 'Modelo', 'select', 0, opt(['A definir', 'Área aberta com cobertura (compostagem e biofertilizantes)', 'Microrganismos isolados'])],
@@ -1762,10 +1802,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Fotos', v => evid('visitas', v), '', 'equipe'], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome) + (v.lat != null && v.lat !== '' && !fora() ? '<div class="small">com localização</div>' : '')],
         ['Uso', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span>`], ['Vigor', v => v.vigor ? `${esc(v.vigor)}/5` : '—', 'n'],
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
-    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega (com data futura, a atividade aparece como agendada). Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
+    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega e há participantes registrados (com data futura, a atividade aparece como agendada; com data passada e sem participantes, não conta). Reunião e articulação ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['', 'Capacitação', 'Dia de campo', 'Reunião', 'Articulação'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
         ['part', 'Participantes', 'number'], ['mulheres', 'Quantas são mulheres', 'number'], ['link', 'Link da lista de presença e fotos', 'text'], ['obs', 'Observações', 'textarea']],
-      cols: [['Data', e => dt(e.data) + (String(e.data || '') > iso(hoje()) ? ' <span class="chip f">agendada</span>' : '') + exChip(e)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe'], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
+      cols: [['Data', e => dt(e.data) + (String(e.data || '') > iso(hoje()) ? ' <span class="chip f">agendada</span>' : ['Capacitação', 'Dia de campo'].includes(e.tipo) && !R.realizada(db, e) ? ' <span class="chip bad">sem participantes: não conta</span>' : '') + exChip(e)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe'], ['Tipo', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span>`],
         ['Tema', e => `${esc(e.tema)}<div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>`],
         ['Participantes', e => R.vazio(e.part) ? '—' : `${num(e.part)}<div class="small">${num(e.mulheres)} mulheres</div>`, 'n'],
         ['Evidência', e => link(e.link), '', 'equipe']] },
@@ -1871,7 +1911,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const X = R.execucaoGeral(db, hoje());
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
     const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo').length;
-    const sub = { '2.1': uConta.length ? `${uConta.filter(u => u.funcionando).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !u.funcionando).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
+    const sub = { '2.1': uConta.length ? `${uConta.filter(R.unidadePronta).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !R.unidadePronta(u)).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
       '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base`, '3.3': `${db.agricultores.filter(a => !a.kit).length} cadastrada(s) ainda sem kit`,
       '3.2': `${num(caps.reduce((s, e) => s + (+e.part || 0), 0))} participante(s) · ${dc} dia(s) de campo` };
     const A = R.alertas(db, hoje());
@@ -1880,7 +1920,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
       if (e.m !== mm) { mm = e.m; g += `<div class="g-row m"><span><b aria-hidden="true">M${mm}</b>Meta ${mm} · ${D.METAS[mm]}</span></div>`; }
       const a = pos(pd(e.ini)), b = pos(new Date(R.fimMes(e.fim).getTime() + 864e5)), f = feito(e), late = R.venceu(e, hoje()) && f < e.q;
-      g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${f >= e.q ? 'ok' : late ? 'late' : hoje() < pd(e.ini) ? 'fut' : ''}" style="left:${a}%;width:${b - a}%" title="${mesAno(e.ini)} a ${mesAno(e.fim)}"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div><div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n"><span><b>${f}</b> de ${e.q}</span>${f >= e.q ? '<small class="ok">concluída</small>' : late ? '<small class="bad">vencida</small>' : hoje() < pd(e.ini) ? '<small>não começou</small>' : '<small>em curso</small>'}</div></div>`;
+      g += `<div class="g-row"><div class="g-lab"><span class="mono">${e.id}</span>${e.nome}</div><div class="g-track"><div class="g-bar ${f >= e.q ? 'ok' : late ? 'late' : hoje() < pd(e.ini) ? 'fut' : ''}${e.eq ? ' c-eq' : ''}" style="left:${a}%;width:${b - a}%" title="Plano de trabalho: ${mesAno(e.ini)} a ${mesAno(e.fim)}"><i style="width:${Math.min(100, f / e.q * 100)}%"></i></div>${e.eq ? (() => { const a2 = pos(pd(e.eq.ini)), b2 = pos(new Date(R.fimMes(e.eq.fim).getTime() + 864e5)); return `<div class="g-eq" style="left:${a2}%;width:${b2 - a2}%" title="Cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}"></div>`; })() : ''}<div class="g-today" style="left:${pos(hoje())}%"></div></div><div class="g-n"><span><b>${f}</b> de ${e.q}</span>${f >= e.q ? '<small class="ok">concluída</small>' : late ? '<small class="bad">vencida</small>' : hoje() < pd(e.ini) ? '<small>não começou</small>' : '<small>em curso</small>'}</div></div>`;
     });
     /* metas do plano de trabalho: uma linha por meta (barra = realizado, traço = previsto até o mês passado); abrir mostra as etapas */
     const mesCurto = d => d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2);
@@ -1889,31 +1929,34 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       return `<div class="mt-g">${gs.map(g => `<div class="mt-gi"><span>${esc(g.titulo)}${g._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${dt(g.data)}${/^https?:\/\//i.test(g.link || '') ? ` · <a href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">abrir a evidência</a>` : ''}</small></span><span class="acts">${pode ? `<button class="b s" data-edit="entregas:${esc(g.id)}">Editar</button>` : ''}${R.podeExcluir(eu, 'entregas', g) && !g._pendente ? `<button class="b s d" data-del="entregas:${esc(g.id)}">Excluir</button>` : ''}</span></div>`).join('')}
         ${pode ? `<button class="b s" data-new="entregas" data-pre="${e.id}">Registrar entrega desta etapa</button>` : gs.length ? '' : '<span class="small">Nenhuma entrega registrada.</span>'}</div>`; };
     const metas = X.porMeta.map(pm => {
-      const es = D.ETAPAS.filter(e => e.m === pm.m), prontas = es.filter(e => feito(e) >= e.q).length, ini = es.map(e => pd(e.ini)).sort((a, b) => a - b)[0];
-      const stM = pm.feito >= 99.5 ? ['ok', 'Concluída'] : hoje() < ini ? ['', 'Começa em ' + mesCurto(ini)] : pm.feito >= pm.prev ? ['ok', 'No ritmo'] : pm.feito >= pm.prev * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
+      // o ritmo segue o cronograma da equipe nas etapas que ele trata; nas outras, o plano de trabalho (TED)
+      const es = D.ETAPAS.filter(e => e.m === pm.m), prontas = es.filter(e => feito(e) >= e.q).length, ini = es.map(e => pd((e.eq || e).ini)).sort((a, b) => a - b)[0], pv = pm.prevEq;
+      const stM = pm.feito >= 99.5 ? ['ok', 'Concluída'] : hoje() < ini && !(pm.feito > 0) ? ['', 'Começa em ' + mesCurto(ini)] : pm.feito >= pv ? ['ok', 'No ritmo'] : pm.feito >= pv * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
       const conta = es.length === 1 ? `<b>${num(feito(es[0]))}</b> de ${num(es[0].q)} (${esc(es[0].un)})` : `<b>${prontas}</b> de ${es.length} etapas concluídas`;
       return `<li><details class="mt ${stM[0]}"><summary><span class="mt-n" aria-hidden="true">M${pm.m}</span><span class="mt-c"><span class="mt-t"><b>${esc(D.METAS[pm.m])}</b><span class="chip ${stM[0]}">${stM[1]}</span></span>
-        <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado, ${pct(pm.prev)}% previsto até o mês passado"><i style="width:${Math.min(100, pm.feito)}%"></i>${pm.prev > 0 && pm.prev < 100 ? `<b style="left:${pm.prev}%"></b>` : ''}</span>
+        <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado; previsto até o mês passado: ${pct(pv)}%${pm.temEq ? ` pelo cronograma da equipe e ${pct(pm.prev)}% pelo plano de trabalho` : ''}"><i style="width:${Math.min(100, pm.feito)}%"></i>${pv > 0 && pv < 100 ? `<b style="left:${pv}%"></b>` : ''}${pm.temEq && pm.prev > 0 && pm.prev < 100 && Math.abs(pm.prev - pv) > 0.5 ? `<b class="ted" style="left:${pm.prev}%"></b>` : ''}</span>
         <span class="mt-p"><span>${conta} · ${pct(pm.feito)}% realizado</span><span class="mt-v">Ver detalhes</span></span></span></summary>
-        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${mesAno(e.ini)} a ${mesAno(e.fim)}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small></span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
+        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${e.eq ? 'Plano de trabalho: ' : ''}${mesAno(e.ini)} a ${mesAno(e.fim)}${e.eq ? ` · cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}` : ''}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small></span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
     /* próximos marcos: saem do que já está no plano (início e prazo de etapa ainda não concluída, parcela a receber, fim da vigência) */
     const dia0 = new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), marcosT = [];
     D.ETAPAS.forEach(e => { const tag = `Meta ${e.m} · ${D.METAS[e.m]}`; if (pd(e.ini) > dia0) marcosT.push([pd(e.ini), `Começa a etapa ${e.id}: ${e.nome}`, tag]); if (feito(e) < e.q) marcosT.push([R.fimMes(e.fim), `Prazo da etapa ${e.id}: ${e.nome}`, tag]); });
     if (!semDinheiro()) D.PARCELAS.forEach((p, i) => { if (!p.recebida && p.previsao) marcosT.push([R.fimMes(p.previsao), `${i + 1}ª parcela do MDA prevista (${brl(p.valor)})`, '']); });
     marcosT.push([pd(D.VIGENCIA.fim), 'Fim da vigência do TED', '']);
+    D.CRONOGRAMA_EQUIPE.itens.forEach(c => { if (c[5] === 'dinheiro' && semDinheiro()) return; marcosT.push([pd(c[2]), c[1], `Cronograma da equipe · item ${c[0]} · Meta ${c[4].join(', ')}`, 'eq']); });
     const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
     const marcosF = marcosT.filter(m => m[0] >= dia0).sort((a, b) => a[0] - b[0]), nMarcos = 5;
-    const marcos = marcosF.slice(0, nMarcos).map((m, i) => { const d = R.dias(dia0, m[0]); return `<li class="${i ? '' : 'prox'}" tabindex="0"><time datetime="${iso(m[0])}"><b>${m[0].getDate()}</b><span>${MESES3[m[0].getMonth()]} ${m[0].getFullYear()}</span></time><div><b>${esc(m[1])}</b>${m[2] ? `<span class="mc-m">${esc(m[2])}</span>` : ''}<span class="mc-d">${d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`}</span></div></li>`; }).join('');
+    const marcos = marcosF.slice(0, nMarcos).map((m, i) => { const d = R.dias(dia0, m[0]); return `<li class="${i ? '' : 'prox'}" tabindex="0"><time datetime="${iso(m[0])}"><b>${m[0].getDate()}</b><span>${MESES3[m[0].getMonth()]} ${m[0].getFullYear()}</span></time><div><b>${esc(m[1])}</b>${m[2] ? `<span class="mc-m${m[3] ? ' eq' : ''}">${esc(m[2])}</span>` : ''}<span class="mc-d">${d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`}</span></div></li>`; }).join('');
     const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
     const I = R.indicadores(db); const F = R.fin(db), usado = R.soma(F, 'pago') + R.soma(F, 'comp'), rec = R.recebido();
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
     return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
-   <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.st][0]}">${ST[X.st][1]}</span></div>
-   <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%, previsto até o mês passado ${pct(X.prev)}%"><i class="${ST[X.st][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prev > 0 ? `<b style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
-   <p class="dx-exec-sub"><span>Previsto até ${X.ate}: <b>${pct(X.prev)}%</b></span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
-   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${semDinheiro() ? 'peso ' + Math.round(x.valor / D.TOTAL * 100) + '%' : brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista; atividade, kit ou entrega com data depois de hoje é planejada e só conta quando a data chega. O traço na barra é o previsto pelo cronograma até o fim do mês passado. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
+   <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.stEq][0]}">${ST[X.stEq][1]}</span></div>
+   <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%; previsto até o mês passado: ${pct(X.prevEq)}% pelo cronograma da equipe e ${pct(X.prev)}% pelo plano de trabalho"><i class="${ST[X.stEq][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prevEq > 0 ? `<b style="left:${Math.min(100, X.prevEq)}%"></b>` : ''}${X.prev > 0 && Math.abs(X.prev - X.prevEq) > 0.5 ? `<b class="ted" style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
+   <p class="dx-exec-sub"><span>Previsto até ${X.ate}</span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
+   <p class="dx-exec-prev"><span><i class="pv-eq" aria-hidden="true"></i>Cronograma da equipe: <b>${pct(X.prevEq)}%</b></span><span><i class="pv-ted" aria-hidden="true"></i>Plano de trabalho (TED): <b>${pct(X.prev)}%</b></span></p>
+   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${semDinheiro() ? 'peso ' + Math.round(x.valor / D.TOTAL * 100) + '%' : brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista; atividade, kit ou entrega com data depois de hoje é planejada e só conta quando a data chega; capacitação e dia de campo só contam com participantes registrados; biofábrica só conta com os 8 passos da implantação. O traço cheio na barra é o previsto até o fim do mês passado pelo cronograma de atividades da equipe (nas etapas que ele não trata, vale o plano de trabalho); o traço vazado, quando aparece, é o previsto pelo plano de trabalho assinado (TED), que é a referência da prestação de contas. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
   <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e) / e.q * 100, feito(e), e.q, lab[e.id], sub[e.id], { '2.1': 'unidades', '4.1': 'agricultores', '3.3': 'agricultores', '3.2': 'eventos' }[e.id] || '')).join('')}</div>
  </section>
  ${semDinheiro() ? '' : `<section class="at panel ${A.some(a => a[0] === 'bad') ? 'crit' : A.length ? 'pend' : ''}" aria-label="O que pede atenção">
@@ -1924,12 +1967,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
    <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>`}
  <div class="mm">
- <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Barra: realizado · traço: previsto até o mês passado · toque na meta para ver as etapas e registrar as entregas</p></div><ul class="mts-l">${metas}</ul></section>
- <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Datas do plano de trabalho: início e prazo das etapas, ${semDinheiro() ? '' : 'parcela a receber e '}fim da vigência.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
+ <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Barra: realizado · traço cheio: previsto pelo cronograma da equipe · traço vazado: pelo plano de trabalho (TED) · toque na meta para ver as etapas e registrar as entregas</p></div><ul class="mts-l">${metas}</ul></section>
+ <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Do plano de trabalho (início e prazo das etapas, ${semDinheiro() ? '' : 'parcela a receber, '}fim da vigência) e do cronograma de atividades da equipe.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
  </div>
  ${mapa()}
  <section class="panel mts gt" aria-label="Cronograma físico do plano de trabalho"><div class="mts-cab"><h2>Cronograma físico do plano de trabalho</h2>
-  <p class="g-leg"><span><i class="g-k jan"></i>período da etapa</span><span><i class="g-k fei"></i>já registrado</span><span><i class="g-k fut"></i>ainda não começou</span><span><i class="g-k late"></i>prazo vencido</span><span><i class="g-k hj"></i>hoje</span></p></div>
+  <p class="g-leg"><span><i class="g-k jan"></i>período da etapa</span><span><i class="g-k fei"></i>já registrado</span><span><i class="g-k fut"></i>ainda não começou</span><span><i class="g-k late"></i>prazo vencido</span><span><i class="g-k hj"></i>hoje</span><span><i class="g-k eq"></i>cronograma da equipe</span></p></div>
   <div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><div class="gantt"><div class="g-row cab"><span></span><div class="g-months">${meses.map((m, i) => `<span class="${i === (hoje().getFullYear() - G0.getFullYear()) * 12 + hoje().getMonth() - G0.getMonth() ? 'g-at' : ''}">${m}</span>`).join('')}<i class="g-hj" style="left:${pos(hoje())}%">hoje</i></div><span></span></div>${g}</div></div></section>
  <div class="two">
   ${prodDist(prod)}
@@ -2000,11 +2043,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
      <button class="b" data-ficha="${esc(a.id)}">Ver detalhes</button></li>`; };
     return `<div class="head"><div><h2>Agricultores e unidades produtivas</h2><p>Meta de ${meta} unidades produtivas acompanhadas e ${meta} kits. Registre a linha de base antes da primeira entrega de bioinsumo.</p></div><div class="acts">${pode ? '<button class="b p" data-new="agricultores">Nova unidade produtiva</button>' : ''}</div></div>
  <section class="dx-topo panel" aria-label="Indicadores das unidades produtivas">
-  ${(() => { const real = acomp / meta * 100, prev = R.previstoEtapa(D.ETAPAS.find(e => e.id === '4.1'), hoje()) * 100, st = real >= 99.5 ? ['ok', 'Meta alcançada'] : real >= prev ? ['ok', 'No ritmo'] : real >= prev * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
+  ${(() => { const real = acomp / meta * 100, e41 = D.ETAPAS.find(e => e.id === '4.1'), prev = R.previstoEtapa(e41, hoje(), 'equipe') * 100, prevTed = R.previstoEtapa(e41, hoje()) * 100, st = real >= 99.5 ? ['ok', 'Meta alcançada'] : real >= prev ? ['ok', 'No ritmo'] : real >= prev * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
     return `<div class="dx-exec"><span class="dx-rot">Unidades produtivas acompanhadas</span><div class="dx-exec-num"><b>${pct(real)}%</b></div><div><span class="chip ${st[0]}">${st[1]}</span></div>
-   <span class="medidor" role="img" aria-label="${pct(real)}% acompanhadas; previsto até o mês passado: ${pct(prev)}%"><i class="${st[0] === 'ok' ? '' : st[0]}" style="width:${Math.min(100, real)}%"></i>${prev > 0 && prev < 100 ? `<b style="left:${prev}%"></b>` : ''}</span>
+   <span class="medidor" role="img" aria-label="${pct(real)}% acompanhadas; previsto até o mês passado: ${pct(prev)}% pelo cronograma da equipe e ${pct(prevTed)}% pelo plano de trabalho"><i class="${st[0] === 'ok' ? '' : st[0]}" style="width:${Math.min(100, real)}%"></i>${prev > 0 && prev < 100 ? `<b style="left:${prev}%"></b>` : ''}${prevTed > 0 && prevTed < 100 && Math.abs(prevTed - prev) > 0.5 ? `<b class="ted" style="left:${prevTed}%"></b>` : ''}</span>
    <p class="dx-exec-sub"><span>Acompanhadas: <b>${acomp}</b></span><span>Meta do plano: <b>${meta}</b></span></p>
-   <details class="dx-como"><summary>Como é calculado</summary><p>Conta como acompanhada a unidade produtiva que recebeu bioinsumo e teve pelo menos uma visita de monitoramento no dia da primeira entrega ou depois (visita anterior à entrega não acompanha o uso). O percentual é sobre a meta de ${meta} da etapa 4.1. O traço na barra é o previsto pelo cronograma até o fim do mês passado.</p></details></div>`; })()}
+   <details class="dx-como"><summary>Como é calculado</summary><p>Conta como acompanhada a unidade produtiva que recebeu bioinsumo e teve pelo menos uma visita de monitoramento no dia da primeira entrega ou depois (visita anterior à entrega não acompanha o uso). O percentual é sobre a meta de ${meta} da etapa 4.1. Traço cheio: previsto até o fim do mês passado pelo cronograma da equipe (acompanhamento de ${mesAno(e41.eq.ini)} a ${mesAno(e41.eq.fim)}); traço vazado: pelo plano de trabalho (${mesAno(e41.ini)} a ${mesAno(e41.fim)}).</p></details></div>`; })()}
   <div class="dx-kpis fin">
   ${kpi(1, L.length / meta * 100, L.length, 'de ' + meta, 'unidades produtivas cadastradas', falta(L.length, meta))}
   ${kpi(2, L.length ? base / L.length * 100 : 0, base, 'de ' + L.length, 'com linha de base (diagnóstico inicial)', L.length ? falta(base, L.length) : 'nenhuma cadastrada')}
@@ -2137,11 +2180,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   <div class="mp-g"><div class="mp-m"><svg data-vb="${W}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Mapa do ${ufs.map(u => u === 'CE' ? 'Ceará' : 'Rio Grande do Norte').join(' e do ')} com as biofábricas e as unidades produtivas por município. Cada círculo abre os dados do município e cada frasco, os da biofábrica; os mesmos números estão na lista ao lado.">
     ${ufs.map(u => G.uf[u].r.map(r => `<path class="mp-uf" d="${anel(r)}"/>`).join('') + `<text class="mp-sg" x="${X((G.uf[u].b[0] + G.uf[u].b[2]) / 2)}" y="${Y((G.uf[u].b[1] + G.uf[u].b[3]) / 2 - (u === 'CE' ? 0.9 : 0.35))}" text-anchor="middle">${u}</text>`).join('')}
     ${nos.filter(o => o.g).map(o => { const g = o.g; return `<g class="mp-p${g.k === mapaMun ? ' sel' : ''}" role="button" tabindex="0" data-mapamun="${esc(g.k)}" aria-pressed="${g.k === mapaMun}" aria-label="${esc(g.nome)}: ${g.n} unidade(s) produtiva(s), ${g.ac} acompanhada(s). Ver detalhes"><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${o.r.toFixed(1)}"/><text x="${o.x.toFixed(1)}" y="${(o.y + 4.5).toFixed(1)}" text-anchor="middle">${g.n}</text></g>`; }).join('')}
-    ${nos.filter(o => o.b).map(o => { const x = o.b, cx = o.x, cy = o.y; const k = 'bio:' + x.u.id; return `<g class="mp-b${k === mapaMun ? ' sel' : ''}" role="button" tabindex="0" data-mapamun="${esc(k)}" aria-pressed="${k === mapaMun}" aria-label="Biofábrica ${esc(x.u.nome)} (${esc(x.u.municipio)}/${esc(x.u.uf)}): ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação. Ver detalhes"><circle class="mp-b-alvo" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="16"/><g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)})">${FRASCO}</g><text x="${(cx + 17).toFixed(1)}" data-esq="${(cx - 17).toFixed(1)}" y="${(cy + 4).toFixed(1)}">${esc(x.u.sigla)}</text></g>`; }).join('')}
+    ${nos.filter(o => o.b).map(o => { const x = o.b, cx = o.x, cy = o.y; const k = 'bio:' + x.u.id; return `<g class="mp-b${k === mapaMun ? ' sel' : ''}" role="button" tabindex="0" data-mapamun="${esc(k)}" aria-pressed="${k === mapaMun}" aria-label="${esc(x.u.sigla)}: biofábrica ${esc(x.u.nome)} (${esc(x.u.municipio)}/${esc(x.u.uf)}), ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação. Ver detalhes"><circle class="mp-b-alvo" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="16"/><g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)})">${FRASCO}</g><text x="${(cx + 17).toFixed(1)}" data-esq="${(cx - 17).toFixed(1)}" y="${(cy + 4).toFixed(1)}">${esc(x.u.sigla)}</text></g>`; }).join('')}
    </svg><div class="leg"><span><i class="mk c"></i>Unidades produtivas no município (o número é quantas)</span><span><svg class="mk-f" viewBox="-13 -13 26 26" width="20" height="20" aria-hidden="true" focusable="false">${FRASCO}</svg>Biofábrica</span></div></div>
    <div class="mp-l">${aberto ? detalheMun(aberto) : bioAberta ? detalheBio(bioAberta) : ''}<div class="mp-resumo"${aberto || bioAberta ? ' hidden' : ''}><div class="mp-n"><b>${visiveis.length}</b><span><strong>unidades produtivas</strong>${pts.length} município(s) · meta de 30</span></div>
     <div><h3>Situação</h3><ul class="mp-s">${ORDEM.map(o => `<li><span class="chip ${o[1]}">${o[0]}</span><b>${cont[o[0]] || 0}</b></li>`).join('')}</ul></div>
-    <div><h3>Biofábricas</h3>${bio.length ? `<ul class="mp-s bf">${bio.map(x => `<li><button type="button" class="mp-mun mp-bf" data-mapamun="bio:${esc(x.u.id)}" aria-pressed="false" aria-label="${esc(x.u.nome)}, ${esc(x.u.municipio)}/${esc(x.u.uf)}: ${nCheck(x.u)} de ${D.CHECK.length} passos da implantação. Ver detalhes"><svg class="mk-f" viewBox="-13 -13 26 26" width="28" height="28" aria-hidden="true" focusable="false">${FRASCO}</svg><span>${esc(x.u.nome)}<small>${esc(x.u.municipio)}/${esc(x.u.uf)}${x.u.conta === 'Sim' ? '' : ' · apoio'}</small></span><b>${nCheck(x.u)}/${D.CHECK.length}</b></button></li>`).join('')}</ul>` : '<p class="small">Nenhuma neste recorte.</p>'}</div>
+    <div><h3>Biofábricas</h3>${bio.length ? `<ul class="mp-s bf">${bio.map(x => `<li><button type="button" class="mp-mun mp-bf" data-mapamun="bio:${esc(x.u.id)}" aria-pressed="false" title="Ver os dados da biofábrica"><svg class="mk-f" viewBox="-13 -13 26 26" width="28" height="28" aria-hidden="true" focusable="false">${FRASCO}</svg><span>${esc(x.u.nome)}<small>${esc(x.u.municipio)}/${esc(x.u.uf)}${x.u.conta === 'Sim' ? '' : ' · apoio'}</small></span><b><span aria-hidden="true">${nCheck(x.u)}/${D.CHECK.length}</span><span class="so">${nCheck(x.u)} de ${D.CHECK.length} passos</span></b></button></li>`).join('')}</ul>` : '<p class="small">Nenhuma neste recorte.</p>'}</div>
     <div><h3>Municípios com mais unidades produtivas</h3>${pts.length ? `<ul class="mp-s pt">${pts.slice(0, 8).map(g => `<li><button type="button" class="mp-mun" data-mapamun="${esc(g.k)}" aria-pressed="${g.k === mapaMun}"><span>${esc(g.nome)}</span><b>${g.n}</b></button></li>`).join('')}</ul>` : '<p class="small">Nenhuma unidade produtiva cadastrada neste recorte.</p>'}</div></div></div></div></section>`;
   }
   /* ---------- financeiro: gráfico do ritmo do gasto, uso de cada rubrica e tabela que abre ---------- */
@@ -2397,7 +2440,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
  <div class="panel rel-doc"><p class="rel-sup">Relatório de execução · ${dt(rel.de)} a ${dt(rel.ate)}</p><h2>${esc(D.NOME_COMPLETO)}</h2>
  <p class="small">${esc(D.IDENT)}<br>Gerado em ${hoje().toLocaleDateString('pt-BR')} por ${esc(eu ? eu.nome : '')}</p></div>
  ${sec('fis', '1. Execução física acumulada', `Até ${dt(fimRel)} · o que está marcado para depois é planejado e não conta`, tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], fis.map(({ e, f }) => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, f, num(Math.min(100, f / e.q * 100)) + '%']), true))}
- ${sec('bio', '2. Unidades de produção de bioinsumos', `${db.unidades.filter(u => u.funcionando).length} em funcionamento de ${db.unidades.length} cadastrada(s)`, tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true))}
+ ${sec('bio', '2. Unidades de produção de bioinsumos', `${db.unidades.filter(u => nCheck(u) === D.CHECK.length).length} em funcionamento (com os ${D.CHECK.length} passos) de ${db.unidades.length} cadastrada(s)`, tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true))}
  ${sec('ati', '3. Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), R.vazio(e.part) ? '—' : `${num(e.part)} (${num(e.mulheres)} mulheres)`])) + (tp ? `<p>Total de ${num(tp)} participações, ${num(tm / tp * 100)}% de mulheres.</p>` : ''))}
  ${sec('lot', '4. Produção de bioinsumos no período', lo.length ? `${lo.length} lote(s) iniciado(s)` : '', tl(['Lote', 'Tipo', 'Unidade', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`])))}
  ${sec('dis', '5. Distribuição no período', '', tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, esc((by('agricultores', d.agricultor) || {}).nome), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; })) + (di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : ''))}

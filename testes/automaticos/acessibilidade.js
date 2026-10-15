@@ -41,7 +41,7 @@ async function percorrer(ctx, visita, { soAbas = false } = {}) {
   }
   const p = await ctx.newPage(); await p.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: DEMO }));
   await p.goto(URL_); await p.waitForSelector('[data-demo="Coordenação"]');
-  for (const perfil of ['Coordenação', 'Equipe', 'Acompanhamento']) {
+  for (const perfil of ['Coordenação', 'Equipe', 'Auxiliar', 'Formador', 'Acompanhamento']) {
     if (await p.$('[data-sair]:visible')) await p.click('header [data-sair]');
     await p.click(`[data-demo="${perfil}"]`); await p.waitForFunction(x => (document.querySelector('#quem') || {}).textContent.includes(x), perfil);
     const abas = await p.$$eval('#tabs [data-tab]', l => l.map(x => x.dataset.tab));
