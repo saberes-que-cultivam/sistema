@@ -569,4 +569,42 @@ do $$ declare n int; e uuid; v uuid; begin
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
+-- ===== script 24: foto de perfil da equipe =====
+-- equipe dois (e2@teste.br, tem cadastro ativo na equipe): troca a própria; não a de outra pessoa
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000003', 'e2@teste.br');
+set role authenticated;
+do $$ declare eu uuid := public.meu_membro(); outro uuid; cam text; begin
+  if eu is null then raise exception 'FALHOU: meu_membro não achou o cadastro da equipe'; end if;
+  select id into outro from public.membros where id <> eu and (fim is null or fim >= current_date) limit 1;
+  cam := eu || '/' || gen_random_uuid() || '.jpg';
+  insert into storage.objects (bucket_id, name) values ('equipe', cam);
+  perform public.definir_foto(eu, cam);
+  if (select foto from public.membros where id = eu) <> cam then raise exception 'FALHOU: foto não foi gravada'; end if;
+  begin insert into storage.objects (bucket_id, name) values ('equipe', outro || '/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: enviou foto na pasta de outra pessoa';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin perform public.definir_foto(outro, null); raise exception 'FALHOU: tirou a foto de outra pessoa';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin perform public.definir_foto(eu, eu || '/' || gen_random_uuid() || '.jpg'); raise exception 'FALHOU: gravou caminho de foto que não está no servidor';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  begin insert into storage.objects (bucket_id, name) values ('equipe', eu || '/qualquer.png'); raise exception 'FALHOU: aceitou nome de arquivo fora do formato';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+end $$;
+reset role;
+-- formador(a) e SEAB/MDA não veem as fotos da equipe; a coordenação troca a de qualquer pessoa
+select teste.sou('bbbbbbbb-0000-4000-8000-00000000000b', 'form@teste.br');
+set role authenticated;
+do $$ begin if exists (select 1 from storage.objects where bucket_id = 'equipe') then raise exception 'FALHOU: formador viu foto da equipe'; end if; end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000009', 'mda@teste.br');
+set role authenticated;
+do $$ begin if exists (select 1 from storage.objects where bucket_id = 'equipe') then raise exception 'FALHOU: SEAB/MDA viu foto da equipe'; end if; end $$;
+reset role;
+select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
+set role authenticated;
+do $$ declare alvo uuid; antes text; begin
+  select id into alvo from public.membros where email = 'e2@teste.br';
+  antes := public.definir_foto(alvo, null);
+  if antes is null or (select foto from public.membros where id = alvo) is not null then raise exception 'FALHOU: coordenação não tirou a foto (ou não recebeu o caminho antigo)'; end if;
+end $$;
+reset role;
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

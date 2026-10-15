@@ -23,7 +23,7 @@ export PGOPTIONS=--client-min-messages=warning
 $P -f "$TESTES/stub_supabase.sql"
 $P -f "$SUPA/01_criar_banco.sql" >/dev/null
 $P -f "$SUPA/03_dados_iniciais.sql" >/dev/null
-for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 16_seab_sem_financeiro 17_formador 18_local_da_visita 19_meus_contatos 20_auditoria_1410 21_historico_downloads 22_auditoria_1410b 23_perfis_auxiliar_formador; do
+for n in 04_endurecimento 05_acompanhamento 06_item_da_despesa 07_equipe 08_equipe_dados 09_ultimos_acessos 10_equipe_cadastro_completo 11_convite_cadastro 12_contas_e_conferencias 13_presenca_e_fotos 14_falta_enviar 15_auditoria_1310 16_seab_sem_financeiro 17_formador 18_local_da_visita 19_meus_contatos 20_auditoria_1410 21_historico_downloads 22_auditoria_1410b 23_perfis_auxiliar_formador 24_foto_da_equipe; do
   $P -f "$SUPA/$n.sql" >/dev/null
 done
 V="$($P -At -f "$SUPA/00_verificar.sql" | grep -v '^coordenação ativa' || true)"

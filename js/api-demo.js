@@ -85,6 +85,14 @@
       const m = db.membros.find(x => x.id === id); if (!m) throw falha(R.MSG_EXCLUIDO);
       m.arlo = arlo || null; m.termo_em = termoEm || null; m.atualizado_em = new Date().toISOString(); persistir(); return JSON.parse(JSON.stringify(m));
     },
+    /* foto da equipe na demonstração: guardada no próprio navegador (imagem pequena, 320 px) */
+    async fotoEquipe(caminho) { return caminho; },
+    async trocarFotoEquipe(membro, blob) {
+      if (!eu || !(eu.perfil === 'Coordenação' || (db.membros.find(m => m.id === membro) || {}).email === eu.email)) throw falha('Só a própria pessoa ou a coordenação trocam esta foto.');
+      const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(falha('Não foi possível ler a foto.')); r.readAsDataURL(blob); });
+      const m = db.membros.find(x => x.id === membro); m.foto = url; persistir(); return url;
+    },
+    async tirarFotoEquipe(membro) { const m = db.membros.find(x => x.id === membro); if (m) { m.foto = null; persistir(); } },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */
     async carregar() {

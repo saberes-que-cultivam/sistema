@@ -861,6 +861,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const m = db.membros.find(x => x.id === id); if (!m) throw falha(R.MSG_EXCLUIDO);
       m.arlo = arlo || null; m.termo_em = termoEm || null; m.atualizado_em = new Date().toISOString(); persistir(); return JSON.parse(JSON.stringify(m));
     },
+    /* foto da equipe na demonstração: guardada no próprio navegador (imagem pequena, 320 px) */
+    async fotoEquipe(caminho) { return caminho; },
+    async trocarFotoEquipe(membro, blob) {
+      if (!eu || !(eu.perfil === 'Coordenação' || (db.membros.find(m => m.id === membro) || {}).email === eu.email)) throw falha('Só a própria pessoa ou a coordenação trocam esta foto.');
+      const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(falha('Não foi possível ler a foto.')); r.readAsDataURL(blob); });
+      const m = db.membros.find(x => x.id === membro); m.foto = url; persistir(); return url;
+    },
+    async tirarFotoEquipe(membro) { const m = db.membros.find(x => x.id === membro); if (m) { m.foto = null; persistir(); } },
     async sair() { eu = null; gravar(CHAVE + '-eu', ''); },
     /* igual ao banco de verdade: quem acompanha de fora recebe as unidades produtivas numeradas e as visitas sem texto livre */
     async carregar() {
@@ -999,7 +1007,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
      e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
   let semCompleto = false;
-  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
+  let semFoto = false;   // o banco ainda não tem a coluna da foto (falta rodar o script 24): lê sem ela
+  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(semFoto ? [] : ['foto']).concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
   const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
   /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
   const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); x._sr = true; return x; }) });   // _sr: "sem os reservados" — não pode ser regravado
@@ -1016,6 +1025,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     let tudo = [];
     for (let de = 0; de < 100000;) {
       let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      if (error && tabela === 'membros' && !semFoto && (error.code === '42703' || error.code === 'PGRST204') && /foto/.test(String(error.message))) { semFoto = true; de = 0; tudo = []; continue; }
       if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
       if (error && (tabela === 'presencas' || tabela === 'fotos') && (error.code === '42P01' || error.code === 'PGRST205' || new RegExp(tabela).test(String(error.message)))) { SQC.apiSupabase.semEvidencias = true; return []; }   // falta rodar o script 13
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
@@ -1067,6 +1077,26 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error);
       }
       return linha;
+    },
+    /* ----- foto de perfil da equipe (script 24): pasta privada "equipe", caminho <id da pessoa>/<código>.jpg ----- */
+    _fotosEq: new Map(),
+    async fotoEquipe(caminho) {
+      if (this._fotosEq.has(caminho)) return this._fotosEq.get(caminho);
+      const { data, error } = await sb.storage.from('equipe').download(caminho); if (error) throw erro(error);
+      const u = URL.createObjectURL(data); this._fotosEq.set(caminho, u); return u;
+    },
+    async trocarFotoEquipe(membro, blob) {
+      const caminho = `${membro}/${SQC.novoId()}.jpg`, pasta = sb.storage.from('equipe');
+      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'A foto da equipe ainda não foi ligada no banco: a coordenação precisa rodar o script 24_foto_da_equipe.sql no Supabase.' } : up.error); }
+      const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: caminho });
+      if (error) { await pasta.remove([caminho]).catch(() => {}); throw erro(error); }
+      if (antes) await pasta.remove([antes]).catch(() => {});
+      return caminho;
+    },
+    async tirarFotoEquipe(membro) {
+      const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: null }); if (error) throw erro(error);
+      if (antes) await sb.storage.from('equipe').remove([antes]).catch(() => {});
     },
     async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho);
       if (error && /not found|404|Object not found/i.test(String(error.message || error.statusCode || ''))) throw erro({ code: 'P0001', message: 'O arquivo desta foto não chegou ao servidor. Exclua e envie de novo.' });
@@ -1608,7 +1638,21 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     });
   }
 
-  SQC.fotodia = { lerMomentoExif, conferir, reduzir, abrirCamera, hoje };
+  /* foto de perfil: recorte quadrado do meio da foto, 320 × 320 px, JPEG (uns 20 a 40 KB). Redesenhar no canvas descarta qualquer
+     coisa que não seja imagem (um SVG com código, por exemplo). */
+  async function quadrada(arquivo, lado = 320) {
+    if (!arquivo || !/^image\//.test(arquivo.type || '') || arquivo.size > 25 * 1024 * 1024) throw new Error('Escolha uma foto (JPEG ou PNG) de até 25 MB.');
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => falha(new Error('Este arquivo não é uma foto que o navegador consiga abrir. Use JPEG ou PNG.')); i.src = url; });
+      const m = Math.min(img.naturalWidth, img.naturalHeight); if (!m) throw new Error('Foto vazia.');
+      const c = document.createElement('canvas'); c.width = c.height = lado;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, lado, lado);
+      const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82)); if (!b) throw new Error('A foto não pôde ser preparada. Tente de novo.');
+      return b;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  SQC.fotodia = { lerMomentoExif, conferir, reduzir, quadrada, abrirCamera, hoje };
 })();
 ;
 /* ===== app.js ===== */
@@ -2236,7 +2280,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const bloco = f => { const x = FI.find(i => i.id === f[1]), E = R.equipePorFuncao(db, f[0], hj), ms = x ? x.meses : [], bolsas = {};
       (x ? x.despesas : []).forEach(d => { const k = R.nrm(d.favorecido); if (!k) return; const g = bolsas[k] = bolsas[k] || { nome: d.favorecido, n: 0, pago: 0, comp: 0 }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; });
       const bolsaDe = m => { const g = bolsas[R.nrm(m.nome)]; if (g) g.visto = 1; return g ? `<span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}` : '<span>nenhuma bolsa na planilha ainda</span>'; };
-      const cartao = m => `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(m.nome))}</span><div class="pc-t"><div class="pc-n"><b>${esc(m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${cuidaHab() ? seloHab(m) : ''}${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
+      const cartao = m => `<li class="pc">${avatar(m)}<div class="pc-t"><div class="pc-n"><b>${esc(m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${cuidaHab() ? seloHab(m) : ''}${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
         <button class="b eq-vd" data-fichamembro="${esc(m.id)}">Ver detalhes</button></li>`;
       const ult = E.antigos[0], vaga = `<div class="vg"><div><span class="chip f vg-c">Vaga aberta</span><p>${ult ? `A pessoa anterior, ${esc(ult.nome)}, foi desligada em ${dt(ult.fim)}.` : 'Ninguém foi cadastrado nesta função ainda.'}</p></div>${pode ? `<button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button>` : ''}</div>`;
       const corpo = (E.ativos.length ? `<ul class="eq-l">${E.ativos.map(cartao).join('')}</ul>` : '') + (!E.ativos.length ? vaga : !f[5] && pode ? `<div class="acts"><button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button></div>` : '');
@@ -2469,9 +2513,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (!eu || !db) return;
     nav(); const v = $('#view');
     v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
-    tituloDaTela(v); escalaDesenhos(); paradasDeLeitura(); margemDoMenu(); if (chave) requestAnimationFrame(() => devolverFoco(chave));   // depois de desenhar: focar antes forçava refazer a página inteira na hora
+    tituloDaTela(v); escalaDesenhos(); paradasDeLeitura(); margemDoMenu(); carregarFotosEq(); if (chave) requestAnimationFrame(() => devolverFoco(chave));   // depois de desenhar: focar antes forçava refazer a página inteira na hora
     if (!abas().some(t => t[0] === tab)) tab = 'painel';
-    $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome);
+    $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome); atualizarCabecalhoFoto(); carregarFotosEq();
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
     $('#quem-papel').textContent = (R.NOME_PERFIL[eu.perfil] || eu.perfil) + (eu.orgao ? ' · ' + eu.orgao : '');
     $('#net').hidden = navigator.onLine !== false && !(api.offline);
@@ -2805,6 +2849,34 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else toast(id ? 'Alterações salvas.' : 'Registro salvo.');
   }
 
+  /* foto de perfil da equipe (24): avatar com a foto quando houver; a imagem chega depois (pasta privada), por carregarFotosEq */
+  const avatar = (m, cls) => `<span class="${cls || 'pc-av'}${m.foto ? ' com-foto' : ''}"${m.foto ? ` data-fotoeq="${esc(m.foto)}"` : ''} aria-hidden="true">${esc(iniciais(m.nome))}</span>`;
+  const podeFoto = m => !!m && (coord() || (eu && R.nrm(eu.email) === R.nrm(m.email)));
+  const botoesFoto = m => `<div class="foto-acts"><button type="button" class="b s" data-fotoeqtrocar="${esc(m.id)}">${m.foto ? 'Trocar a foto' : 'Pôr uma foto'}</button>${m.foto ? `<button type="button" class="b s" data-fotoeqtirar="${esc(m.id)}">Tirar a foto</button>` : ''}<span class="small">A foto aparece só para a equipe do projeto.</span></div>`;
+  function carregarFotosEq() {
+    document.querySelectorAll('[data-fotoeq]:not([data-fotook])').forEach(async el => {
+      el.dataset.fotook = '1';
+      try { const u = await api.fotoEquipe(el.dataset.fotoeq); if (el.isConnected) el.innerHTML = `<img src="${esc(u)}" alt="" width="64" height="64" decoding="async">`; }
+      catch (e) { /* sem internet ou foto apagada: ficam as iniciais */ }
+    });
+  }
+  function escolherFotoEq(id, b) {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.hidden = true; document.body.appendChild(i);
+    i.addEventListener('change', async () => { const f = i.files && i.files[0]; i.remove(); if (!f) return;
+      const err = $('#ferr'); b.disabled = true; b.textContent = 'Enviando…';
+      try { const blob = await SQC.fotodia.quadrada(f); const caminho = await api.trocarFotoEquipe(id, blob); const m = by('membros', id); if (m) m.foto = caminho; depoisFotoEq(id, 'Foto atualizada.'); }
+      catch (e) { b.disabled = false; b.textContent = 'Trocar a foto'; if (err) err.textContent = e.semRede ? 'Sem internet: a foto precisa de conexão. Tente quando o sinal voltar.' : e.message; }
+    }, { once: true });
+    i.click();
+  }
+  async function tirarFotoEq(id, b) {
+    b.disabled = true; try { await api.tirarFotoEquipe(id); const m = by('membros', id); if (m) m.foto = null; depoisFotoEq(id, 'Foto retirada.'); }
+    catch (e) { b.disabled = false; const err = $('#ferr'); if (err) err.textContent = e.message; }
+  }
+  // volta à janela de onde veio (Meus dados ou a ficha) e redesenha a aba
+  function depoisFotoEq(id, msg) { const meus = !!$('#frm.md'); render(); if (meus) abrirMeusDados({ msg }); else { abrirFichaMembro(id); const ok = $('#fok'); if (ok) ok.textContent = msg; } atualizarCabecalhoFoto(); }
+  function atualizarCabecalhoFoto() { const m = meuMembro(), el = $('#quem-av'); if (!el || !eu) return;
+    el.removeAttribute('data-fotook'); if (m && m.foto) { el.dataset.fotoeq = m.foto; el.classList.add('com-foto'); } else { delete el.dataset.fotoeq; el.classList.remove('com-foto'); el.textContent = iniciais(demo() ? eu.perfil : eu.nome); } }
   /* habilitação na FUNCERN (Arlo e termo): a coordenação e o auxiliar administrativo acompanham e marcam */
   const cuidaHab = () => coord() || auxiliar();
   const seloHab = m => m.arlo === 'Sim' && m.termo_em ? '<span class="chip ok">Habilitado(a) na FUNCERN</span>' : m.arlo === 'Sim' ? '<span class="chip f">Falta o termo</span>' : '<span class="chip f">Falta o Arlo</span>';
@@ -2817,7 +2889,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const perf = [['agricultor', 'É agricultor(a)'], ['atua_af', 'Atua com agricultura familiar'], ['zona_rural', 'Mora na zona rural'], ['celular_internet', 'Celular com internet']].filter(([k]) => m[k]).map(([k, t]) => `${t}: ${esc(m[k])}`).join(' · ');
     ed = null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(NOME_FUNCAO[m.funcao] || 'Equipe')}</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
-     <div class="fm-corpo fi"><div class="fi-top"><span class="pc-av" aria-hidden="true">${esc(iniciais(m.nome))}</span><div><span class="chip ${ativo ? 'ok' : ''}">${ativo ? (m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe') : 'Desligado(a) em ' + dt(m.fim)}</span>${res ? seloHab(m) : ''}${F ? `<p class="small">${esc(F[4])}</p>` : ''}</div></div>
+     <div class="fm-corpo fi"><div class="fi-top">${avatar(m)}<div><span class="chip ${ativo ? 'ok' : ''}">${ativo ? (m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe') : 'Desligado(a) em ' + dt(m.fim)}</span>${res ? seloHab(m) : ''}${F ? `<p class="small">${esc(F[4])}</p>` : ''}</div></div>
+      ${podeFoto(m) ? botoesFoto(m) : ''}
       ${bloco('Contato', l('E-mail (login)', esc(m.email)) + l('Celular', esc(m.telefone)) + l('Município', esc(m.municipio)))}
       ${bloco('Vínculo', l('Nome social', esc(m.nome_social)) + l('Instituição ou curso', esc(m.vinculo)) + l('Organização', esc(m.organizacao)) + l('SIAPE', esc(m.siape)))}
       ${bloco('Bolsa', l('Início', dt(m.inicio)) + l('Desligamento', m.fim ? dt(m.fim) + (m.motivo ? ' · ' + esc(m.motivo) : '') : '') + l('Outra bolsa hoje', esc(m.outra_bolsa)))}
@@ -2825,8 +2898,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       ${res ? bloco('Dados para o cadastro no Arlo (reservados)', l('CPF', m.cpf ? fmtCpf(m.cpf) : '') + l('PIS/NIS', esc(m.pis)) + l('Nascimento', m.nascimento ? dt(m.nascimento) : '') + l('Endereço', end)) : ''}
       ${['discente', 'formador'].includes(m.funcao) && perf ? bloco('Perfil no campo', l('Respostas', perf) + l('Experiência', esc(m.experiencia))) : ''}
       ${coord() ? bloco('Questionário socioeconômico', l('Respondeu', m.socio ? 'Sim (só a coordenação vê as respostas, no formulário de edição)' : 'Não')) : ''}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button>${res ? `<button type="button" class="b" data-habilitar="${esc(m.id)}">Marcar habilitação</button>` : ''}${R.podeGravar(eu, 'membros') ? `<button type="button" class="b p" data-edit="membros:${esc(m.id)}">Editar cadastro</button>` : ''}</div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button>${res ? `<button type="button" class="b" data-habilitar="${esc(m.id)}">Marcar habilitação</button>` : ''}${R.podeGravar(eu, 'membros') ? `<button type="button" class="b p" data-edit="membros:${esc(m.id)}">Editar cadastro</button>` : ''}</div></div>`;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
+    carregarFotosEq();
   }
   function abrirHabilitacao(id, msg) {
     const m = by('membros', id); if (!m) return; ed = null; $('#frm').className = 'fm'; hab = { id, base: m.atualizado_em };
@@ -3085,6 +3159,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     else if (d.print !== undefined) window.print();
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
+    else if (d.fotoeqtrocar) escolherFotoEq(d.fotoeqtrocar, t);
+    else if (d.fotoeqtirar) await tirarFotoEq(d.fotoeqtirar, t);
     else if (d.fichamembro) abrirFichaMembro(d.fichamembro);
     else if (d.habilitar) abrirHabilitacao(d.habilitar);
     else if (d.habsalvar !== undefined) await salvarHabilitacao(t);
@@ -3163,16 +3239,17 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     ed = null; $('#frm').className = 'fm md';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(demo() ? 'Demonstração · ' + (R.NOME_PERFIL[eu.perfil] || eu.perfil) : (R.NOME_PERFIL[eu.perfil] || eu.perfil) + (eu.orgao ? ' · ' + eu.orgao : ''))}</span><h2>Meus dados</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">
-      <section class="md-c" aria-label="Seus dados"><div class="md-t"><span class="md-av" aria-hidden="true">${esc(iniciais(demo() ? eu.perfil : eu.nome))}</span><div><b>${esc(demo() ? eu.nome : (m && m.nome) || eu.nome)}</b><span>${esc(m ? NOME_FUNCAO[m.funcao] || '' : eu.perfil)}${m && !ativo ? ' · saiu em ' + dt(m.fim) : ''}</span></div></div>
+      <section class="md-c" aria-label="Seus dados"><div class="md-t">${m && m.foto ? avatar(m, "md-av") : `<span class="md-av" aria-hidden="true">${esc(iniciais(demo() ? eu.perfil : eu.nome))}</span>`}<div><b>${esc(demo() ? eu.nome : (m && m.nome) || eu.nome)}</b><span>${esc(m ? NOME_FUNCAO[m.funcao] || '' : eu.perfil)}${m && !ativo ? ' · saiu em ' + dt(m.fim) : ''}</span></div></div>
+       ${m && ativo && podeFoto(m) ? botoesFoto(m) : ''}
        <dl class="md-l">${linha('E-mail de acesso', eu.email)}${linha('Perfil no sistema', R.NOME_PERFIL[eu.perfil] || eu.perfil)}${linha('Órgão', eu.orgao)}${m ? linha('Celular', m.telefone) + linha('Município', m.municipio) + linha('Vínculo', m.vinculo) + linha('Na equipe desde', dt(m.inicio)) : ''}</dl></section>
       ${m && ativo ? `<section class="md-c" aria-labelledby="md-ed"><h3 class="fm-sec" id="md-ed">Atualizar meu celular e município</h3><div class="fields"><div class="fld"><label for="f_telefone">Celular (com DDD)</label><input id="f_telefone" autocomplete="tel" inputmode="tel" value="${esc(m.telefone || '')}"></div><div class="fld"><label for="md_mun">Município</label><input id="md_mun" autocomplete="address-level2" value="${esc(m.municipio || '')}"></div></div>
         <div class="acts"><button type="button" class="b p" data-meussalvar>Salvar meus dados</button>${coord() ? `<button type="button" class="b" data-edit="membros:${esc(m.id)}">Editar meu cadastro completo</button>` : ''}</div>
         <p class="note">Nome, função, e-mail e os dados da bolsa só a coordenação altera.</p></section>`
-        : fora() ? '' : m ? `<p class="note">Seu cadastro na equipe está encerrado desde ${dt(m.fim)}. Para corrigir, fale com a coordenação.</p>` : `<p class="note">Seu acesso ainda não está ligado a um cadastro da equipe (o e-mail do cadastro é diferente deste). Peça à coordenação para conferir o e-mail em Equipe.</p>`}
+        : fora() ? '' : m ? `<p class="note">Seu cadastro na equipe está encerrado desde ${dt(m.fim)}. Para corrigir, fale com a coordenação.</p>` : formador() ? '<p class="note">Os dados do seu cadastro na equipe ficam com a coordenação. Para mudar celular ou município, fale com ela.</p>' : `<p class="note">Seu acesso ainda não está ligado a um cadastro da equipe (o e-mail do cadastro é diferente deste). Peça à coordenação para conferir o e-mail em Equipe.</p>`}
       ${demo() ? '<p class="note">A demonstração não usa senha.</p>' : `<details class="md-s"${op.senha ? ' open' : ''}><summary>Trocar minha senha</summary><div class="fields"><div class="fld"><label for="s1">Senha nova (mínimo 8 caracteres)</label><input id="s1" type="password" autocomplete="new-password"></div><div class="fld"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password"></div></div><div class="acts"><button type="button" class="b p" data-senhaok>Trocar senha</button></div></details>`}
      </div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(op.msg || '')}</div><div class="frow md-pe"><button type="button" class="b p" data-fechar>Voltar ao sistema</button><button type="button" class="b" data-sair>Sair do sistema</button></div></div>`;
-    if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));
+    if (SQC.mascaras) SQC.mascaras.preparar($('#frm')); carregarFotosEq();
     if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
     if (op.senha) { const s1 = $('#s1'); if (s1) s1.focus(); }
   }

@@ -74,6 +74,12 @@ select 'perfis do auxiliar e de formador(a) (23)',
             when not exists (select 1 from pg_trigger where tgname = 'b_membros_conferir') then 'FALTA: rode o 23'
             else 'ok' end
 union all
+select 'foto de perfil da equipe (24)',
+       case when to_regprocedure('public.definir_foto(uuid,text)') is null then 'FALTA: rode o 24'
+            when exists (select 1 from storage.buckets where id = 'equipe' and public) then 'ABERTO: a pasta de fotos da equipe está pública; rode o 24 de novo'
+            when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'equipe_foto_%') <> 3 then 'CONFIRA: deviam ser 3 regras equipe_foto_* (rode o 24 de novo)'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

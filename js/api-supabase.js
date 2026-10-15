@@ -39,7 +39,8 @@
   /* membros: os dados reservados (CPF, endereço, renda…) não podem ser lidos direto da tabela por ninguém: a leitura pede só as colunas abertas,
      e a coordenação recebe o resto pela função membros_reservados(). "semCompleto" = o banco ainda não tem as colunas do script 10. */
   let semCompleto = false;
-  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
+  let semFoto = false;   // o banco ainda não tem a coluna da foto (falta rodar o script 24): lê sem ela
+  const ABERTAS = () => ['id', 'criado_por', 'criado_em', 'atualizado_em'].concat(semFoto ? [] : ['foto']).concat(COLUNAS.membros.filter(k => !R.CAMPOS_RESERVADOS.includes(k))).join(',');
   const sel = t => t === 'membros' && !semCompleto ? ABERTAS() : '*';
   /* a cópia que fica no aparelho para trabalhar sem internet nunca leva os dados reservados da equipe (CPF, endereço, renda…) */
   const semReservado = db => Object.assign({}, db, { membros: (db.membros || []).map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); x._sr = true; return x; }) });   // _sr: "sem os reservados" — não pode ser regravado
@@ -56,6 +57,7 @@
     let tudo = [];
     for (let de = 0; de < 100000;) {
       let { data, error } = await sb.from(tabela).select(sel(tabela)).order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, de + 999);
+      if (error && tabela === 'membros' && !semFoto && (error.code === '42703' || error.code === 'PGRST204') && /foto/.test(String(error.message))) { semFoto = true; de = 0; tudo = []; continue; }
       if (error && tabela === 'membros' && !semCompleto && (error.code === '42703' || error.code === 'PGRST204')) { semCompleto = true; de = 0; tudo = []; continue; }   // falta rodar o script 10: lê do jeito antigo
       if (error && (tabela === 'presencas' || tabela === 'fotos') && (error.code === '42P01' || error.code === 'PGRST205' || new RegExp(tabela).test(String(error.message)))) { SQC.apiSupabase.semEvidencias = true; return []; }   // falta rodar o script 13
       if (error && tabela === 'membros' && (error.code === '42P01' || error.code === 'PGRST205' || /membros/.test(String(error.message)))) { SQC.apiSupabase.semMembros = true; return []; }   // falta rodar o script 07: o resto do sistema abre normalmente
@@ -107,6 +109,26 @@
         const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'As fotos ainda não foram ligadas no banco: a coordenação precisa rodar o script 13_presenca_e_fotos.sql no Supabase.' } : up.error);
       }
       return linha;
+    },
+    /* ----- foto de perfil da equipe (script 24): pasta privada "equipe", caminho <id da pessoa>/<código>.jpg ----- */
+    _fotosEq: new Map(),
+    async fotoEquipe(caminho) {
+      if (this._fotosEq.has(caminho)) return this._fotosEq.get(caminho);
+      const { data, error } = await sb.storage.from('equipe').download(caminho); if (error) throw erro(error);
+      const u = URL.createObjectURL(data); this._fotosEq.set(caminho, u); return u;
+    },
+    async trocarFotoEquipe(membro, blob) {
+      const caminho = `${membro}/${SQC.novoId()}.jpg`, pasta = sb.storage.from('equipe');
+      const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
+      if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'A foto da equipe ainda não foi ligada no banco: a coordenação precisa rodar o script 24_foto_da_equipe.sql no Supabase.' } : up.error); }
+      const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: caminho });
+      if (error) { await pasta.remove([caminho]).catch(() => {}); throw erro(error); }
+      if (antes) await pasta.remove([antes]).catch(() => {});
+      return caminho;
+    },
+    async tirarFotoEquipe(membro) {
+      const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: null }); if (error) throw erro(error);
+      if (antes) await sb.storage.from('equipe').remove([antes]).catch(() => {});
     },
     async arquivoFoto(f) { const { data, error } = await sb.storage.from('evidencias').download(f.caminho);
       if (error && /not found|404|Object not found/i.test(String(error.message || error.statusCode || ''))) throw erro({ code: 'P0001', message: 'O arquivo desta foto não chegou ao servidor. Exclua e envie de novo.' });

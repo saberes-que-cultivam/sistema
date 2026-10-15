@@ -110,5 +110,19 @@
     });
   }
 
-  SQC.fotodia = { lerMomentoExif, conferir, reduzir, abrirCamera, hoje };
+  /* foto de perfil: recorte quadrado do meio da foto, 320 × 320 px, JPEG (uns 20 a 40 KB). Redesenhar no canvas descarta qualquer
+     coisa que não seja imagem (um SVG com código, por exemplo). */
+  async function quadrada(arquivo, lado = 320) {
+    if (!arquivo || !/^image\//.test(arquivo.type || '') || arquivo.size > 25 * 1024 * 1024) throw new Error('Escolha uma foto (JPEG ou PNG) de até 25 MB.');
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => falha(new Error('Este arquivo não é uma foto que o navegador consiga abrir. Use JPEG ou PNG.')); i.src = url; });
+      const m = Math.min(img.naturalWidth, img.naturalHeight); if (!m) throw new Error('Foto vazia.');
+      const c = document.createElement('canvas'); c.width = c.height = lado;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, lado, lado);
+      const b = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82)); if (!b) throw new Error('A foto não pôde ser preparada. Tente de novo.');
+      return b;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  SQC.fotodia = { lerMomentoExif, conferir, reduzir, quadrada, abrirCamera, hoje };
 })();
