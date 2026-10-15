@@ -34,7 +34,7 @@ const novo = velho => { if (!ID.has(velho)) ID.set(velho, PREF + String(++n).pad
 /* biofábricas próprias da simulação (as reais não são tocadas) */
 const UN = { u1: ['Polo simulado Potengi (fictício)', 'SRN'], u2: ['Polo simulado Maciço (fictício)', 'SCE'], u3: ['Base simulada do campus (fictícia)', 'SAP'] };
 const tab = {};
-tab.unidades = db.unidades.map(u => Object.assign({}, u, { id: novo(u.id), nome: UN[u.id][0], sigla: UN[u.id][1], obs: 'Simulação: dado fictício.' }));
+tab.unidades = db.unidades.map(u => Object.assign({}, u, { id: novo(u.id), nome: UN[u.id][0], sigla: UN[u.id][1], obs: 'Simulação: dado fictício.', funcionando_em: comp(u.funcionando_em) || null }));
 tab.itens = db.itens.map(i => Object.assign({}, i, { id: novo(i.id), unidade: novo(i.unidade), data: comp(i.data) }));
 tab.membros = db.membros.map(m => Object.assign({}, m, { id: novo(m.id), nome: /fict/.test(m.nome) ? m.nome : m.nome + ' (fictício)', inicio: comp(m.inicio), fim: comp(m.fim) || null }));
 const usadas = new Set(db.distribuicoes.map(d => d.lote));
@@ -51,7 +51,7 @@ tab.despesas = db.despesas.map(x => Object.assign({}, x, { id: novo(x.id), data:
 
 /* ---------- SQL ---------- */
 const COL = {
-  unidades: ['id', 'nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])),
+  unidades: ['id', 'nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])).concat(['funcionando_em']),
   itens: ['id', 'unidade', 'descricao', 'valor', 'rubrica', 'status', 'data'],
   membros: ['id', 'funcao', 'nome', 'vinculo', 'cpf', 'email', 'telefone', 'municipio', 'outra_bolsa', 'arlo', 'lgpd', 'inicio', 'fim', 'motivo'],
   lotes: ['id', 'unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],

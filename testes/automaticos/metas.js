@@ -62,9 +62,11 @@ async function novaPagina(b, opcoes) {
   ok(await form('[data-edit="unidades:u1"]', Object.assign({ parceiro: 'Associação de exemplo (exemplo)' }, sete)) === '', 'Meta 2: passos da implantação marcados na tela (7 de 8)');
   ok(await feito('2.1') === 0, 'Meta 2: unidade com 7 de 8 passos (sem “em funcionamento”) não conta na etapa 2.1', 'feito=' + await feito('2.1'));
   // u3 é de apoio (conta = Não): mesmo em funcionamento não conta
-  ok(await form('[data-edit="unidades:u3"]', Object.assign({ funcionando: 1 }, sete)) === '', 'Meta 2: biofábrica de apoio marcada em funcionamento');
+  ok(await form('[data-edit="unidades:u3"]', Object.assign({ funcionando: 1, funcionando_em: dia(-30) }, sete)) === '', 'Meta 2: biofábrica de apoio marcada em funcionamento');
   ok(await feito('2.1') === 0, 'Meta 2: biofábrica de apoio (conta = Não) em funcionamento não conta na 2.1');
-  ok(await form('[data-edit="unidades:u1"]', { funcionando: 1 }) === '', 'Meta 2: u1 marcada em funcionamento');
+  { const m = await form('[data-edit="unidades:u1"]', { funcionando: 1 }); ok(/Informe a data/.test(m), 'Meta 2 (26): “Em funcionamento” sem a data é recusado', m); await fechar(); }
+  { const m = await form('[data-edit="unidades:u1"]', { funcionando: 1, funcionando_em: dia(5) }); ok(/não pode ser no futuro/.test(m), 'Meta 2 (26): data de funcionamento no futuro é recusada', m); await fechar(); }
+  ok(await form('[data-edit="unidades:u1"]', { funcionando: 1, funcionando_em: dia(-30) }) === '', 'Meta 2: u1 marcada em funcionamento (há 30 dias)');
   ok(await feito('2.1') === 1, 'Meta 2: u1 completa e em funcionamento conta 1 na 2.1');
   // unidade nova cadastrada que conta para a Meta 2, sem nenhum passo: não conta só por existir
   ok(await form('[data-new="unidades"]', { nome: 'Biofábrica nova (exemplo)', sigla: 'NOV', conta: 'Sim' }) === '', 'Meta 2: biofábrica nova cadastrada');
@@ -248,8 +250,8 @@ async function novaPagina(b, opcoes) {
   { const d = await db(); const no = s => s >= DE && s <= ATE;
     const sec = await p.$$eval('.rel section', ss => ss.map(s => ({ h: s.querySelector('h3').textContent, linhas: [...s.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim())), txt: s.textContent.replace(/\s+/g, ' ') })));
     { const s2 = sec.find(s => /Unidades de produção/.test(s.h)), PASSOS = ['local_ok', 'parceiro_ok', 'termo', 'itens_ok', 'orcamento', 'entregue', 'montada', 'funcionando'];
-      const n8 = d.unidades.filter(u => PASSOS.every(k => u[k])).length;   // 15/10/2026: "em funcionamento" no relatório = os 8 passos, como na meta
-      ok(s2 && s2.txt.includes(`${n8} em funcionamento (com os 8 passos) de ${d.unidades.length} cadastrada(s)`), `Relatório, seção 2: ${n8} em funcionamento (8 passos) de ${d.unidades.length}`, s2 && s2.txt.slice(0, 160)); }
+      const n8 = d.unidades.filter(u => PASSOS.every(k => u[k]) && (!u.funcionando_em || u.funcionando_em <= ATE)).length;   // 15/10/2026: 8 passos e funcionando até a data final (26)
+      ok(n8 === 2 && s2 && s2.txt.includes(`${n8} em funcionamento até ${dt(ATE)} (com os 8 passos) de ${d.unidades.length} cadastrada(s)`), `Relatório, seção 2: ${n8} em funcionamento até ${dt(ATE)} (8 passos e data) de ${d.unidades.length}`, s2 && s2.txt.slice(0, 160)); }
     const evP = d.eventos.filter(e => no(e.data)); ok(sec[2].linhas.length === evP.length && evP.length === 4 && !sec[2].txt.includes('Reunião da equipe') && !sec[2].txt.includes('planejad'), `Relatório: só as ${evP.length} atividades do período (2 da demonstração + capacitação e dia de campo; fora: reunião de ${dt(dia(-3))} e as futuras)`, sec[2].linhas.length + ' linhas');
     const tp = evP.reduce((s, e) => s + (+e.part || 0), 0), tm = evP.reduce((s, e) => s + (+e.mulheres || 0), 0);
     ok(tp === 34 && sec[2].txt.includes(`Total de ${tp} participações, ${Math.round(tm / tp * 100)}% de mulheres`), `Relatório: total de participações do período (2 + 12 + 20 = ${tp}; ${tm} mulheres)`);

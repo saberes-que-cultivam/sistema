@@ -30,7 +30,7 @@ A cobertura também cresceu:
 - contagem das metas refeita em SQL à parte e comparada com a tela;
 - os perfis Auxiliar e Formador passaram a ser exercitados nos testes ponta a ponta.
 
-**Parecer: B — apto com ressalvas** (seção 20). Para valer em produção é preciso publicar a v84 e rodar o script `25` no Supabase. Sem o `25`, as contas novas já valem na tela, mas a trava da Meta 2 no banco não.
+**Parecer: B — apto com ressalvas** (seção 20). Para valer em produção é preciso rodar os scripts `25` e `26` no Supabase (a v85 já está publicada). Sem eles, as contas novas já valem na tela, mas a trava da Meta 2 no banco não, e a data de funcionamento não é gravada.
 
 ## 2. Arquitetura e tecnologias
 
@@ -110,6 +110,14 @@ Matriz completa em `MATRIZ.md`. Resumo desta rodada:
 | Evidências, Aparência, Trazidos do M&Q (1 e 2), Auditoria 12/10 | 23 + 3 + 16 + 13 + 14 | todas | 0 | 0 |
 | Acessibilidade (axe em 276 telas + conferências, 5 perfis) | 105 | 105 | 0 | 0 |
 | Segurança (XSS, CSV, fotos, sessão, exportação; 5 perfis) | 113 | 113 | 0 | 0 |
+
+**Rodada da v85** (P1 e P2 resolvidas, script `26`): repetidas todas as suítes, todas sem reprovação.
+- Unidade: 63.
+- Metas: 141.
+- Acessibilidade: 105.
+- Segurança: 113.
+- Banco: matriz e conferência tela × SQL.
+- As demais: tudo certo.
 
 ## 7. Resultados funcionais e de integração
 
@@ -272,8 +280,8 @@ As telas (`js/app.js`) são cobertas pelos testes ponta a ponta, sem medida de l
 
 ## 18. Riscos residuais
 
-- **P1 (média) — data do funcionamento da biofábrica.** Não há data de quando cada biofábrica entrou em funcionamento. O relatório de um período passado conta o estado de hoje da Meta 2. Recomendação: coluna de data ao marcar o 8º passo.
-- **P2 (média, decisão) — quais unidades contam na Meta 2.** O cadastro tem como unidades da meta as de São Paulo do Potengi e Mulungu (CE). O cronograma da equipe fala da unidade modelo em Apodi e das cooperativas de São Paulo do Potengi e **Guaramiranga** (CE). A coordenação precisa dizer quais duas contam e corrigir o cadastro (campo "Conta para a meta" e município). É dado, não código.
+- **P1 — data do funcionamento da biofábrica: resolvido na v85** (decisão da coordenação). Script `26`: a data é obrigatória ao marcar "Em funcionamento" e não pode ser no futuro; a meta e o relatório contam a unidade só a partir dela. Cadastro antigo sem data continua contando e aparece em "O que pede atenção" até a data ser informada. Testes: `auditoria_1510.test.js`, `test_banco.sql` e `metas.js`.
+- **P2 — quais unidades contam na Meta 2: resolvido** (decisão da coordenação). Contam São Paulo do Potengi e Mulungu, como já está no cadastro. A de Apodi (campus) não é financiada pelo TED: fica como unidade de apoio, que é um acréscimo e não conta na meta. Nada a mudar no cadastro. Na demonstração, ela passou para o território Sertão do Apodi.
 - **P3 (baixa, decisão) — curso FIC.** O curso FIC em bioinsumos (item 3.4.1 do cronograma) não tem registro próprio. Pode ser registrado como entrega da etapa 3.1, se a coordenação concordar.
 - **P4 (registro) — datas da parcela e da vigência.** Ficam as do sistema: 1ª parcela em 22/09/2026 (data da NS) e vigência até 30/07/2027. O cronograma diz 01/10/2026 e 31/07/2027.
 - **P5 — teste com pessoas e aparelhos reais.** Sem teste com pessoas da equipe; sem Safari e iPhone reais.
@@ -283,10 +291,9 @@ As telas (`js/app.js`) são cobertas pelos testes ponta a ponta, sem medida de l
 
 ## 19. Plano de correção priorizado
 
-1. Rodar `supabase/25_meta2_e_atividades.sql` no Supabase e depois o `00_verificar.sql`. **Sem isso, a trava da Meta 2 vale só na tela.**
-2. Decidir P2 e corrigir o cadastro das biofábricas.
-3. Decidir P1 (data do funcionamento) e P3 (curso FIC).
-4. Sessão de uso com 2 bolsistas no celular (P5).
+1. Rodar no Supabase `supabase/25_meta2_e_atividades.sql`, depois `26_data_funcionamento.sql`, depois o `00_verificar.sql`. **Sem isso, a trava da Meta 2 vale só na tela, e a data de funcionamento não é gravada.**
+2. Decidir P3 (curso FIC).
+3. Sessão de uso com 2 bolsistas no celular (P5).
 
 ## 20. Parecer
 
@@ -301,8 +308,8 @@ Os requisitos essenciais das seis metas são atendidos e os testes críticos pas
 Não há falha crítica ou alta pendente.
 
 **Ressalvas:**
-- o script `25` precisa ser rodado no banco de produção;
-- as decisões P1 a P3 são da coordenação;
+- os scripts `25` e `26` precisam ser rodados no banco de produção;
+- a decisão P3 é da coordenação (P1 e P2 resolvidas na v85);
 - falta teste com usuárias e usuários reais e com Safari/iPhone.
 
 A ausência de erros nos testes automáticos não prova ausência de falhas: a cobertura e os limites estão nas seções 3 e 17.

@@ -50,14 +50,15 @@
   /* ---------- execução física: quanto de cada etapa já foi feito ---------- */
   /* ate (opcional, AAAA-MM-DD): conta só o que tem data até esse dia. Sem ele, até hoje. */
   /* biofábrica em funcionamento (Meta 2): conta para a meta e tem os 8 passos da implantação marcados (decisão da coordenação, 15/10/2026) */
-  const unidadePronta = u => u.conta === 'Sim' && nCheck(u) === D.CHECK.length;
+  /* ate (opcional): só conta se começou a funcionar até esse dia (data do 26). Cadastro antigo sem data conta como hoje e vira aviso. */
+  const unidadePronta = (u, ate) => u.conta === 'Sim' && nCheck(u) === D.CHECK.length && (!u.funcionando_em || String(u.funcionando_em) <= ateDia(ate));
   /* atividade realizada (Metas 3 e 5): a data chegou E há participantes informados ou lista de presença. Data passada sem ninguém
      registrado não conta: pode não ter acontecido (decisão da coordenação, 15/10/2026) */
   const realizada = (db, x) => n(x.part) > 0 || (db.presencas || []).some(p => p.evento === x.id);
   function feito(db, e, ate) {
     ate = ateDia(ate);
     switch (e.id) {
-      case '2.1': return db.unidades.filter(unidadePronta).length;
+      case '2.1': return db.unidades.filter(u => unidadePronta(u, ate)).length;
       case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate) && realizada(db, x)).length;
       case '3.3': return db.agricultores.filter(a => a.kit && ateh(a.kitdata, ate)).length;
       case '4.1': return db.agricultores.filter(a => acompanhada(db, a, ate)).length;
@@ -265,6 +266,7 @@
     });
     const hj = iso(hoje);   // datas comparadas como texto AAAA-MM-DD: o dia previsto e o último dia do mês ainda não são atraso
     db.lotes.forEach(l => { if (['Em preparo', 'Maturando'].includes(l.status) && iso(pronto(l)) < hj) add('f', 'Lote', `${l.codigo || 'Lote sem código'}: passou da previsão (${dt(iso(pronto(l)))}).`, 'Confira e marque como pronto.', '', 'lotes'); });
+    db.unidades.forEach(u => { if (u.funcionando && !u.funcionando_em) add('f', 'Meta 2', `${u.nome}: falta a data em que começou a funcionar.`, 'Edite a unidade e informe a data: sem ela, o relatório de um período passado conta a unidade como se já funcionasse.', '', 'unidades'); });
     db.eventos.forEach(x => { if (['Capacitação', 'Dia de campo'].includes(x.tipo) && String(x.data || '') < hj && !realizada(db, x))
       add('f', 'Atividade', `${x.tipo} “${x.tema || 'sem tema'}” (${dt(x.data)}) está sem participantes registrados.`, 'Informe quantas pessoas participaram ou exclua, se não aconteceu. Sem isso, não conta para a meta.', '', 'eventos'); });
     D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
@@ -291,7 +293,10 @@
       if (db.unidades.some(u => u.id !== r.id && String(u.sigla).toUpperCase() === String(r.sigla).toUpperCase())) return 'Já existe uma unidade com essa sigla.';
       const falta = D.CHECK.filter(c => c[0] !== 'funcionando' && !r[c[0]]).map(c => c[1]);
       // vale ao marcar (ou ao desmarcar um passo de quem já estava marcada); cadastro antigo já marcado continua editável
+      if (!r.funcionando) r.funcionando_em = null;   // desmarcou: a data sai junto (o banco faz o mesmo, script 26)
       if (r.funcionando && falta.length && (!anterior || !anterior.funcionando || D.CHECK.some(c => anterior[c[0]] && !r[c[0]]))) return `Só marque “Em funcionamento” depois dos outros passos. Falta: ${falta.join('; ')}.`;
+      if (r.funcionando && !r.funcionando_em && (!anterior || !anterior.funcionando)) return 'Informe a data em que a unidade começou a funcionar.';
+      if (r.funcionando_em && String(r.funcionando_em) > iso(new Date())) return 'A data em que a unidade começou a funcionar não pode ser no futuro.';
     }
     const inteiro = v => vazio(v) || Number.isInteger(+v);
     if (tabela === 'lotes') {

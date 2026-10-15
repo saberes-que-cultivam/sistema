@@ -9,7 +9,8 @@ ev as (select e.* from public.eventos e, s where e.id::text like s.p),
 conta as (
   select json_build_object(
     '2.1', (select count(*) from public.unidades u, s where u.id::text like s.p and u.conta = 'Sim'
-              and u.local_ok and u.parceiro_ok and u.termo and u.itens_ok and u.orcamento and u.entregue and u.montada and u.funcionando),
+              and u.local_ok and u.parceiro_ok and u.termo and u.itens_ok and u.orcamento and u.entregue and u.montada and u.funcionando
+              and (u.funcionando_em is null or u.funcionando_em <= s.hoje)),
     '3.2', (select count(*) from ev, s where ev.tipo = 'Capacitação' and ev.data <= s.hoje
               and (coalesce(ev.part, 0) > 0 or exists (select 1 from public.presencas p where p.evento = ev.id))),
     '5.1', (select count(*) from ev, s where ev.tipo = 'Dia de campo' and ev.data <= s.hoje

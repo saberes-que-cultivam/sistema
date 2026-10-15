@@ -2,7 +2,7 @@
 -- Saberes que Cultivam — SIMULAÇÃO: apaga os dados fictícios criados pelo povoar.sql
 -- Apaga SÓ os registros cujo id começa por ffffffff-0000-4000-8000- (os da simulação) e as linhas do histórico desses registros.
 -- Nenhum registro real é tocado. Pode rodar mais de uma vez. Rode inteiro, de uma vez, no SQL Editor do Supabase.
--- GERADO por ferramentas/simulacao_sql.js (2026-10-14). Não edite à mão: gere de novo.
+-- GERADO por ferramentas/simulacao_sql.js (2026-10-15). Não edite à mão: gere de novo.
 -- =====================================================================
 begin;
 delete from public.despesas where id::text like 'ffffffff-0000-4000-8000-%';

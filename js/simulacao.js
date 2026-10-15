@@ -68,7 +68,7 @@
       u2: ['2026-08-25', '2026-09-18', '2026-10-28', '2026-11-12', '2026-11-27', '2027-01-08', '2027-02-05', '2027-02-19'] };
     const parceiro = { u1: 'Associação de agricultores do Potengi (fictícia)', u2: 'Cooperativa do Maciço (fictícia)' };
     db.unidades.forEach(u => { const p = passos[u.id]; if (!p) return;
-      D.CHECK.forEach((c, i) => { u[c[0]] = ja(p[i]); });
+      D.CHECK.forEach((c, i) => { u[c[0]] = ja(p[i]); }); if (u.funcionando) u.funcionando_em = p[7];
       if (u.parceiro_ok) u.parceiro = parceiro[u.id]; if (u.local_ok) u.modelo = 'Microrganismos isolados'; u.responsavel = 'Técnico responsável (fictício)'; });
     const comeca = { u3: '2026-08-05', u1: passos.u1[7], u2: passos.u2[7] };
 

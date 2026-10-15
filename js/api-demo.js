@@ -26,7 +26,7 @@
       unidades: [
         { id: 'u1', nome: 'Polo São Paulo do Potengi', sigla: 'SPP', municipio: 'São Paulo do Potengi', uf: 'RN', territorio: 'Potengi/RN', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: microrganismos isolados se houver local adequado; senão, área aberta com cobertura.' },
         { id: 'u2', nome: 'Polo Mulungu', sigla: 'MUL', municipio: 'Mulungu', uf: 'CE', territorio: 'Maciço de Baturité/CE', modelo: 'A definir', conta: 'Sim', parceiro: '', responsavel: '', obs: 'Ata 22/2026: mesma regra do polo de São Paulo do Potengi.' },
-        { id: 'u3', nome: 'Base IFRN Campus Apodi (minhocário)', sigla: 'APO', municipio: 'Apodi', uf: 'RN', territorio: 'Outro', modelo: 'Área aberta com cobertura (compostagem e biofertilizantes)', conta: 'Não', parceiro: 'IFRN Campus Apodi', responsavel: '', local_ok: true, parceiro_ok: true, obs: 'Área da fazenda com piso concretado; laboratório do campus como apoio.' }],
+        { id: 'u3', nome: 'Base IFRN Campus Apodi (minhocário)', sigla: 'APO', municipio: 'Apodi', uf: 'RN', territorio: 'Sertão do Apodi/RN', modelo: 'Área aberta com cobertura (compostagem e biofertilizantes)', conta: 'Não', parceiro: 'IFRN Campus Apodi', responsavel: '', local_ok: true, parceiro_ok: true, obs: 'Área da fazenda com piso concretado; laboratório do campus como apoio.' }],
       itens: [],
       lotes: [
         { id: 'l1', ex: 1, codigo: 'APO-HUM-001', unidade: 'u3', tipo: 'Húmus de minhoca', inicio: atras(70), dias: 60, qtd: 180, med: 'kg', insumos: 'Esterco bovino curtido, restos de capina', responsavel: '', status: 'Pronto', obs: 'Odor de terra, sem aquecimento' },

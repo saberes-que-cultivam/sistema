@@ -84,6 +84,11 @@ select 'Meta 2: em funcionamento só com os passos (25)',
        case when not exists (select 1 from pg_trigger where tgname = 'b_unidade_passos' and tgrelid = 'public.unidades'::regclass) then 'FALTA: rode o 25'
             else 'ok' end
 union all
+select 'Meta 2: data de entrada em funcionamento (26)',
+       case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'unidades' and column_name = 'funcionando_em')
+              or not exists (select 1 from pg_trigger where tgname = 'b_unidade_data' and tgrelid = 'public.unidades'::regclass) then 'FALTA: rode o 26'
+            else 'ok' end
+union all
 select 'regras da pasta de fotos',
        case when (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'evidencias_%') <> 3 then 'CONFIRA: deviam ser exatamente 3 regras evidencias_* (rode o 13 e o 15 de novo)'
             when exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname not like 'evidencias_%'

@@ -612,20 +612,27 @@ select teste.sou('bbbbbbbb-0000-4000-8000-000000000001', 'coord@teste.br');
 set role authenticated;
 do $$ declare u uuid; begin
   insert into public.unidades (nome, sigla, conta, local_ok) values ('Unidade Meta 2', 'MDS', 'Sim', true) returning id into u;
-  begin update public.unidades set funcionando = true where id = u; raise exception 'FALHOU: marcou em funcionamento sem os outros passos';
+  begin update public.unidades set funcionando = true, funcionando_em = current_date where id = u; raise exception 'FALHOU: marcou em funcionamento sem os outros passos';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; if sqlerrm not like '%Falta:%' then raise exception 'FALHOU: mensagem do 25 (%)', sqlerrm; end if; end;
   update public.unidades set parceiro_ok = true, termo = true, itens_ok = true, orcamento = true, entregue = true, montada = true where id = u;
-  update public.unidades set funcionando = true where id = u;
+  -- 26: sem data, ou com data no futuro, não marca
+  begin update public.unidades set funcionando = true where id = u; raise exception 'FALHOU: marcou em funcionamento sem a data';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; if sqlerrm not like '%Informe a data%' then raise exception 'FALHOU: mensagem do 26 (%)', sqlerrm; end if; end;
+  begin update public.unidades set funcionando = true, funcionando_em = current_date + 10 where id = u; raise exception 'FALHOU: aceitou data de funcionamento no futuro';
+  exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
+  update public.unidades set funcionando = true, funcionando_em = current_date - 3 where id = u;
   begin update public.unidades set montada = false where id = u; raise exception 'FALHOU: desmarcou um passo de unidade em funcionamento';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
   update public.unidades set obs = 'editada depois' where id = u;   -- editar outro campo continua livre
-  begin insert into public.unidades (nome, sigla, conta, funcionando) values ('Já nasce pronta', 'MDT', 'Sim', true); raise exception 'FALHOU: cadastrou unidade já em funcionamento sem os passos';
+  update public.unidades set funcionando = false where id = u;
+  if (select funcionando_em from public.unidades where id = u) is not null then raise exception 'FALHOU: desmarcou e a data ficou'; end if;
+  begin insert into public.unidades (nome, sigla, conta, funcionando, funcionando_em) values ('Já nasce pronta', 'MDT', 'Sim', true, current_date); raise exception 'FALHOU: cadastrou unidade já em funcionamento sem os passos';
   exception when others then if sqlerrm like 'FALHOU%' then raise; end if; end;
 end $$;
 reset role;
 -- cadastro antigo (marcado antes do 25) continua editável
-alter table public.unidades disable trigger b_unidade_passos;
+alter table public.unidades disable trigger b_unidade_passos; alter table public.unidades disable trigger b_unidade_data;
 insert into public.unidades (id, nome, sigla, conta, funcionando) values ('cccccccc-0000-4000-8000-0000000000aa', 'Antiga', 'ANT', 'Sim', true);
-alter table public.unidades enable trigger b_unidade_passos;
+alter table public.unidades enable trigger b_unidade_passos; alter table public.unidades enable trigger b_unidade_data;
 update public.unidades set obs = 'ok' where id = 'cccccccc-0000-4000-8000-0000000000aa';
 select 'TODOS OS TESTES DO BANCO PASSARAM' as resultado;

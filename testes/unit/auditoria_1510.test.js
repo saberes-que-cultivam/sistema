@@ -18,11 +18,24 @@ test('Meta 2: só conta biofábrica com os 8 passos e que conta para a meta', ()
 test('Meta 2: a tela não deixa marcar "Em funcionamento" antes dos outros passos', () => {
   const db = vazio(), u = { id: 'n', sigla: 'NV', conta: 'Sim', local_ok: true, funcionando: true };
   assert.match(R.validar(db, 'unidades', u), /Falta: Parceiro institucional/);
-  assert.strictEqual(R.validar(db, 'unidades', { ...u, ...CHECK_TUDO }), '');
-  const pronta = { id: 'p', sigla: 'PR', conta: 'Sim', ...CHECK_TUDO };
+  assert.match(R.validar(db, 'unidades', { ...u, ...CHECK_TUDO }), /Informe a data/);                         // 26: data obrigatória ao marcar
+  assert.match(R.validar(db, 'unidades', { ...u, ...CHECK_TUDO, funcionando_em: '2099-01-01' }), /não pode ser no futuro/);
+  assert.strictEqual(R.validar(db, 'unidades', { ...u, ...CHECK_TUDO, funcionando_em: '2026-09-01' }), '');
+  const pronta = { id: 'p', sigla: 'PR', conta: 'Sim', ...CHECK_TUDO, funcionando_em: '2026-09-01' };
   assert.match(R.validar(db, 'unidades', { ...pronta, montada: false }, pronta), /Falta: Estrutura montada/);   // desmarcar passo de quem já funciona
   const antiga = { id: 'v', sigla: 'VE', conta: 'Sim', funcionando: true };
   assert.strictEqual(R.validar(db, 'unidades', { ...antiga, obs: 'x' }, antiga), '');                         // cadastro antigo continua editável
+});
+test('Meta 2 (26): conta a partir da data em que começou a funcionar; cadastro antigo sem data conta e vira aviso', () => {
+  const db = vazio();
+  db.unidades = [{ id: 'a', nome: 'Polo A', sigla: 'AA', conta: 'Sim', ...CHECK_TUDO, funcionando_em: '2026-12-10' },
+    { id: 'b', nome: 'Polo B', sigla: 'BB', conta: 'Sim', ...CHECK_TUDO }];
+  assert.strictEqual(R.feito(db, e('2.1'), '2026-11-30'), 1);   // relatório de novembro: só a antiga (sem data)
+  assert.strictEqual(R.feito(db, e('2.1'), '2026-12-31'), 2);
+  const av = R.alertas(db, new Date(2027, 0, 5)).filter(a => a[1] === 'Meta 2' && /falta a data/.test(a[3]));
+  assert.strictEqual(av.length, 1); assert.match(av[0][3], /Polo B/);
+  const r = { ...db.unidades[0], funcionando: false }; R.validar(db, 'unidades', r, db.unidades[0]);
+  assert.strictEqual(r.funcionando_em, null);                   // desmarcou: a data sai junto
 });
 test('Metas 3 e 5: capacitação e dia de campo com data passada só contam com participantes ou lista de presença', () => {
   const db = vazio();
