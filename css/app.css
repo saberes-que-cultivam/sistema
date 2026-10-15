@@ -1426,3 +1426,14 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 /* foto de perfil da equipe (24) */
 .com-foto{overflow:hidden;padding:0} .com-foto img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 .foto-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:4px 0 2px} .foto-acts .small{flex-basis:100%;color:var(--txt-3)}
+
+/* mapa: os dados do município ocupam o lado do mapa no lugar do resumo; cada unidade produtiva abre a ficha */
+.mp-resumo{display:contents} .mp-resumo[hidden]{display:none}
+.mp-det-l{max-height:300px}
+.mp-pessoa{all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;padding:6px 6px;border-radius:8px;cursor:pointer}
+.mp-pessoa:hover{background:color-mix(in srgb,var(--accent-soft) 60%,transparent)}
+#view .mp-pessoa:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.mp-pessoa>span:first-child{display:grid;font-size:var(--t-sm);color:var(--txt-1);font-weight:600}
+.mp-seta{font-size:var(--t-lg);color:var(--txt-3);line-height:1}
+.mp-dica{margin:0}
+.mp-det-l li{padding:0}
