@@ -1421,3 +1421,4 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 @media (max-width:520px){.fi-dl{grid-template-columns:minmax(0,1fr)}}
 /* aviso do campo (CPF inválido, e-mail com erro) toma o lugar da dica fixa: os dois no mesmo espaço se sobrepunham */
 .fm .fld .dica-masc ~ .fm-dica{display:none}
+.pe-v{white-space:nowrap;opacity:.8}

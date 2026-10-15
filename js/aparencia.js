@@ -24,6 +24,13 @@
     // Desligar e religar a folha de estilo na mesma tarefa obriga o navegador a refazer tudo, sem piscar (não há desenho no meio).
     const chave = (tema || 'auto') + (v.sol ? '+sol' : '');
     if (aplicar.ultima !== undefined && aplicar.ultima !== chave) document.querySelectorAll('link[rel="stylesheet"]').forEach(l => { l.disabled = true; void raiz.offsetHeight; l.disabled = false; });
+    // fundo da página: alguns navegadores trocam a cor dos painéis mas não a do fundo (o fundo do body "vaza" para a janela e não é redesenhado).
+    // Pôr a cor nova direto no html e no body força o redesenho; no quadro seguinte volta a valer a variável (assim a impressão continua branca).
+    if (aplicar.ultima !== undefined && aplicar.ultima !== chave && document.body) {
+      const cor = getComputedStyle(raiz).getPropertyValue('--bg').trim();
+      if (cor) { raiz.style.backgroundColor = cor; document.body.style.backgroundColor = cor;
+        (G.requestAnimationFrame || setTimeout)(() => (G.requestAnimationFrame || setTimeout)(() => { raiz.style.backgroundColor = ''; document.body.style.backgroundColor = ''; })); }
+    }
     aplicar.ultima = chave; raiz.style.colorScheme = tema === 'dark' ? 'dark' : tema === 'light' ? 'light' : '';
     const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', v.sol ? '#FFFFFF' : '#27663A');
     document.querySelectorAll('[data-aparencia]').forEach(b => { b.classList.toggle('ligado', v.sol); b.setAttribute('aria-label', 'Aparência da tela: modo sol, claro ou escuro' + (v.sol ? ' (modo sol ligado)' : '')); });

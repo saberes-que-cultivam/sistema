@@ -97,3 +97,9 @@ test('auditoria 12/10: correção lançada enquanto a versão antiga era enviada
   assert.strictEqual(resta.length, 1); assert.strictEqual(resta[0].dados.v, 2);
   await F.sincronizar(api, 'eu'); assert.deepStrictEqual(recebidos, [1, 2]); assert.strictEqual((await F.listar('eu')).length, 0);
 });
+
+test('a versão mostrada no rodapé é a mesma do service worker (é por ela que se confere se o aparelho já atualizou)', () => {
+  const fs = require('fs'), path = require('path'), raiz = path.join(__dirname, '..', '..');
+  const sw = fs.readFileSync(path.join(raiz, 'sw.js'), 'utf8').match(/sqc-v(\d+)/)[1], html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8').match(/Versão (\d+)/);
+  assert.ok(html, 'falta "Versão N" no rodapé'); assert.strictEqual(html[1], sw, 'suba a versão no rodapé do index.html junto com a VERSAO do sw.js');
+});
