@@ -5491,48 +5491,43 @@ ${secs}</div>`;
   }
   const btnIc = (ic, txt, attrs, cls) => `<button type="button" class="b bi${cls ? ' ' + cls : ''}" ${attrs}>${ic}<span>${txt}</span></button>`;
   const vazioHs = (ic, tit, txt, botao) => `<div class="panel hs-vz"><span class="hs-vz-ic" aria-hidden="true">${ic}</span><div class="hs-vz-t"><b>${tit}</b></div>${botao}</div>`;   // o texto explicativo já está no cabeçalho da seção
-  /* 23/10/2026: últimos acessos e relatos são listas pequenas: carregam sozinhos ao abrir a aba (antes eram dois quadros com botão, grandes no celular) */
-  const histAuto = { ac: false, rl: false };
-  function carregarHistAuto() {
-    const volta = () => { if (tab === 'historico') render(); };
-    if (acessos === undefined && !histAuto.ac) { histAuto.ac = true; api.acessos().then(v => { acessos = v; }, () => { histAuto.acFalhou = true; }).then(volta); }
-    if (relatos === undefined && !histAuto.rl) { histAuto.rl = true; api.relatos().then(v => { relatos = v; }, () => { histAuto.rlFalhou = true; }).then(volta); }
-  }
-  const carregandoHs = t => `<p class="small hs-carr">${t}</p>`;
-  /* 23/10/2026 (pedido da coordenação: depois de carregar não havia como voltar): seção carregada tem "Ocultar" ao lado do "Atualizar";
-     oculta, fica só o título e "Mostrar" (lembrado até sair do sistema, para não reabrir sozinha a cada visita à aba) */
-  const hsOculto = { ac: false, rl: false, hs: false };
+  /* Histórico (23/10/2026, padrão escolhido pela coordenação): as três seções são iguais. Antes de carregar, um quadro com título,
+     explicação e o botão verde "Carregar…"; carregada, o mesmo quadro com "Atualizar" e "Ocultar" e o conteúdo logo abaixo;
+     "Ocultar" volta ao quadro inicial com o "Carregar…" (a lista sai da tela e é buscada de novo ao carregar outra vez). */
   const IC_RECOLHER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 15 6-6 6 6"/></svg>';
-  const IC_ABRIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg>';
-  /* 23/10/2026 (2ª, "ficou horrível esse botão Mostrar"): oculta, a seção vira um quadro só, como o das Alterações: título, resumo
-     curto e "Mostrar" em texto verde; o quadro inteiro abre ao toque (o botão se estende por cima dele). "Ocultar" no mesmo estilo. */
-  const tgHs = (k, id, abre) => `<button type="button" class="hs-tg" data-hsver="${k}" aria-expanded="${abre ? 'false' : 'true'}" aria-controls="${id}">${abre ? 'Mostrar' : 'Ocultar'}${abre ? IC_ABRIR : IC_RECOLHER}</button>`;
-  /* sanfona (23/10/2026, 3ª: "quando clica em Mostrar volta para o antigo"): aberta ou fechada, a seção tem o mesmo quadro de cabeçalho
-     (título, explicação ou resumo e, à direita, Atualizar e Ocultar/Mostrar); aberta, o conteúdo aparece logo abaixo dele.
-     Antes de carregar, o quadro traz o botão de carregar (Alterações) ou "Carregando…" embaixo (acessos e relatos carregam sozinhos). */
-  function secHs(k, titulo, txt, carregado, atr, corpo, resumo, carregar) {
-    const oc = carregado && hsOculto[k], id = 'hs-sec-' + k;
-    const dir = !carregado ? (carregar || '') : (oc ? '' : `<button type="button" class="hs-tg hs-at" ${atr}>${IC_GERAR}<span class="hs-at-t">Atualizar</span></button>`) + tgHs(k, id, oc);
-    const sub = oc ? resumo : txt, miolo = oc ? '' : corpo();
-    return `<div class="hs-sec${oc ? ' oculta' : ''}"><div class="hs-rec panel${oc ? ' fech' : ''}${!carregado && carregar ? ' carr' : ''}"><div class="hs-rec-t"><h2>${titulo}</h2>${sub ? `<span class="small">${sub}</span>` : ''}</div>${dir ? `<div class="hs-rec-a">${dir}</div>` : ''}</div><div id="${id}" class="hs-corpo"${oc || !miolo ? ' hidden' : ''}>${miolo}</div></div>`;
+  function secHs(k, titulo, txt, carregado, atr, corpo, carregar) {
+    const id = 'hs-sec-' + k;
+    const dir = !carregado ? carregar : `<button type="button" class="hs-tg" data-hsfechar="${k}" aria-controls="${id}">Ocultar${IC_RECOLHER}</button>`;   // sem "Atualizar": a seção aberta se atualiza sozinha (atualizarHist)
+    const miolo = carregado ? corpo() : '';
+    return `<div class="hs-sec"><div class="hs-rec panel${carregado ? '' : ' carr'}"><div class="hs-rec-t"><h2>${titulo}</h2><span class="small">${txt}</span></div><div class="hs-rec-a">${dir}</div></div><div id="${id}" class="hs-corpo"${miolo ? '' : ' hidden'}>${miolo}</div></div>`;
   }
-  const resumoAc = () => { if (!Array.isArray(acessos)) return ''; const at = acessos.filter(a => a.ativo), n = at.filter(a => a.ultimo && hoje() - new Date(a.ultimo) < 7 * 864e5).length;
-    return `${n} de ${at.length} entraram nos últimos 7 dias`; };
-  const resumoRl = () => { if (!Array.isArray(relatos)) return ''; if (!relatos.length) return 'Nenhum relato'; const ab = relatos.filter(r => r.situacao !== 'Resolvido').length;
-    return ab ? `${ab} em aberto · ${relatos.length} no total` : `Todos resolvidos · ${relatos.length} no total`; };
+  /* 23/10/2026 (pedido da coordenação: "não pode atualizar automaticamente?"): a seção aberta busca de novo sozinha ao entrar na aba
+     Histórico e ao voltar ao sistema; só redesenha se algo mudou e nunca por baixo de uma janela aberta */
+  let histAtualizando = false;
+  async function atualizarHist() {
+    if (histAtualizando || tab !== 'historico' || !coord() || real) return; histAtualizando = true;
+    try {
+      const [a, rl, h] = await Promise.all([Array.isArray(acessos) ? api.acessos().catch(() => acessos) : null, Array.isArray(relatos) && api.relatos ? api.relatos().catch(() => relatos) : null,
+        Array.isArray(hist) ? api.auditoria(Math.max(200, hist.length)).catch(() => hist) : null]);
+      if (tab !== 'historico' || !eu) return; let mudou = false;
+      if (a && Array.isArray(acessos) && JSON.stringify(a) !== JSON.stringify(acessos)) { acessos = a; mudou = true; }
+      if (rl && Array.isArray(relatos) && JSON.stringify(rl) !== JSON.stringify(relatos)) { relatos = rl; mudou = true; }
+      if (h && Array.isArray(hist) && JSON.stringify(h) !== JSON.stringify(hist)) { hist = h; histFim = h.length < 200; mudou = true; }
+      if (mudou && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+    } finally { histAtualizando = false; }
+  }
   function telaHistorico() {
     if (!coord()) return '<div class="panel empty">O histórico é só da coordenação.</div>';
-    carregarHistAuto();
     const ha = d => { const n = Math.floor((hoje() - new Date(d)) / 864e5); return n <= 0 ? 'hoje' : n === 1 ? 'ontem' : `há ${n} dias`; };
-    const quadroA = acessos === undefined && histAuto.ac === true && !histAuto.acFalhou ? carregandoHs('Carregando os últimos acessos…') : acessos === undefined ? vazioHs(IC_RELOGIO, 'Últimos acessos ainda não carregados', 'Mostra quando cada pessoa entrou pela última vez e quem nunca entrou.', btnIc(IC_RELOGIO, 'Carregar os últimos acessos', 'data-acessos', 'p'))
+    const quadroA = acessos === undefined ? '' 
       : acessos === null ? '<div class="banner"><span>Para ver os últimos acessos, a coordenação precisa rodar o script <b>09_ultimos_acessos.sql</b> no Supabase.</span></div>'
       : (() => { const at = acessos.filter(a => a.ativo), sem = at.filter(a => a.ultimo && hoje() - new Date(a.ultimo) < 7 * 864e5).length;
         return `<p class="hs-r"><b>${sem}</b> de ${at.length} pessoa(s) com acesso ativo entraram nos últimos 7 dias.</p>
          <div class="panel scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table class="tc sem-ac"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Último acesso</th><th>Situação</th></tr></thead><tbody>${acessos.map(a => `<tr><td data-r="Pessoa"><b>${esc(a.nome)}</b></td><td data-r="Perfil">${esc(a.perfil)}${a.orgao ? `<div class="small">${esc(a.orgao)}</div>` : ''}</td><td data-r="Último acesso">${a.ultimo ? `${new Date(a.ultimo).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}<div class="small">${ha(a.ultimo)}</div>` : '—'}</td><td data-r="Situação">${!a.ativo ? '<span class="chip">Desativado</span>' : !a.ultimo ? '<span class="chip f">Nunca entrou</span>' : hoje() - new Date(a.ultimo) > 30 * 864e5 ? '<span class="chip f">Sem entrar há mais de 30 dias</span>' : '<span class="chip ok">Em uso</span>'}</td></tr>`).join('')}</tbody></table></div>`; })();
     return `<div class="head"><div><h2>Histórico</h2><p>Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Serve para a prestação de contas. Só a coordenação vê.</p></div></div>
-     ${secHs('ac', 'Últimos acessos', 'Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.', Array.isArray(acessos), 'data-acessos', () => quadroA, resumoAc())}
-     ${secHs('rl', 'Problemas relatados pela equipe', 'O que a equipe mandou por “Relatar problema”, com quem relatou, quando e em que aba. Marque como resolvido quando tratar.', Array.isArray(relatos), 'data-relatos', quadroRelatos, resumoRl())}
-     ${secHs('hs', 'Alterações', 'Inclusões, alterações e exclusões em qualquer cadastro, e quem baixou planilhas ou a cópia dos dados. Carrega de 200 em 200.', !!hist, 'data-hist', () => hist ? `<div class="panel box">${historico()}</div>` : '', hist ? `${hist.length} registro${hist.length === 1 ? '' : 's'} carregado${hist.length === 1 ? '' : 's'}` : '', btnIc(IC_HIST, 'Carregar o histórico', 'data-hist', 'p'))}`;
+     ${secHs('ac', 'Últimos acessos', 'Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.', acessos !== undefined, 'data-acessos', () => quadroA, btnIc(IC_RELOGIO, 'Carregar os últimos acessos', 'data-acessos', 'p'))}
+     ${secHs('rl', 'Problemas relatados pela equipe', 'O que a equipe mandou por “Relatar problema”, com quem relatou, quando e em que aba. Marque como resolvido quando tratar.', relatos !== undefined, 'data-relatos', quadroRelatos, btnIc(IC_HIST, 'Carregar os relatos', 'data-relatos', 'p'))}
+     ${secHs('hs', 'Alterações', 'Inclusões, alterações e exclusões em qualquer cadastro, e quem baixou planilhas ou a cópia dos dados. Carrega de 200 em 200.', !!hist, 'data-hist', () => `<div class="panel box">${historico()}</div>`, btnIc(IC_HIST, 'Carregar o histórico', 'data-hist', 'p'))}`;
   }
   /* histórico em linha do tempo (14/10/2026, trazido do Mulheres & Quintais): frases por dia, com hora; o detalhe campo a campo
      ("antes → depois") continua a um toque; filtro por cadastro e busca; registros mais antigos de 200 em 200; downloads (script 21) */
@@ -5574,8 +5569,6 @@ ${secs}</div>`;
   /* 43 (23/10/2026, pedido da coordenação): problemas relatados pela equipe guardados no sistema */
   let relatos;
   function quadroRelatos() {
-    if (relatos === undefined && histAuto.rl && !histAuto.rlFalhou) return carregandoHs('Carregando os relatos…');
-    if (relatos === undefined) return vazioHs(IC_HIST, 'Relatos ainda não carregados', '', btnIc(IC_HIST, 'Carregar os relatos', 'data-relatos', 'p'));
     if (relatos === null) return '<div class="banner"><span>Para guardar os relatos no sistema, a coordenação precisa rodar o script <b>43_problemas_relatados.sql</b> no Supabase.</span></div>';
     if (!relatos.length) return '<div class="panel empty rl-vazio">Nenhum problema relatado ainda.</div>';
     const quem = id => (db.pessoas.find(p => p.id === id) || {}).nome || 'Pessoa removida', abertos = relatos.filter(r => r.situacao !== 'Resolvido').length;
@@ -5665,7 +5658,7 @@ ${secs}</div>`;
   }
   /* foco que sobrevive ao redesenho (14/10/2026): trocar de aba, salvar ou fechar uma janela redesenha a tela; o foco volta
      ao mesmo botão (a mesma aba, o mesmo "Editar") e o próximo Tab continua dali, em vez de recomeçar do topo da página */
-  const ATR_FOCO = ['data-tab', 'data-hsver', 'data-new', 'data-edit', 'data-fichamembro', 'data-del', 'data-presenca', 'data-fotos', 'data-rub', 'data-mapa', 'data-exp', 'data-meus', 'data-ajuda', 'data-aparencia', 'data-mais', 'data-abrir-rub', 'data-hist', 'data-acessos'];
+  const ATR_FOCO = ['data-tab', 'data-hsfechar', 'data-new', 'data-edit', 'data-fichamembro', 'data-del', 'data-presenca', 'data-fotos', 'data-rub', 'data-mapa', 'data-exp', 'data-meus', 'data-ajuda', 'data-aparencia', 'data-mais', 'data-abrir-rub', 'data-hist', 'data-acessos'];
   function chaveFoco(el) {
     if (!el || el === document.body || !el.closest || el.closest('dialog')) return null;
     if (el.id && el.id !== 'view') return '#' + CSS.escape(el.id);
@@ -6652,7 +6645,7 @@ ${secs}</div>`;
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
-    eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; Object.assign(histAuto, { ac: false, rl: false, acFalhou: false, rlFalhou: false }); Object.assign(hsOculto, { ac: false, rl: false, hs: false }); convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
+    eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
@@ -6762,7 +6755,7 @@ ${secs}</div>`;
     else if (d.olho) { const c = $('#' + d.olho), mostrar = c.type === 'password'; c.type = mostrar ? 'text' : 'password'; t.setAttribute('aria-pressed', mostrar); t.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha'); }
     else if (d.demo) { try { eu = await api.entrarDemo(d.demo); await aposEntrar(); } catch (e) { telaAcesso(e.message); } }
     else if (d.tab) { tab = d.tab; if (tab === 'equipe' && Array.isArray(convites)) convites = undefined;   // ao entrar na Equipe, busca de novo os links (quem preencheu aparece com "Conferir e aprovar")
-      try { localStorage.setItem('sqc-aba', tab); } catch (e) {} const mm = $('#abas-m'), doMenu = mm && mm.contains(t); if (mm) mm.open = false; render(); window.scrollTo(0, 0); if (doMenu) setTimeout(() => { const sm = $('#abas-m > summary'); if (sm) sm.focus({ preventScroll: true }); }, 0); atualizarAoTrocar(); }
+      try { localStorage.setItem('sqc-aba', tab); } catch (e) {} const mm = $('#abas-m'), doMenu = mm && mm.contains(t); if (mm) mm.open = false; render(); window.scrollTo(0, 0); if (doMenu) setTimeout(() => { const sm = $('#abas-m > summary'); if (sm) sm.focus({ preventScroll: true }); }, 0); atualizarAoTrocar(); if (tab === 'historico') atualizarHist(); }
     else if (d.sair !== undefined) { if (pend.length && !d.ok) { d.ok = 1; t.classList.add('conf'); toast(`Há ${pend.length} lançamento(s) guardado(s) neste aparelho ainda não enviado(s). Eles ficam guardados e sobem na sua próxima entrada com internet. Toque em sair de novo para confirmar.`); return; } delete d.ok; t.classList.remove('conf'); sair(''); }
     else if (d.ajuda !== undefined) abrirAjuda();
     else if (d.relatar !== undefined) abrirRelato();
@@ -6850,7 +6843,9 @@ ${secs}</div>`;
       const f = db.fotos.find(x => x.id === d.fotodel); if (!f) return;
       try { await api.excluirFoto(f); db.fotos = db.fotos.filter(x => x.id !== f.id); if (urlsFoto[f.id]) { URL.revokeObjectURL(urlsFoto[f.id]); delete urlsFoto[f.id]; } if (api.guardarCopia) api.guardarCopia(db); render(); abrirFotos(f.tabela, f.registro, 'Foto excluída.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.sinc !== undefined) sincronizar(true);
-    else if (d.hsver) { const k = d.hsver; hsOculto[k] = !hsOculto[k]; render(); const b = document.querySelector(`[data-hsver="${k}"]`); if (b) b.focus(); }
+    else if (d.hsfechar) { const k = d.hsfechar, atr = { ac: 'data-acessos', rl: 'data-relatos', hs: 'data-hist' }[k];   // "Ocultar": volta ao quadro com o "Carregar…"
+      if (k === 'ac') acessos = undefined; else if (k === 'rl') relatos = undefined; else { hist = null; histFim = false; }
+      render(); const b = document.querySelector(`[${atr}]`); if (b) b.focus(); }
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
     else if (d.abrirRub !== undefined) { const todos = [...t.closest('.head').parentNode.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
@@ -7015,6 +7010,7 @@ ${secs}</div>`;
     let saiuEm = 0;
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'hidden') { saiuEm = Date.now(); return; }
+      if (saiuEm && Date.now() - saiuEm >= 30000) atualizarHist();   // Histórico aberto: as seções carregadas se atualizam ao voltar
       if (!saiuEm || Date.now() - saiuEm < 60000 || !eu || demo() || real || navigator.onLine === false || pend.length) return;
       saiuEm = 0; if (coord()) convites = undefined; await atualizarPorBaixo();
       if (espera && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); }
