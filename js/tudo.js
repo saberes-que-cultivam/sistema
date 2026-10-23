@@ -1191,6 +1191,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (!ok && t > 0) { guardar(CHAVE_DADOS, null); guardar(CHAVE_QUANDO, null); guardar(CHAVE_DE, null); } return ok; };
 
   const donoCopia = () => euCache && euCache.id ? euCache.id + '|' + euCache.perfil : null;
+  /* auditoria de 23/10/2026: a cópia só serve a quem é dono dela (mesma pessoa, mesmo perfil). Sem isso, a cópia de quem saiu
+     podia ser aberta sem internet por outra pessoa no mesmo aparelho, ou por quem foi rebaixado de perfil */
+  const copiaMinha = () => { const d = donoCopia(); return !!d && ler(CHAVE_DE) === d; };
   const erro = e => {
     const x = new Error(R.mensagemErro(e)); x.original = e; x.code = e && e.code;
     x.semRede = !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network/i.test(String((e && e.message) || e));
@@ -1475,7 +1478,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     /* tudo de uma vez (o projeto é pequeno). Sem rede, devolve a última cópia guardada no aparelho. */
     async carregar() {
       // 21/10/2026: rede que não responde (2G, wi-fi preso) deixava quase 3 minutos em "Carregando…"; com cópia válida, confere antes (6 s no máximo)
-      if (copiaValida() && ler(CHAVE_DADOS) && !(await this.temConexao())) { const g = ler(CHAVE_DADOS); this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
+      const dono = donoCopia();   // quem pediu a busca: se sair (ou trocar) enquanto ela corre, o resultado não é gravado no aparelho
+      if (copiaValida() && copiaMinha() && ler(CHAVE_DADOS) && !(await this.temConexao())) { const g = ler(CHAVE_DADOS); this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
       try {
         // quem acompanha de fora (SEAB/MDA) recebe unidades produtivas numeradas e visitas sem texto livre: o banco não entrega dado pessoal
         const anon = async f => { const { data, error } = await sb.rpc(f); if (error) throw erro(error); return data || []; };
@@ -1511,10 +1515,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
           const rs = await pRs; if (rs.error && rs.error.code !== 'PGRST202' && rs.error.code !== '42883') throw erro(rs.error);
           (rs.data || []).forEach(x => { const m = db.membros.find(y => y.id === x.id); if (m) Object.assign(m, x); });
         }
-        guardar(CHAVE_DADOS, semReservado(db)); guardar(CHAVE_QUANDO, Date.now()); guardar(CHAVE_DE, donoCopia()); this.offline = false; return db;
+        if (dono && donoCopia() === dono) { guardar(CHAVE_DADOS, semReservado(db)); guardar(CHAVE_QUANDO, Date.now()); guardar(CHAVE_DE, dono); }
+        this.offline = false; return db;
       } catch (e) {
         const g = ler(CHAVE_DADOS);
-        if (g && e.semRede && copiaValida()) { this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
+        if (g && e.semRede && copiaValida() && copiaMinha()) { this.offline = true; D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g; }
         throw e;
       }
     },
@@ -1624,11 +1629,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (error) throw erro(error);
       return data || [];
     },
-    guardarCopia(db) { guardar(CHAVE_DADOS, semReservado(db)); },
+    guardarCopia(db) { if (copiaMinha()) guardar(CHAVE_DADOS, semReservado(db)); },
     /* 23/10/2026 (desempenho): ao entrar, a tela abre na hora com a cópia deste aparelho e os dados do servidor chegam por baixo.
        Só a cópia da mesma pessoa, com o mesmo perfil de agora (quem mudou de perfil espera o servidor) e dentro do prazo de 72 h. */
     copiaRapida() {
-      const dono = donoCopia(); if (!dono || !copiaValida() || ler(CHAVE_DE) !== dono) return null;
+      if (!copiaValida() || !copiaMinha()) return null;
       const g = ler(CHAVE_DADOS); if (!g || typeof g !== 'object') return null;
       D.TABELAS.forEach(t => { if (!Array.isArray(g[t])) g[t] = []; }); return g;
     },
@@ -5499,12 +5504,22 @@ ${secs}</div>`;
   const hsOculto = { ac: false, rl: false, hs: false };
   const IC_RECOLHER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 15 6-6 6 6"/></svg>';
   const IC_ABRIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg>';
-  function secHs(k, titulo, txt, carregado, atr, corpo) {
+  /* 23/10/2026 (2ª, "ficou horrível esse botão Mostrar"): oculta, a seção vira um quadro só, como o das Alterações: título, resumo
+     curto e "Mostrar" em texto verde; o quadro inteiro abre ao toque (o botão se estende por cima dele). "Ocultar" no mesmo estilo. */
+  const tgHs = (k, id, abre) => `<button type="button" class="hs-tg" data-hsver="${k}" aria-expanded="${abre ? 'false' : 'true'}" aria-controls="${id}">${abre ? 'Mostrar' : 'Ocultar'}${abre ? IC_ABRIR : IC_RECOLHER}</button>`;
+  /* sanfona (23/10/2026, 3ª: "quando clica em Mostrar volta para o antigo"): aberta ou fechada, a seção tem o mesmo quadro de cabeçalho
+     (título, explicação ou resumo e, à direita, Atualizar e Ocultar/Mostrar); aberta, o conteúdo aparece logo abaixo dele.
+     Antes de carregar, o quadro traz o botão de carregar (Alterações) ou "Carregando…" embaixo (acessos e relatos carregam sozinhos). */
+  function secHs(k, titulo, txt, carregado, atr, corpo, resumo, carregar) {
     const oc = carregado && hsOculto[k], id = 'hs-sec-' + k;
-    const bts = !carregado ? '' : oc ? btnIc(IC_ABRIR, 'Mostrar', `data-hsver="${k}" aria-expanded="false" aria-controls="${id}"`)
-      : btnIc(IC_GERAR, 'Atualizar', atr) + btnIc(IC_RECOLHER, 'Ocultar', `data-hsver="${k}" aria-expanded="true" aria-controls="${id}"`);
-    return `<div class="hs-sec${oc ? ' oculta' : ''}"><div class="head"><div><h2>${titulo}</h2>${oc ? '' : `<p>${txt}</p>`}</div>${bts ? `<div class="acts">${bts}</div>` : ''}</div><div id="${id}"${oc ? ' hidden' : ''}>${oc ? '' : corpo()}</div></div>`;
+    const dir = !carregado ? (carregar || '') : (oc ? '' : `<button type="button" class="hs-tg hs-at" ${atr}>${IC_GERAR}<span class="hs-at-t">Atualizar</span></button>`) + tgHs(k, id, oc);
+    const sub = oc ? resumo : txt, miolo = oc ? '' : corpo();
+    return `<div class="hs-sec${oc ? ' oculta' : ''}"><div class="hs-rec panel${oc ? ' fech' : ''}${!carregado && carregar ? ' carr' : ''}"><div class="hs-rec-t"><h2>${titulo}</h2>${sub ? `<span class="small">${sub}</span>` : ''}</div>${dir ? `<div class="hs-rec-a">${dir}</div>` : ''}</div><div id="${id}" class="hs-corpo"${oc || !miolo ? ' hidden' : ''}>${miolo}</div></div>`;
   }
+  const resumoAc = () => { if (!Array.isArray(acessos)) return ''; const at = acessos.filter(a => a.ativo), n = at.filter(a => a.ultimo && hoje() - new Date(a.ultimo) < 7 * 864e5).length;
+    return `${n} de ${at.length} entraram nos últimos 7 dias`; };
+  const resumoRl = () => { if (!Array.isArray(relatos)) return ''; if (!relatos.length) return 'Nenhum relato'; const ab = relatos.filter(r => r.situacao !== 'Resolvido').length;
+    return ab ? `${ab} em aberto · ${relatos.length} no total` : `Todos resolvidos · ${relatos.length} no total`; };
   function telaHistorico() {
     if (!coord()) return '<div class="panel empty">O histórico é só da coordenação.</div>';
     carregarHistAuto();
@@ -5515,9 +5530,9 @@ ${secs}</div>`;
         return `<p class="hs-r"><b>${sem}</b> de ${at.length} pessoa(s) com acesso ativo entraram nos últimos 7 dias.</p>
          <div class="panel scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)"><table class="tc sem-ac"><thead><tr><th>Pessoa</th><th>Perfil</th><th>Último acesso</th><th>Situação</th></tr></thead><tbody>${acessos.map(a => `<tr><td data-r="Pessoa"><b>${esc(a.nome)}</b></td><td data-r="Perfil">${esc(a.perfil)}${a.orgao ? `<div class="small">${esc(a.orgao)}</div>` : ''}</td><td data-r="Último acesso">${a.ultimo ? `${new Date(a.ultimo).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}<div class="small">${ha(a.ultimo)}</div>` : '—'}</td><td data-r="Situação">${!a.ativo ? '<span class="chip">Desativado</span>' : !a.ultimo ? '<span class="chip f">Nunca entrou</span>' : hoje() - new Date(a.ultimo) > 30 * 864e5 ? '<span class="chip f">Sem entrar há mais de 30 dias</span>' : '<span class="chip ok">Em uso</span>'}</td></tr>`).join('')}</tbody></table></div>`; })();
     return `<div class="head"><div><h2>Histórico</h2><p>Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Serve para a prestação de contas. Só a coordenação vê.</p></div></div>
-     ${secHs('ac', 'Últimos acessos', 'Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.', Array.isArray(acessos), 'data-acessos', () => quadroA)}
-     ${secHs('rl', 'Problemas relatados pela equipe', 'O que a equipe mandou por “Relatar problema”, com quem relatou, quando e em que aba. Marque como resolvido quando tratar.', Array.isArray(relatos), 'data-relatos', quadroRelatos)}
-     ${secHs('hs', 'Alterações', 'Inclusões, alterações e exclusões em qualquer cadastro, e quem baixou planilhas ou a cópia dos dados. Carrega de 200 em 200.', !!hist, 'data-hist', () => hist ? `<div class="panel box" style="margin-top:10px">${historico()}</div>` : historico())}`;
+     ${secHs('ac', 'Últimos acessos', 'Quando cada pessoa cadastrada entrou pela última vez. O sistema mostra só o acesso mais recente de cada uma, não a lista de todos.', Array.isArray(acessos), 'data-acessos', () => quadroA, resumoAc())}
+     ${secHs('rl', 'Problemas relatados pela equipe', 'O que a equipe mandou por “Relatar problema”, com quem relatou, quando e em que aba. Marque como resolvido quando tratar.', Array.isArray(relatos), 'data-relatos', quadroRelatos, resumoRl())}
+     ${secHs('hs', 'Alterações', 'Inclusões, alterações e exclusões em qualquer cadastro, e quem baixou planilhas ou a cópia dos dados. Carrega de 200 em 200.', !!hist, 'data-hist', () => hist ? `<div class="panel box">${historico()}</div>` : '', hist ? `${hist.length} registro${hist.length === 1 ? '' : 's'} carregado${hist.length === 1 ? '' : 's'}` : '', btnIc(IC_HIST, 'Carregar o histórico', 'data-hist', 'p'))}`;
   }
   /* histórico em linha do tempo (14/10/2026, trazido do Mulheres & Quintais): frases por dia, com hora; o detalhe campo a campo
      ("antes → depois") continua a um toque; filtro por cadastro e busca; registros mais antigos de 200 em 200; downloads (script 21) */
@@ -6600,8 +6615,9 @@ ${secs}</div>`;
     if (!abas().some(t => t[0] === tab)) tab = abaInicial();
     render(); if (y) requestAnimationFrame(() => window.scrollTo(0, y));
     abrirLoteDoEndereco();
-    if (rapida) atualizarAoEntrar();
-    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => { guardarRascunho(); sair(EXP); }, temConexao: () => api.temConexao() }); sincronizar(); oferecerRascunho(); }
+    // a busca de fundo e o envio da fila um depois do outro (auditoria: correndo juntos, a versão mais velha podia ficar por cima)
+    const buscaFundo = rapida ? atualizarAoEntrar() : Promise.resolve();
+    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => { guardarRascunho(); sair(EXP); }, temConexao: () => api.temConexao() }); buscaFundo.then(() => { if (eu) sincronizar(); }); oferecerRascunho(); }
   }
   /* 21/10/2026 (auditoria de campo): formulário aberto e tela apagada por 15 minutos — o sistema sai por segurança, mas o que foi
      digitado fica guardado neste aparelho (só para a mesma pessoa, por até 24 horas) e é oferecido de volta ao entrar */
@@ -6636,11 +6652,14 @@ ${secs}</div>`;
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
-    eu = null; db = null; real = null; hist = null; relatos = undefined; Object.assign(histAuto, { ac: false, rl: false, acFalhou: false, rlFalhou: false }); Object.assign(hsOculto, { ac: false, rl: false, hs: false }); convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
+    eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; Object.assign(histAuto, { ac: false, rl: false, acFalhou: false, rlFalhou: false }); Object.assign(hsOculto, { ac: false, rl: false, hs: false }); convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
-  async function atualizarPorBaixo() { try { espera = { db: await api.carregar(), pend: demo() ? [] : await SQC.fila.listar(eu.id) }; buscouEm = Date.now(); } catch (e) { /* fica como está */ } }
+  /* auditoria de 23/10/2026: o resultado guardado leva a marca de quem pediu; se outra pessoa entrar no aparelho antes de ele ser aplicado, é descartado */
+  async function atualizarPorBaixo() { try { await buscarPorBaixo(); } catch (e) { /* fica como está */ } }
+  async function buscarPorBaixo() { const quem = eu && eu.id; const db1 = await api.carregar(), pend1 = demo() ? [] : await SQC.fila.listar(quem);
+    if (eu && eu.id === quem) { espera = { db: db1, pend: pend1, de: quem }; buscouEm = Date.now(); } }
   /* 19/10/2026: ao trocar de aba, busca o que os outros lançaram (ex.: quem preencheu o link de cadastro) se a última busca passou de 30 s.
      A busca é por baixo: a aba aparece na hora e os dados novos entram quando chegam, sem mexer em janela aberta. */
   let buscouEm = Date.now(), buscando = false, ultimaMarca = '';
@@ -6651,9 +6670,10 @@ ${secs}</div>`;
       let marca = ''; if (espera) { try { marca = JSON.stringify(espera.db) + '|' + espera.pend.length; } catch (e) { marca = ''; } if (marca && marca === ultimaMarca && !pend.length) { espera = null; return; } }
       if (espera && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); ultimaMarca = marca; } } finally { buscando = false; } }   // a marca só vale para o que foi de fato aplicado na tela
   async function atualizarAoEntrar() {
-    buscando = true; try { await atualizarPorBaixo(); if (espera && eu && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); } }
+    buscando = true; try { await buscarPorBaixo(); if (espera && eu && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); } }
+    catch (e) { if (eu && !e.semRede) toast('Não consegui buscar os dados novos do servidor: ' + (e.message || 'tente de novo.') + ' Você está vendo a cópia deste aparelho.'); marcarNet(); }   // auditoria: antes a falha passava calada
     finally { buscando = false; buscouEm = Date.now(); } }   // janela aberta: os dados novos entram quando ela fechar (como na atualização ao trocar de aba)
-  function aplicarEspera() { if (!espera || !eu) return; trocarDb(espera.db); pend = espera.pend; espera = null; aplicarFila(); render(); }
+  function aplicarEspera() { if (!espera || !eu) return; if (espera.de && espera.de !== eu.id) { espera = null; return; } trocarDb(espera.db); pend = espera.pend; espera = null; aplicarFila(); render(); }
   /* "falta enviar" (script 14): com internet, o aparelho informa só a contagem do que guarda sem enviar. A coordenação vê na Visão geral. */
   const aparelho = () => { let a = ''; try { a = localStorage.getItem('sqc-aparelho') || ''; if (!a) { a = SQC.novoId(); localStorage.setItem('sqc-aparelho', a); } } catch (e) { a = a || 'sem-armazenamento'; } return a; };
   async function informarFila() {
@@ -6686,7 +6706,7 @@ ${secs}</div>`;
       // os dados acabaram de chegar, e baixar tudo outra vez dobrava o tempo e o consumo de internet (auditoria de 14/10)
       const precisa = r.enviados || r.erros || api.offline || avisar;
       const novo = precisa ? await api.carregar() : null; const fila = await SQC.fila.listar(eu.id);
-      if (novo) { if ($('#dlg').open) { espera = { db: novo, pend: fila }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
+      if (novo) { if ($('#dlg').open) { espera = { db: novo, pend: fila, de: eu && eu.id }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
         else { trocarDb(novo); pend = fila; aplicarFila(); render(); } }
       informarFila(); if (coord()) filas = undefined;   // a lista da coordenação busca de novo na próxima vez que o painel aparecer
       const resta = (await SQC.fila.listar(eu.id)).filter(p => !p.erro).length;
@@ -6961,6 +6981,8 @@ ${secs}</div>`;
     document.addEventListener('input', ev => { const c = ev.target.closest && ev.target.closest('#fauth .cp.erro'); if (!c) return; c.classList.remove('erro'); const e = c.querySelector('.cp-e'); e.hidden = true; e.textContent = ''; ev.target.removeAttribute('aria-invalid'); ev.target.removeAttribute('aria-describedby'); });
     document.addEventListener('pointermove', aoMoverGrafico); document.addEventListener('pointerdown', aoMoverGrafico);
     document.addEventListener('toggle', ev => { if (ev.target.open && ev.target.matches && ev.target.matches('details')) abrirTarde(ev.target); }, true);
+    // menu "Seção" fechado: os dados que chegaram enquanto ele estava aberto entram agora (antes só entravam ao fechar uma janela)
+    $('#abas-m').addEventListener('toggle', () => { if (!$('#abas-m').open && espera && !$('#dlg').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); } });
     document.addEventListener('keydown', ev => { const t = ev.target; if ((ev.key === 'Enter' || ev.key === ' ') && t.matches && t.matches('g[data-mapamun]')) { ev.preventDefault(); t.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
     document.addEventListener('change', ev => { const t = ev.target, f = t.closest && t.closest('#frm, #fpub'); if (f && /^f_(funcao|arlo|socio)$/.test(t.id)) ajustarFormMembro(f); });
     document.addEventListener('change', ev => { if (ev.target.id === 'f_anx') anxEscolheu(ev.target); });   // 42: vários documentos
