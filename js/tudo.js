@@ -517,6 +517,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     });
     const semBase = db.agricultores.filter(a => !a.diag);
     if (semBase.length) add('bad', 'Linha de base', `${semBase.length} unidade(s) produtiva(s) sem diagnóstico inicial.`, 'Sem ele, a avaliação da Meta 5 não tem com o que comparar.', '', 'agricultores');
+    // 44: termo de uso de dados e imagem. Só quem lê a unidade produtiva inteira tem o campo (SEAB/MDA e bolsista recebem a versão anônima, sem ele)
+    const semTermo = db.agricultores.filter(a => 'termo_em' in a && !a.termo_em);
+    if (semTermo.length) add('f', 'Termo', `${semTermo.length} unidade(s) produtiva(s) sem termo de uso de dados assinado.`, 'Imprima o termo no cadastro da unidade produtiva, colha a assinatura na visita e anexe a foto do termo assinado.', '', 'agricultores');
     db.agricultores.forEach(a => {
       const r = recebeu(db, a.id).sort((x, y) => x.data < y.data ? 1 : -1)[0]; if (!r) return; const v = visitasDe(db, a.id)[0];
       if ((!v || v.data < r.data) && dias(pd(r.data), hoje) > 30) add('f', 'Monitoramento', `${a.nome}: recebeu bioinsumo em ${dt(r.data)} e não teve visita depois.`, 'Registre a visita de monitoramento.', '', 'visitas');
@@ -589,6 +592,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
+    if (tabela === 'agricultores' && r.termo_em) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.termo_em > iso(lim)) return 'A data do termo está no futuro. Registre a data em que o termo foi assinado.'; }
     if (tabela === 'visitas' && r.data) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da visita está no futuro. Registre a visita depois de feita.'; }
     if (tabela === 'presencas') {
       if (!(db.eventos || []).some(e => e.id === r.evento)) return 'Escolha a atividade.';
@@ -1094,7 +1098,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const pres = tabela === 'agricultores' ? (db.presencas || []).filter(p => p.agricultor === id).map(p => p.id) : [];
       pres.forEach(pid => { const p = db.presencas.find(x => x.id === pid); if (p) p.agricultor = null; });
       this._lixo[tabela + ':' + id] = { r: JSON.parse(JSON.stringify(r)), quem: eu && eu.id, em: Date.now(), pres };
-      db[tabela] = db[tabela].filter(x => x.id !== id); if (['eventos', 'unidades'].includes(tabela)) db.anexos = (db.anexos || []).filter(a => a.registro !== id); persistir();
+      db[tabela] = db[tabela].filter(x => x.id !== id); if (['eventos', 'unidades', 'agricultores'].includes(tabela)) db.anexos = (db.anexos || []).filter(a => a.registro !== id); persistir();
     },
     _lixo: {},
     /* como no banco (41): só quem excluiu, até 30 minutos depois; volta igual (autor, data de criação, código do lote), sem o documento */
@@ -1209,7 +1213,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     unidades: ['nome', 'sigla', 'municipio', 'uf', 'territorio', 'modelo', 'conta', 'parceiro', 'responsavel', 'obs'].concat(D.CHECK.map(c => c[0])).concat(['funcionando_em', 'lat', 'lng', 'precisao']),
     itens: ['unidade', 'descricao', 'valor', 'rubrica', 'status', 'data'],
     lotes: ['unidade', 'tipo', 'inicio', 'dias', 'qtd', 'med', 'status', 'responsavel', 'insumos', 'obs'],
-    agricultores: ['nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata'],
+    agricultores: ['nome', 'comunidade', 'municipio', 'uf', 'territorio', 'unidade', 'culturas', 'area', 'diag', 'quimico', 'gasto0', 'kit', 'kitdata', 'termo_em', 'imagem'],
     distribuicoes: ['data', 'lote', 'agricultor', 'qtd', 'cultura', 'area', 'forma'],
     visitas: ['data', 'agricultor', 'tecnico', 'usou', 'vigor', 'gasto', 'obs', 'problemas', 'lat', 'lng', 'precisao'],
     eventos: ['tipo', 'data', 'tema', 'lugar', 'municipio', 'part', 'mulheres', 'link', 'obs', 'resumo'],
@@ -1593,7 +1597,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     },
     async excluir(tabela, id) {
       // 42: os documentos da lista saem junto (o banco tira as linhas; aqui se apagam os arquivos)
-      let anx = []; if (['eventos', 'unidades'].includes(tabela)) { const q = await sb.from('anexos').select('caminho').eq('registro', id); if (!q.error) anx = (q.data || []).map(x => x.caminho); }
+      let anx = []; if (['eventos', 'unidades', 'agricultores'].includes(tabela)) { const q = await sb.from('anexos').select('caminho').eq('registro', id); if (!q.error) anx = (q.data || []).map(x => x.caminho); }
       const comDoc = ['entregas', 'eventos', 'unidades'].includes(tabela), { data, error } = await sb.from(tabela).delete().eq('id', id).select(comDoc ? 'id,arquivo' : 'id');
       if (error && comDoc && /arquivo/.test(String(error.message))) return this.excluirSemArquivo(tabela, id);   // banco sem o 27
       if (error) throw erro(error);
@@ -4424,7 +4428,9 @@ var qrcode = function() {
   const podeAnexar = M => !!eu && (M === MOD.entregas ? ['Coordenação', 'Equipe', 'Auxiliar'] : ['Coordenação', 'Auxiliar']).includes(eu.perfil);
   /* 42 (23/10/2026): vários documentos na biofábrica e na atividade (tabela anexos). Lê e anexa quem registra o campo (coordenação e auxiliar).
      O documento único de antes (coluna arquivo) ainda aparece na lista até o script 42 passá-lo para ela. */
-  const ANX_TAB = ['eventos', 'unidades'];
+  const ANX_TAB = ['eventos', 'unidades', 'agricultores'];
+  /* 44: o termo de uso de dados e imagem aparece no cartão e na ficha da unidade produtiva (só para quem lê o cadastro inteiro: SEAB/MDA e bolsista não têm o campo) */
+  const termoChip = a => ('termo_em' in a ? (a.termo_em ? '' : '<span class="chip f">sem termo</span>') : '') + (a.imagem === 'Não' ? '<span class="chip neu">não autoriza foto</span>' : '');   // 44: o termo assinado do agricultor também vai para a lista de documentos
   const podeAnexos = () => !!eu && ['Coordenação', 'Auxiliar'].includes(eu.perfil);
   function anexosDe(m, id) {
     const L = (db.anexos || []).filter(a => a.registro === id), r = by(m, id);
@@ -4500,13 +4506,14 @@ var qrcode = function() {
         ['Situação', l => `<span class="chip ${l.status === 'Pronto' ? 'ok' : l.status === 'Descartado' ? 'bad' : 'f'}">${esc(l.status)}</span>`],
         ['Maturação', l => { const p = R.dias(pd(l.inicio), hoje()); return l.status === 'Pronto' || l.status === 'Descartado' ? `<span class="small">início ${dt(l.inicio)}</span>` : `${bar(p, l.dias, 'f')}<div class="small">dia ${Math.max(0, p)} de ${l.dias} · previsto ${dt(iso(R.pronto(l)))}</div>`; }],
         ['Produzido', l => `${qt(l.qtd)} ${esc(l.med)}`, 'n'], ['Saldo', l => `<b>${qt(Math.round(saldo(l) * 100) / 100)} ${esc(l.med)}</b>`, 'n']] },
-    agricultores: { tam: { comunidade: 'w', municipio: 'g', uf: 'p' }, um: 'Unidade produtiva', oque: 'Agricultor ou agricultora atendido(a) pelo projeto. Conta como “acompanhada” quando recebe bioinsumo e tem pelo menos uma visita de monitoramento no dia da primeira entrega ou depois. É dado pessoal: registre só o necessário e não compartilhe fora da equipe.', dicas: { unidade: 'A biofábrica que, pelo território, deve abastecer esta unidade produtiva. De onde ela recebeu de fato o sistema mostra pelas entregas.', diag: 'Dia em que você levantou a situação antes do projeto. Sem essa data, a avaliação final não tem com o que comparar.', gasto0: 'Quanto a família gastava por mês com adubo e defensivo comprados, antes de receber bioinsumo.', kitdata: 'Obrigatória quando o kit foi entregue.' }, nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
+    agricultores: { tam: { comunidade: 'w', municipio: 'g', uf: 'p' }, um: 'Unidade produtiva', oque: 'Agricultor ou agricultora atendido(a) pelo projeto. Conta como “acompanhada” quando recebe bioinsumo e tem pelo menos uma visita de monitoramento no dia da primeira entrega ou depois. É dado pessoal: registre só o necessário e não compartilhe fora da equipe.', dicas: { unidade: 'A biofábrica que, pelo território, deve abastecer esta unidade produtiva. De onde ela recebeu de fato o sistema mostra pelas entregas.', diag: 'Dia em que você levantou a situação antes do projeto. Sem essa data, a avaliação final não tem com o que comparar.', gasto0: 'Quanto a família gastava por mês com adubo e defensivo comprados, antes de receber bioinsumo.', kitdata: 'Obrigatória quando o kit foi entregue.', termo_em: 'O termo é assinado em papel, na visita: use “Imprimir termo”, no rodapé desta janela. Se a pessoa não assina, ela põe a digital e alguém assina a rogo, com uma testemunha.', imagem: 'O que a pessoa marcou no termo. Com “Não”, foto de visita só da plantação ou do bioinsumo, sem pessoas, e nada na divulgação.' }, nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
       campos: [['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome do agricultor ou agricultora', 'text', 1], ['comunidade', 'Comunidade ou assentamento', 'text'], ['municipio', 'Município', 'text'], ['uf', 'UF', 'select', 0, [['', '']].concat(opt(D.UFS))],
         ['territorio', 'Território', 'select', 0, opt(D.TERRITORIOS)], ['unidade', 'Biofábrica de referência', 'ref', 0, 'unidades'],
         ['_s2', 'Produção', 'sec'], ['culturas', 'Culturas principais', 'text'], ['area', 'Área cultivada (ha)', 'number'],
         ['_s3', 'Linha de base (antes do projeto)', 'sec'], ['diag', 'Data do diagnóstico inicial', 'date'], ['quimico', 'Usa adubo ou defensivo químico?', 'select', 0, opt(['', 'Sim', 'Parcial', 'Não'])], ['gasto0', 'Gasto com insumos comprados (R$/mês)', 'number'],
-        ['_s4', 'Kit de apoio', 'sec'], ['kit', 'Kit de apoio entregue', 'check'], ['kitdata', 'Data da entrega do kit', 'date']],
-      cols: [['Agricultor(a)', a => `<b>${esc(a.nome)}</b>${exChip(a)}<div class="small">${esc(a.comunidade)} · ${esc(a.municipio)}/${esc(a.uf)}</div>`],
+        ['_s4', 'Kit de apoio', 'sec'], ['kit', 'Kit de apoio entregue', 'check'], ['kitdata', 'Data da entrega do kit', 'date'],
+        ['_s5', 'Termo de uso de dados e imagem', 'sec'], ['termo_em', 'Data em que assinou o termo', 'date'], ['imagem', 'Autoriza o uso de fotos dele(a) e da propriedade?', 'simnao'], ['_arq', 'Termo assinado', 'arquivo']],
+      cols: [['Agricultor(a)', a => `<b>${esc(a.nome)}</b>${exChip(a)}${termoChip(a)}<div class="small">${esc(a.comunidade)} · ${esc(a.municipio)}/${esc(a.uf)}</div>`],
         ['Culturas', a => `${esc(a.culturas)}${R.vazio(a.area) ? '' : `<div class="small">${num(a.area, 1)} ha</div>`}`],
         ['Linha de base', a => a.diag ? `<span class="chip ok">${dt(a.diag)}</span><div class="small">${brl(a.gasto0)}/mês · químico: ${esc(a.quimico || '—')}</div>` : '<span class="chip bad">falta</span>'],
         ['Kit', a => a.kit ? `<span class="chip ok">${dt(a.kitdata)}</span>` : '<span class="chip">não</span>'],
@@ -4736,7 +4743,7 @@ var qrcode = function() {
    <div class="at-acao">${a[6] && abas().some(t => t[0] === a[6]) ? `<button class="b" data-tab="${a[6]}">${R.podeGravar(eu, a[6] === 'financeiro' ? 'despesas' : a[6]) ? 'Resolver' : 'Consultar'}</button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhum prazo vencendo, nenhuma rubrica estourada, nenhuma unidade produtiva sem acompanhamento.</p>'}
  </section>`}
  <div class="mm">
- <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Toque na meta para ver as etapas e registrar as entregas.</p>
+ <section class="panel mts" aria-label="Metas do plano de trabalho"><div class="mts-cab"><h2>Metas do plano de trabalho</h2><p>Toque na meta para ver as etapas${R.podeGravar(eu, 'entregas') ? ' e registrar as entregas' : ''}.</p>
    <ul class="mt-leg" aria-label="Legenda das barras"><li><span class="medidor" aria-hidden="true"><i style="width:62%"></i></span>Realizado</li><li><span class="medidor" aria-hidden="true"><b style="left:50%"></b></span>Previsto pela equipe (cronograma)</li><li><span class="medidor" aria-hidden="true"><b class="ted" style="left:50%"></b></span>Previsto no plano de trabalho (TED)</li>
     <li class="mt-leg-ch"><span class="chip ok">No ritmo</span><span class="chip f">Pouco abaixo do previsto</span><span class="chip bad">Abaixo do previsto</span></li></ul></div><ul class="mts-l">${metas}</ul></section>
  <section class="panel mts mcs" aria-label="Próximos marcos"><div class="mts-cab"><h2>Próximos marcos</h2><p>Do plano de trabalho (início e prazo das etapas, ${semDinheiro() ? '' : 'parcela a receber, '}fim da vigência) e do cronograma de atividades da equipe.${marcosF.length > nMarcos ? ` Mostrando os ${nMarcos} mais próximos de ${marcosF.length}.` : ''}</p></div>${marcos ? `<ol class="mc">${marcos}</ol>` : '<p class="small">Nenhum marco à frente.</p>'}</section>
@@ -4810,7 +4817,7 @@ var qrcode = function() {
     const ordem = [...L].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
     const cartao = a => { const st = situacaoAgr(a), u = by('unidades', a.unidade), v = visitasDe(a.id);
       return `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(a.nome))}</span>
-     <div class="pc-t"><div class="pc-n"><b>${esc(a.nome)}</b><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${exChip(a)}</div>
+     <div class="pc-t"><div class="pc-n"><b>${esc(a.nome)}</b><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${termoChip(a)}${exChip(a)}</div>
       <div class="pc-d"><span>${esc(a.comunidade || 'comunidade não informada')}</span><span>${esc(a.municipio || '')}${a.uf ? '/' + esc(a.uf) : ''}</span>${a.culturas ? `<span>${esc(a.culturas)}</span>` : ''}${u ? `<span>${esc(u.nome)}</span>` : ''}<span>${recebeu(a.id).length} entrega(s) · ${v.length} visita(s)</span></div></div>
      <button class="b" data-ficha="${esc(a.id)}">Ver detalhes</button></li>`; };
     return `<div class="head"><div><h2>Agricultores e unidades produtivas</h2><p>Meta de ${meta} unidades produtivas acompanhadas e ${meta} kits. Registre a linha de base antes da primeira entrega de bioinsumo.</p></div><div class="acts">${pode ? '<button class="b p" data-new="agricultores">Nova unidade produtiva</button>' : ''}</div></div>
@@ -4886,7 +4893,7 @@ var qrcode = function() {
   function abrirFicha(id) {
     const a = by('agricultores', id); if (!a) return; ed = null; const st = situacaoAgr(a), u = by('unidades', a.unidade), ent = recebeu(id).sort((x, y) => x.data < y.data ? 1 : -1), vis = visitasDe(id);
     const linha = (r, v) => `<dt>${r}</dt><dd>${v}</dd>`; $('#frm').className = 'fm ficha';
-    $('#frm').innerHTML = `<div class="fm-cab"><div class="pc-cab"><span class="pc-av g" aria-hidden="true">${esc(iniciais(a.nome))}</span><div><h2>${esc(a.nome)}</h2><div class="pc-n"><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${exChip(a)}</div></div></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+    $('#frm').innerHTML = `<div class="fm-cab"><div class="pc-cab"><span class="pc-av g" aria-hidden="true">${esc(iniciais(a.nome))}</span><div><h2>${esc(a.nome)}</h2><div class="pc-n"><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${termoChip(a)}${exChip(a)}</div></div></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
  <div class="fm-corpo"><dl class="kv">${linha('Comunidade', esc(a.comunidade) || '—')}${linha('Município', (esc(a.municipio) || '—') + (a.uf ? '/' + esc(a.uf) : ''))}${linha('Território', esc(a.territorio) || '—')}${linha('Biofábrica de referência', esc(u ? u.nome : '') || '—')}${(() => { const de = deOnde(a.id), outras = de.filter(x => !u || x !== u.id); return de.length ? linha('Recebeu bioinsumo de', de.map(x => esc((by('unidades', x) || {}).nome || '')).join(', ') + (outras.length ? ` <span class="chip f">${!u ? 'sem referência no cadastro' : de.includes(u.id) ? 'também de outra' : 'diferente da de referência'}</span>` : '')) : ''; })()}
   ${linha('Culturas', esc(a.culturas) || '—')}${linha('Área cultivada', R.vazio(a.area) ? '—' : num(a.area, 1) + ' ha')}${linha('Diagnóstico inicial', a.diag ? dt(a.diag) : '<span class="chip bad">falta</span>')}
   ${linha('Usa químico', esc(a.quimico) || '—')}${linha('Gasto com insumos (linha de base)', R.vazio(a.gasto0) ? '—' : brl(a.gasto0) + '/mês')}${linha('Kit de apoio', a.kit ? 'entregue em ' + dt(a.kitdata) : 'não entregue')}</dl>
@@ -5381,7 +5388,7 @@ var qrcode = function() {
       if (x.m === 4) { const sem = agrAte.filter(a => !db.distribuicoes.some(d => d.agricultor === a.id && d.data <= fimRel)).length; if (sem) fatos.push(`${pl(sem, 'unidade produtiva cadastrada ainda não recebeu', 'unidades produtivas cadastradas ainda não receberam')} bioinsumo`); }
       return `Meta ${x.m} (${D.METAS[x.m]}): ${pct(x.r)}% realizado até ${dt(fimRel)}, para ${pct(x.pv)}% previsto.${pend.length ? ` Etapas em aberto: ${lista(pend)}.` : ''}${fatos.length ? ` Situação registrada: ${lista(fatos)}.` : ''} Motivo e encaminhamento: [a coordenação descreve aqui o motivo do atraso e o que será feito].`;
     });
-    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
+    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
     const sub = (t, conteudo) => `<section class="rd-s"><h3>${t}</h3>${conteudo}</section>`;
     return `<section class="panel rel-op noprint" aria-label="Opções do relatório descritivo">
       <label class="rel-ck"><input type="checkbox" data-relanexo${relAnexo ? ' checked' : ''}><span><b>Anexar quadros numéricos</b><small>Tabelas de execução física e financeira no fim do relatório.</small></span></label>
@@ -5777,7 +5784,7 @@ ${secs}</div>`;
       if (t === 'simnao') return `<div class="fld w"><div class="sn-q" role="group" aria-labelledby="l_${k}"><span class="sn-t" id="l_${k}">${L}</span><span class="sn-par">${['Sim', 'Não'].map(x => `<button type="button" class="sn-b" data-sn="${k}" data-v="${x}" aria-pressed="${v === x}">${x}</button>`).join('')}</span></div><input type="hidden" id="${idc}" value="${esc(v)}"></div>`;
       if (t === 'arquivo' && !podeAnexar(M)) return '';
       if (t === 'arquivo' && ANX_TAB.some(k => MOD[k] === M)) { const mt = ANX_TAB.find(k => MOD[k] === M);
-        return `<div class="fld w anx"><span class="anx-r" id="f_anx_r">${mt === 'unidades' ? 'Documentos da unidade <span class="fm-opc">(croqui, termo de cessão…)</span>' : 'Documentos da atividade <span class="fm-opc">(ata, relatório, lista assinada…)</span>'}</span>
+        return `<div class="fld w anx"><span class="anx-r" id="f_anx_r">${mt === 'unidades' ? 'Documentos da unidade <span class="fm-opc">(croqui, termo de cessão…)</span>' : mt === 'agricultores' ? 'Termo assinado <span class="fm-opc">(foto ou digitalização do termo)</span>' : 'Documentos da atividade <span class="fm-opc">(ata, relatório, lista assinada…)</span>'}</span>
         <ul class="anx-l" id="f_anx_l" aria-labelledby="f_anx_r">${anxItens(mt, r.id)}</ul>
         <div class="anx-add"><input type="file" id="f_anx" class="doc-in" multiple data-anxtab="${mt}" accept="${Object.keys(R.DOC_TIPOS).map(x => '.' + x).join(',')}"><label for="f_anx" class="b anx-b">${IC_ANEXO}<span>Adicionar documento</span></label><span class="fm-dica">PDF, Word, Excel, PowerPoint, LibreOffice ou imagem, até 20 MB cada; até 10 documentos. Precisa de internet: o arquivo vai para uma pasta protegida, que só a coordenação e o auxiliar abrem.</span></div></div>`; }
       if (t === 'arquivo') return `<div class="fld w"><label for="f_arquivo">${l} <span class="fm-opc">(PDF, Word, Excel, PowerPoint, LibreOffice ou imagem; até 20 MB)</span></label>
@@ -5952,6 +5959,7 @@ ${secs}</div>`;
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('fotos')}<div class="fm-tt"><span class="fm-eye">Fotos ${t === 'eventos' ? 'da atividade' : t === 'unidades' ? 'da biofábrica' : 'da visita'}</span><h2>${titulo}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="fm-sub">${t === 'unidades' ? `${esc(r.municipio || '')}${r.uf ? '/' + esc(r.uf) : ''} · terreno, itens entregues, estrutura montada e funcionamento. Na legenda, diga qual passo a foto mostra.` : `${t === 'eventos' ? esc(r.tipo) + ' · ' : ''}${dt(dia)}`}</p>
       <div class="fm-oque"><span>Regra da foto</span><p>${t === 'unidades' ? 'Vale foto de qualquer dia da implantação (não pode ter data no futuro); a data da foto fica guardada.' : `Vale foto tirada no dia ${dt(dia)}.`} A data vem de dentro do arquivo, gravada pela câmera. Foto sem essa data (encaminhada pelo WhatsApp, captura de tela) entra marcada como “data não confirmada”. Só a equipe do projeto vê as fotos.</p></div>
+      ${t === 'visitas' && (by('agricultores', r.agricultor) || {}).imagem === 'Não' ? '<div class="banner"><span><b>Esta pessoa não autorizou o uso de imagem.</b> Fotografe só a plantação ou o bioinsumo, sem pessoas, e não use a foto na divulgação.</span></div>' : ''}
       ${F.length ? `<ul class="ft-g">${F.map(f => `<li><div class="ft-i" data-ftimg="${esc(f.id)}" role="img" aria-label="${esc(f.legenda || 'Foto')}"><span class="small">carregando…</span></div>
         <div class="ft-d"><span>${f.tirada_em ? `<span class="chip ok">tirada em ${dt(f.tirada_em)}</span>` : '<span class="chip f">data não confirmada</span>'}</span>${f.legenda ? `<small>${esc(f.legenda)}</small>` : ''}
         ${R.podeExcluir(eu, 'fotos', f) ? `<button type="button" class="ab d" title="Excluir foto" data-fotodel="${esc(f.id)}">${IC_LIXO}<span class="so">Excluir foto</span></button>` : ''}</div></li>`).join('')}</ul>` : '<p class="small">Nenhuma foto ainda.</p>'}
@@ -6097,6 +6105,41 @@ ${secs}</div>`;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(...PC); doc.text(doc.splitTextToSize('Escaneie com a câmera do celular para abrir o lote no sistema.', 30), x0 + 4, y0 + 40);
     }
   }
+  /* termo de ciência e autorização de uso de dados e imagem (44, 23/10/2026, modelo aprovado pela coordenação): assinado em papel na visita,
+     fotografado e anexado ao cadastro da unidade produtiva. Sai com o nome, a comunidade e o município do cadastro (ou do que já foi digitado na janela). */
+  const TERMO_TXT = 'Eu fui informado(a) de que o IFRN, no projeto Saberes que Cultivam (TED com o MDA), vai registrar meu nome, minha comunidade, o local das visitas, minha produção e meus gastos com insumos, para acompanhamento técnico e prestação de contas. Esses dados ficam só com a equipe do projeto; o MDA recebe apenas números, sem meu nome. Posso pedir para corrigir ou apagar meus dados falando com a coordenação.';
+  const TERMO_IMG = 'Autorizo o uso de fotos minhas e da minha propriedade em relatórios e na divulgação do projeto:';
+  function dadosTermo(id) {
+    const a = (id && by('agricultores', id)) || {}, f = k => { const el = $('#f_' + k); return (el && el.value.trim()) || a[k] || ''; };
+    return { nome: f('nome'), comunidade: f('comunidade'), municipio: f('municipio'), uf: f('uf') };
+  }
+  function imprimirTermo(t) {
+    const cx = (rot, v, w) => `<div class="pf-i${w ? ' w' : ''}"><span class="pf-l">${rot}</span><span class="pf-cx">${esc(v || '')}</span></div>`;
+    imprimir(`<section class="pf pf-termo">${cabImp('Termo de ciência e autorização de uso de dados e imagem', 'IFRN Campus Apodi · TED MDA/IFRN')}
+      <div class="pf-c">${cx('Nome', t.nome, 1)}${cx('Comunidade', t.comunidade, 1)}${cx('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'))}</div>
+      <p class="pt-txt">${esc(TERMO_TXT)}</p>
+      <p class="pt-txt">${esc(TERMO_IMG)}</p><p class="pt-sn"><span class="pf-op"><span class="pf-bx"></span>Sim</span><span class="pf-op"><span class="pf-bx"></span>Não</span></p>
+      <div class="pf-c"><div class="pf-i"><span class="pf-l">Data</span>${dataImp}</div></div>
+      <div class="pt-ass"><div class="pt-lin"><span></span><small>Assinatura</small></div><div class="pt-dig"><span></span><small>Digital (se não assinar)</small></div></div>
+      <div class="pt-ass2"><div class="pt-lin"><span></span><small>A rogo (quem assina pela pessoa)</small></div><div class="pt-lin"><span></span><small>Testemunha</small></div></div>
+      <div class="pt-ass2"><div class="pt-lin"><span></span><small>Responsável pela visita</small></div></div>
+      ${peImp('Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro no sistema')}</section>`, `Termo - ${t.nome || 'em branco'}`);
+  }
+  function pdfTermo(doc, t) {
+    let y = pdfCab(doc, 'Termo de ciência e autorização', 'Uso de dados e imagem · IFRN Campus Apodi · TED MDA/IFRN');
+    const lin = (rot, v, x, w) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(rot), x, y); doc.setDrawColor(150, 160, 152); doc.setLineWidth(0.25); doc.rect(x, y + 1.5, w, 9);
+      if (v) { doc.setFontSize(10); doc.setTextColor(...PT); doc.text(pdfTxt(v), x + 2, y + 7.5); } };
+    lin('Nome', t.nome, 12, 186); y += 15; lin('Comunidade', t.comunidade, 12, 120); lin('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'), 136, 62); y += 17;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...PT);
+    const p1 = doc.splitTextToSize(pdfTxt(TERMO_TXT), 186); doc.text(p1, 12, y, { lineHeightFactor: 1.45 }); y += p1.length * 5.6 + 5;
+    const p2 = doc.splitTextToSize(pdfTxt(TERMO_IMG), 186); doc.text(p2, 12, y, { lineHeightFactor: 1.45 }); y += p2.length * 5.6 + 2;
+    doc.rect(16, y, 5, 5); doc.text('Sim', 24, y + 4); doc.rect(44, y, 5, 5); doc.text(pdfTxt('Não'), 52, y + 4); y += 14;
+    lin('Data', '', 12, 50); y += 24;
+    const ass = (rot, x, w) => { doc.setDrawColor(90, 100, 92); doc.line(x, y, x + w, y); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(rot), x, y + 4.5); };
+    ass('Assinatura', 12, 120); doc.setDrawColor(150, 160, 152); doc.rect(150, y - 22, 34, 26); doc.setFontSize(7.5); doc.text(pdfTxt('Digital (se não assinar)'), 151, y + 8); y += 22;
+    ass('A rogo (quem assina pela pessoa)', 12, 88); ass('Testemunha', 110, 88); y += 22; ass('Responsável pela visita', 12, 120);
+    pdfPe(doc, 'Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro no sistema');
+  }
   /* etiqueta do lote com QR (22/10/2026): 8 por folha A4 para recortar e colar no saco ou frasco; o QR abre o lote no sistema
      (endereço do sistema + #lote=<id>; só abre para quem entra com a conta). Sem dado pessoal. */
   const urlLote = l => location.origin + location.pathname + '#lote=' + encodeURIComponent(l.id);
@@ -6202,7 +6245,7 @@ ${secs}</div>`;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab">${icCad(m)}<div class="fm-tt"><span class="fm-eye">${memNovo ? (antigo ? 'Cadastrar substituta' : 'Cadastrar') : m === 'pessoas' && !id && pre ? 'Acompanhamento externo' : id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(memNovo ? NOME_FUNCAO[pre] || M.um : m === 'membros' && id ? r.nome : m === 'pessoas' && !id && pre ? 'Nova pessoa que acompanha' : M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span><b>Vai preencher no papel?</b> Imprima a ficha em branco, preencha em campo e digite aqui depois.</span>${btnImprimir(`data-imprimir="${m}"`, FICHA_PAPEL[m])}</div>` : ''}${memNovo && !ed.convite && convites !== null ? `<button type="button" class="cad-modo" data-gerarlink="${esc(pre)}"><b>Prefere que a pessoa preencha?</b><span>Gere um link e mande pelo WhatsApp.</span><i aria-hidden="true">→</i></button>` : ''}${M.oque && !id && m !== 'membros' && !(m === 'pessoas' && pre) ? `<div class="fm-oque fm-oque-fixo" role="note" aria-label="O que é"><b class="fm-oque-t">O que é</b><p>${esc(M.oque)}</p></div>` : ''}${m !== 'membros' && M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${antigo ? `<p class="fm-sub">Substitui <b>${esc(antigo.nome)}</b>, desligada(o) em ${dt(antigo.fim)}. O histórico liga as duas pessoas.</p>` : ''}${corpo}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'lotes' && id ? `${btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR')}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR')}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#dlg').dataset.rede = ['despesas', 'pessoas', 'membros'].includes(m) ? 'conexao' : 'fila';   // aviso sem internet certo para esta janela
     { const d = $('#frm .fm-oque-fixo, #frm .fm-oque-d'), o = $('#frm .fm-obr'); if (d || o) { const w = document.createElement('div'); w.className = 'fm-info'; (d || o).before(w); if (d) w.append(d); if (o) w.append(o); } }   // 21/10/2026: "O que é" e "* obrigatório" numa linha só
     if (id && r._servidor) painelConflito(m, r);
@@ -6832,6 +6875,7 @@ ${secs}</div>`;
       try { await api.excluir('presencas', d.prdel); db.presencas = db.presencas.filter(x => x.id !== d.prdel); if (api.guardarCopia) api.guardarCopia(db); render(); abrirPresenca(prEv, 'Tirado da lista.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.prcontar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: trocar os participantes pelos da lista'; return; } const e = by('eventos', d.prcontar), L = db.presencas.filter(x => x.evento === d.prcontar), r = Object.assign({}, e, { part: L.length, mulheres: L.filter(x => x.mulher).length });
       const res = await gravarRegistro('eventos', r, e); render(); abrirPresenca(d.prcontar, res.ok ? 'Participantes da atividade atualizados pela lista.' : res.msg); }
+    else if (d.termo !== undefined) { const dd = dadosTermo(d.termo); if (d.pdf !== undefined) sairPdf(doc => pdfTermo(doc, dd), `Termo - ${dd.nome || 'em branco'}`); else imprimirTermo(dd); }
     else if (d.etiqueta) { const l = by('lotes', d.etiqueta); if (!l) return; if (d.pdf !== undefined) sairPdf(doc => pdfEtiqueta(doc, l), `Etiqueta ${l.codigo || 'do lote'}`); else imprimirEtiqueta(d.etiqueta); }
     else if (d.novadist) { if ($('#dlg').open && ed && perderia()) return avisarPerda(); abrir('distribuicoes', null, 'lote:' + d.novadist); }
     else if (d.rdcompart !== undefined) compartilharTexto();
