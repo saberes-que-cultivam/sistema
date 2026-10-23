@@ -2281,3 +2281,5 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
   .hs-at{min-width:44px;justify-content:center;padding:0} .hs-at-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .hs-rec.carr{flex-wrap:wrap;flex-direction:column;align-items:stretch;gap:12px} .hs-rec.carr .hs-rec-t{display:flex} .hs-rec.carr .hs-rec-a{width:100%} .hs-rec.carr .b.bi{width:100%;min-height:44px;justify-content:center}
 }
+/* 23/10/2026 (pedido da coordenação): os três "Carregar…" do Histórico com a mesma largura (19em acompanha a letra do modo sol) */
+@media (min-width:641px){.hs-rec.carr .b.bi{width:19em;max-width:100%;justify-content:center}}
