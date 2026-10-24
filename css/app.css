@@ -1299,7 +1299,7 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 .obr{color:var(--bad);font-weight:700} .fm-obr{margin:0;font-size:var(--t-sm);color:var(--txt-2)}
 @media screen{.rel section{content-visibility:auto;contain-intrinsic-size:auto 600px}}   /* relatório longo: o navegador só desenha o que aparece na tela (impressão desenha tudo) */
 /* Histórico em linha do tempo (14/10/2026) */
-.hs-f{display:flex;flex-wrap:wrap;gap:12px 16px;margin-bottom:10px} .hs-f .fld{display:flex;flex-direction:column;gap:6px;min-width:min(260px,100%)} .hs-f .fld>span{font:600 var(--t-sm)/1.3 var(--body);color:var(--txt-1)}
+.hs-f{display:flex;flex-wrap:wrap;gap:12px 16px;margin-bottom:10px} .hs-f .fld{display:flex;flex-direction:column;gap:6px;min-width:min(260px,100%)} .hs-f .fld>span,.dsp-f .fld>span{font:600 var(--t-sm)/1.3 var(--body);color:var(--txt-1)}   /* 24/10/2026: filtros de Despesas no mesmo padrão dos do Histórico */
 .hs-l{list-style:none;margin:8px 0 0;padding:0}
 .hs-dia{margin:18px 0 6px;padding-bottom:6px;border-bottom:1px solid var(--line);font:700 var(--t-xs)/1.2 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--txt-2)}
 .hs-l .hs-dia:first-child{margin-top:4px}
@@ -1308,7 +1308,7 @@ input[type=date]:focus-within,.fm input[type=date]:focus-within{outline:3px soli
 .hs-d{margin-top:4px} .hs-d summary{cursor:pointer;color:var(--accent);font-size:var(--t-sm)} .hs-d dl{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:4px 16px;margin:8px 0 0;font-size:var(--t-sm)}
 .hs-d dt{color:var(--txt-2)} .hs-d dd{margin:0;overflow-wrap:anywhere} .hs-d s{color:var(--txt-3)}
 @media (max-width:640px){.hs-d dl{grid-template-columns:1fr}.hs-d dd{margin-bottom:6px}}
-.hs-f input,.hs-f select{min-height:44px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--ink) 26%,var(--line));border-radius:10px;background:var(--surface);color:var(--txt-1);font:var(--t-base) var(--body)}
+.hs-f input,.hs-f select,.dsp-f input,.dsp-f select{min-height:44px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--ink) 26%,var(--line));border-radius:10px;background:var(--surface);color:var(--txt-1);font:var(--t-base) var(--body)}
 
 /* 14/10 · auditoria formal: texto com espaçamento ampliado (WCAG 1.4.12) quebra a linha em vez de ser cortado nos indicadores */
 .dx-topo .chip{white-space:normal}
@@ -2214,10 +2214,11 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 .doc-mini{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 /* despesas por mês e filtros (23/10/2026) */
 .dsp-f{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px;margin:0 0 12px}
-.dsp-c{display:flex;flex-direction:column;gap:4px;min-width:0;flex:0 1 220px} .dsp-c>span{font-size:var(--t-sm);font-weight:600;color:var(--txt-2)}
+.dsp-c{display:flex;flex-direction:column;gap:6px;min-width:0;flex:0 1 220px}
 .dsp-c select,.dsp-c input{min-height:44px} .dsp-q{flex:1 1 260px}
 .dsp-r{flex:1 1 100%;margin:0;font-size:var(--t-sm);color:var(--txt-2);font-weight:600}
-.dsp-m{margin:0 0 10px;padding:0;overflow:hidden}
+.dsp-p{padding:0;overflow:hidden}   /* 24/10/2026: um quadro só, com os meses em linhas (como "Por meta do TED") */
+.dsp-m{margin:0;padding:0;border-top:1px solid var(--line)} .dsp-m:first-child{border-top:0}
 .dsp-m>summary{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 18px;cursor:pointer;list-style:none;min-height:48px}
 .dsp-m>summary::-webkit-details-marker{display:none}
 .dsp-m>summary::before{content:"";flex:none;width:9px;height:9px;border-right:2px solid var(--txt-2);border-bottom:2px solid var(--txt-2);transform:rotate(-45deg);transition:transform .15s;margin-right:2px}
