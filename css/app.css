@@ -2422,3 +2422,8 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
    da célula em vez de esticar a tabela para fora da tela; a largura mínima evita que a coluna seja espremida e parta palavra comum */
 table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 @media (max-width:640px){table.tc td.tl{min-width:0}}
+
+/* 24/10/2026: ficha impressa PREENCHIDA (ao editar um cadastro) — valor dentro da caixa e opção marcada */
+#impresso .pf-cx-v{display:flex;align-items:center;padding:0 2.5mm;font-size:var(--t-sm);color:#1b2a20;line-height:1.15;overflow:hidden}
+#impresso .pf-ml.pf-cx-v{display:block;padding:1.5mm 3mm;white-space:pre-wrap}
+#impresso .pf-bx-on{background:#eef4ee;color:#27663a;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-size:3.6mm}

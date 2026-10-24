@@ -4773,7 +4773,7 @@ var qrcode = function() {
     const GR = A.grupos(L).map(g => ({ g, r: A.resumo(g) })), med = r => (r[2] && r[2].v || []).map(x => typeof x === 'string' ? { md: '', h: x } : x),
       cols = [...new Set(GR.flatMap(({ r }) => med(r).map(x => x.md)))].sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1);   // 24/10/2026: cada medida na mesma coluna em todas as linhas (sem L num mês, fica o lugar vazio)
     const pilulas = r => cols.map(md => { const x = med(r).find(y => y.md === md); return x ? `<b class="ag-q">${x.h}</b>` : '<b class="ag-q ag-q0" aria-hidden="true"></b>'; }).join('');
-    return GR.map(({ g, r }) => { const aberto = g.k in ab ? ab[g.k] : filtro || g.ab, [n, s2, dir, chipC, chipT] = r;
+    return GR.map(({ g, r }) => { const aberto = g.k in ab ? ab[g.k] : filtro,   /* 24/10/2026: ao abrir a aba, todos os grupos fechados (só o resumo); abrem ao tocar. A busca abre os que casam */ [n, s2, dir, chipC, chipT] = r;
       return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir && dir.v && dir.v.length ? `<span class="dsp-v ag-tot"><span class="ag-rot">${esc(dir.rot)}</span>${pilulas(r)}</span>` : ''}</summary>
         <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes, g.t) : ''}</div></details>`; }).join('');
   }
@@ -4808,13 +4808,13 @@ var qrcode = function() {
       && (!q || semAcento([d.descricao, d.favorecido, d.doc, d.etapa, nomeRubrica(d.rubrica), dt(d.data), brl(d.valor)].join(' ')).includes(q)));
   }
   function listaDespesas() {
-    const L = despesasFiltradas(), M = MOD.despesas, filtro = !!(despFiltro.st || despFiltro.rub || despFiltro.q.trim()), hojeYm = iso(hoje()).slice(0, 7);
+    const L = despesasFiltradas(), M = MOD.despesas, filtro = !!(despFiltro.st || despFiltro.rub || despFiltro.q.trim());
     if (!db.despesas.length) return `<div class="empty">Nenhuma despesa ainda.${R.podeGravar(eu, 'despesas') ? ' Use “Importar planilha da FUNCERN”.' : ''}</div>`;
     if (!L.length) return '<div class="empty">Nenhuma despesa com esse filtro.</div>';
     const G = {}; L.forEach(d => { const ym = String(d.data || '').slice(0, 7) || 'sem data'; (G[ym] = G[ym] || []).push(d); });
     return Object.keys(G).sort().reverse().map(ym => {   // 24/10/2026: um quadro só (filtros e meses), os meses em linhas
       const ds = G[ym].sort((a, b) => (b.data || '') > (a.data || '') ? 1 : -1), tot = ds.reduce((t, d) => t + (+d.valor || 0), 0), abertas = ds.filter(d => d.status !== 'Pago').length;
-      const aberto = ym in despAberto ? despAberto[ym] : filtro || ym === hojeYm || abertas > 0;
+      const aberto = ym in despAberto ? despAberto[ym] : filtro;   /* 24/10/2026: meses fechados ao abrir; a busca abre os que casam */
       return `<details class="dsp-m" data-ym="${esc(ym)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${ym === 'sem data' ? 'Sem data' : mesTitulo(ym)}</span><span class="dsp-n">${pl(ds.length, 'despesa', 'despesas')}</span>
         <span class="chip ${abertas ? 'f' : 'ok'}">${abertas ? (abertas === 1 ? '1 a pagar' : abertas + ' a pagar') : 'tudo pago'}</span><b class="dsp-v">${brl(tot)}</b></summary>
         <div class="scroll" tabindex="0" role="region" data-nome aria-label="Tabela: despesas de ${ym === 'sem data' ? 'sem data' : esc(mesTitulo(ym))}"><table class="tc sem-ac"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${ds.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
@@ -6298,16 +6298,20 @@ ${secs}</div>`;
   const pdfCaixa = (doc, x, y, w, h) => { doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, w, h, 2, 2, 'FD'); };
   function pdfData(doc, x, y) { let cx = x; doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...PB);
     [2, 2, 4].forEach((q, g) => { for (let i = 0; i < q; i++) { doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(cx, y, 8, 11, 1.2, 1.2, 'S'); cx += 9; } if (g < 2) { doc.text('/', cx + 0.2, y + 7.5); cx += 3; } }); doc.setTextColor(...PT); }
-  function pdfOps(doc, ops, x, y, w) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); let cx = x, cy = y + 1;
-    ops.forEach(t => { const tw = 5 + 2 + doc.getTextWidth(pdfTxt(t)); if (cx > x && cx + tw > x + w) { cx = x; cy += 6; } doc.setDrawColor(74, 92, 80); doc.setLineWidth(0.4); doc.roundedRect(cx, cy, 5, 5, 1, 1, 'S'); doc.text(pdfTxt(t), cx + 7, cy + 3.8); cx += tw + 6; }); }
+  function pdfOps(doc, ops, x, y, w, von) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); let cx = x, cy = y + 1;
+    ops.forEach(t => { const tw = 5 + 2 + doc.getTextWidth(pdfTxt(t)); if (cx > x && cx + tw > x + w) { cx = x; cy += 6; } doc.setDrawColor(74, 92, 80); doc.setLineWidth(0.4); doc.roundedRect(cx, cy, 5, 5, 1, 1, 'S');
+      if (von && von.includes(t)) { doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(39, 102, 58); doc.text('X', cx + 1.2, cy + 4); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); }
+      doc.text(pdfTxt(t), cx + 7, cy + 3.8); cx += tw + 6; }); }
+  function pdfValor(doc, v, x, y, w, h) { if (!v) return; doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PT);
+    const linhas = doc.splitTextToSize(pdfTxt(String(v)), w - 4), max = Math.max(1, Math.floor((h - 2) / 4.2)); doc.text(linhas.slice(0, max), x + 2.5, y + 4.6); }
   // um campo da grade, no topo y da linha
   function pdfCampo(doc, it, x, y, w) {
     if (it.l) pdfRot(doc, it.l, it.req, x, y); const y1 = y + 5.4;
-    if (it.tp === 'cx') pdfCaixa(doc, x, y1, w, 12.5);
+    if (it.tp === 'cx') { pdfCaixa(doc, x, y1, w, 12.5); pdfValor(doc, it.v, x, y1, w, 12.5); }
     else if (it.tp === 'dt') pdfData(doc, x, y1);
-    else if (it.tp === 'ops') pdfOps(doc, it.ops, x, y1, w);
-    else if (it.tp === 'ml') { pdfCaixa(doc, x, y1, w, 36); doc.setDrawColor(...PP); doc.setLineWidth(0.25); for (let i = 1; i < 4; i++) doc.line(x + 3, y1 + i * 9, x + w - 3, y1 + i * 9); }
-    else if (it.tp === 'geo') { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); const m = w / 2; doc.text('Latitude', x, y1 + 7.5); pdfCaixa(doc, x + 16, y1, m - 19, 12.5); doc.text('Longitude', x + m + 2, y1 + 7.5); pdfCaixa(doc, x + m + 20, y1, m - 20, 12.5); }
+    else if (it.tp === 'ops') pdfOps(doc, it.ops, x, y1, w, it.von);
+    else if (it.tp === 'ml') { pdfCaixa(doc, x, y1, w, 36); if (it.v) { doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PT); doc.text(doc.splitTextToSize(pdfTxt(String(it.v)), w - 6).slice(0, 4), x + 3, y1 + 5); } else { doc.setDrawColor(...PP); doc.setLineWidth(0.25); for (let i = 1; i < 4; i++) doc.line(x + 3, y1 + i * 9, x + w - 3, y1 + i * 9); } }
+    else if (it.tp === 'geo') { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); const m = w / 2; doc.text('Latitude', x, y1 + 7.5); pdfCaixa(doc, x + 16, y1, m - 19, 12.5); if (it.v) pdfValor(doc, it.v.split(', ')[0], x + 16, y1, m - 19, 12.5); doc.text('Longitude', x + m + 2, y1 + 7.5); pdfCaixa(doc, x + m + 20, y1, m - 20, 12.5); if (it.v) pdfValor(doc, it.v.split(', ')[1] || '', x + m + 20, y1, m - 20, 12.5); }
   }
   // folhas da ficha: as mesmas da impressão
   function pdfFolhas(doc, titulo, sub, blocos, quem, nota) {
@@ -6322,7 +6326,9 @@ ${secs}</div>`;
       }); });
     pdfPe(doc, quem, nota);
   }
-  function pdfFicha(doc, m) { const M = MOD[m]; pdfFolhas(doc, M.um, 'Ficha para preencher em campo', blocosFicha(m), M.um + ' de', '* obrigatório'); }
+  function pdfFicha(doc, m, id) { const M = MOD[m], r = id ? by(m, id) : null;
+    if (r) pdfFolhas(doc, M.um, 'Ficha do sistema · ' + (rotuloImp(m, r) || M.um), blocosFicha(m, r), M.um, '');
+    else pdfFolhas(doc, M.um, 'Ficha para preencher em campo', blocosFicha(m), M.um + ' de', '* obrigatório'); }
   function pdfLista(doc, e) {
     let y = pdfCab(doc, 'Lista de presença', `${e.tipo} · ${dt(e.data)}${e.municipio ? ' · ' + e.municipio : ''}`);
     // quadro da atividade (como na impressão)
@@ -6332,12 +6338,15 @@ ${secs}</div>`;
     if (e.lugar) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(e.lugar), X0 + 4.5, y + 9.2 + tema.length * 4.6); } y += alt + 3;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
     const av = doc.splitTextToSize(pdfTxt('Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).'), LW); doc.text(av, X0, y + 3); y += av.length * 3.6 + 3;
-    const cols = [['Nº', 9], ['Nome completo', 55], ['Comunidade/Instituição', 33], ['Município', 28], ['Mulher? S/N', 13], ['Assinatura', LW - 138]], H = 9.6, n = Math.min(20, Math.floor((280 - y - 9) / H));
+    const ps = (db.presencas || []).filter(x => x.evento === e.id).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1);   // 24/10/2026: nomes já na lista saem preenchidos
+    const cols = [['Nº', 9], ['Nome completo', 55], ['Comunidade/Instituição', 33], ['Município', 28], ['Mulher? S/N', 13], ['Assinatura', LW - 138]], H = 9.6, cabe = Math.floor((280 - y - 9) / H), n = Math.max(ps.length ? ps.length + 6 : 20, Math.min(20, cabe));
     doc.setFillColor(...PV); doc.rect(X0, y, LW, 9, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
     let x = X0; cols.forEach(([t, w], k) => { const L = doc.splitTextToSize(pdfTxt(t), w - 2.5); doc.text(L, k ? x + 2 : x + w / 2, y + (L.length > 1 ? 3.8 : 5.6), k ? {} : { align: 'center' }); x += w; }); y += 9;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
     for (let i = 1; i <= n; i++) { if (i % 2 === 0) { doc.setFillColor(245, 248, 245); doc.rect(X0, y, LW, H, 'F'); } doc.setDrawColor(...PP); doc.setLineWidth(0.25); doc.line(X0, y, X0 + LW, y);
-      x = X0; cols.forEach(([, w], k) => { if (k) { doc.setDrawColor(225, 232, 226); doc.line(x, y, x, y + H); } x += w; }); doc.text(String(i), X0 + 4.5, y + 6, { align: 'center' }); y += H; }
+      x = X0; cols.forEach(([, w], k) => { if (k) { doc.setDrawColor(225, 232, 226); doc.line(x, y, x, y + H); } x += w; }); doc.text(String(i), X0 + 4.5, y + 6, { align: 'center' });
+      const pp = ps[i - 1]; if (pp) { const val = [null, pp.nome, pp.comunidade, pp.municipio, pp.mulher ? 'S' : '', null]; let cx = X0; cols.forEach(([, w], k) => { if (val[k]) doc.text(doc.splitTextToSize(pdfTxt(String(val[k])), w - 3)[0], cx + 2, y + 6); cx += w; }); }
+      y += H; }
     doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(X0, y - n * H - 9, LW, n * H + 9, 2, 2, 'S');
     pdfPe(doc, 'Responsável', '', 'Folha ____ de ____');
   }
@@ -6420,19 +6429,29 @@ ${secs}</div>`;
      fica inteira numa folha. A altura de cada linha vem das medidas fixas (mm) do CSS de impressão, com folga. */
   const SPAN_IMP = { uf: 2, sigla: 2, cep: 2, numero: 2, area: 2, qtd: 2, part: 3, mulheres: 3, municipio: 3, lugar: 3, tecnico: 3, siape: 2, suap: 3 };
   const ALT_IMP = { cx: 18.4, dt: 17, ops: 12.9, ml: 42.5, geo: 18.4 }, GAP_IMP = 3.2, H2_IMP = 10.4, CORPO_IMP = 244;   // mm, medidos na impressão (o corpo da folha tem 248)
-  function campoImp([k, l, t, req, o]) {
-    const cx = x => `<span class="pf-op"><span class="pf-bx"></span>${esc(x)}</span>`, rot = (x, r) => `<span class="pf-l">${esc(x)}${r ? ' <em>*</em>' : ''}</span>`;
+  /* r (opcional): registro já cadastrado — a ficha sai PREENCHIDA (24/10/2026). Sem r, sai em branco para preencher à mão.
+     Campo reservado da equipe nunca entra aqui (as fichas imprimíveis não têm nenhum; a aba Equipe não é imprimível). */
+  function campoImp([k, l, t, req, o], r) {
+    const cheio = r && typeof r === 'object', raw = cheio ? r[k] : undefined, tem = cheio && !R.vazio(raw);
+    const cx = (x, on) => `<span class="pf-op"><span class="pf-bx${on ? ' pf-bx-on' : ''}">${on ? '✕' : ''}</span>${esc(x)}</span>`, rot = (x, rq) => `<span class="pf-l">${esc(x)}${rq ? ' <em>*</em>' : ''}</span>`;
+    const caixa = (v, cls) => `<span class="pf-cx${v ? ' pf-cx-v' : ''}${cls ? ' ' + cls : ''}">${v ? esc(v) : ''}</span>`;   // caixa com o valor preenchido, quando houver
     if (t === 'html' || k === 'link' || t === 'arquivo') return null;   // link (Drive) e documento anexado não se escrevem no papel
-    // tipo de desenho (tp) e rótulo (l) vão junto: o PDF desenha com as mesmas medidas (pdfFolhas)
-    if (t === 'checks') { const ops = D.CHECK.map(c => c[1]); return { s: 6, a: ALT_IMP.ops + 6, tp: 'ops', l, ops, h: `${rot(l)}<div class="pf-ops">${ops.map(cx).join('')}</div>` }; }
-    if (t === 'check') return { s: 3, a: ALT_IMP.ops, tp: 'ops', l: '', ops: [l], h: `<span class="pf-l">&nbsp;</span><div class="pf-ops">${cx(l)}</div>` };
-    if (t === 'select' || t === 'simnao') { const ops = (t === 'simnao' ? [['Sim', 'Sim'], ['Não', 'Não']] : (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1])).map(x => String(x[1]));
-      const tam = ops.reduce((a, x) => a + x.length + 5, 0), sp = tam <= 32 ? 3 : 6; return { s: sp, a: ALT_IMP.ops + (tam > 95 ? 6 : 0), tp: 'ops', l, req, ops, h: `${rot(l, req)}<div class="pf-ops">${ops.map(cx).join('')}</div>` }; }
-    if (t === 'textarea') return { s: 6, a: ALT_IMP.ml, tp: 'ml', l, req, h: `${rot(l, req)}<span class="pf-cx pf-ml">${'<i></i>'.repeat(4)}</span>` };
-    if (t === 'geo') return { s: 6, a: ALT_IMP.geo, tp: 'geo', l: l + ' (GPS, se tiver)', h: `${rot(l + ' (GPS, se tiver)')}<span class="pf-gps"><span>Latitude</span><span class="pf-cx"></span><span>Longitude</span><span class="pf-cx"></span></span>` };
-    if (t === 'date') return { s: 3, a: ALT_IMP.dt, tp: 'dt', l, req, h: `${rot(l, req)}${dataImp}` };
-    return { s: SPAN_IMP[k] || (t === 'number' ? (l.length > 22 ? 3 : 2) : 6), a: ALT_IMP.cx, tp: 'cx', l, req, h: `${rot(l, req)}<span class="pf-cx"></span>` };
+    // tipo de desenho (tp) e rótulo (l) vão junto: o PDF desenha com as mesmas medidas (pdfFolhas). von = opções marcadas; v = texto no campo
+    if (t === 'checks') { const pares = D.CHECK, von = cheio ? pares.filter(c => r[c[0]]).map(c => c[1]) : []; const ops = pares.map(c => c[1]);
+      return { s: 6, a: ALT_IMP.ops + 6, tp: 'ops', l, ops, von, h: `${rot(l)}<div class="pf-ops">${pares.map(c => cx(c[1], von.includes(c[1]))).join('')}</div>` }; }
+    if (t === 'check') { const on = cheio && !!raw; return { s: 3, a: ALT_IMP.ops, tp: 'ops', l: '', ops: [l], von: on ? [l] : [], h: `<span class="pf-l">&nbsp;</span><div class="pf-ops">${cx(l, on)}</div>` }; }
+    if (t === 'select' || t === 'simnao') { const pares = t === 'simnao' ? [['Sim', 'Sim'], ['Não', 'Não']] : (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]);
+      const ops = pares.map(x => String(x[1])), sel = cheio ? String(raw) : '', von = pares.filter(x => String(x[0]) === sel || String(x[1]) === sel).map(x => String(x[1]));
+      const tam = ops.reduce((a, x) => a + x.length + 5, 0), sp = tam <= 32 ? 3 : 6; return { s: sp, a: ALT_IMP.ops + (tam > 95 ? 6 : 0), tp: 'ops', l, req, ops, von, h: `${rot(l, req)}<div class="pf-ops">${pares.map(x => cx(String(x[1]), von.includes(String(x[1])))).join('')}</div>` }; }
+    if (t === 'textarea') { const v = tem ? String(raw) : ''; return { s: 6, a: ALT_IMP.ml, tp: 'ml', l, req, v, h: `${rot(l, req)}<span class="pf-cx pf-ml${v ? ' pf-cx-v' : ''}">${v ? esc(v) : '<i></i>'.repeat(4)}</span>` }; }
+    if (t === 'geo') { const g = cheio && !R.vazio(r.lat) && !R.vazio(r.lng) ? [r.lat, r.lng] : null;
+      return { s: 6, a: ALT_IMP.geo, tp: 'geo', l: l + ' (GPS, se tiver)', v: g ? g.join(', ') : '', h: `${rot(l + ' (GPS, se tiver)')}<span class="pf-gps"><span>Latitude</span>${caixa(g ? String(g[0]) : '')}<span>Longitude</span>${caixa(g ? String(g[1]) : '')}</span>` }; }
+    if (t === 'date') { const v = tem ? dt(raw) : ''; return { s: 3, a: cheio ? ALT_IMP.cx : ALT_IMP.dt, tp: cheio ? 'cx' : 'dt', l, req, v, h: `${rot(l, req)}${cheio ? caixa(v) : dataImp}` }; }
+    const ref = t === 'ref' && tem, vref = ref ? (x => rotuloImp(o, x))(by(o, raw)) : '', vnum = t === 'number' && tem ? (TIPO_TXT[k] === 'moeda' ? brl(raw) : num(raw)) : '';
+    const v = ref ? vref : vnum || (tem ? String(raw) : '');
+    return { s: SPAN_IMP[k] || (t === 'number' ? (l.length > 22 ? 3 : 2) : 6), a: ALT_IMP.cx, tp: 'cx', l, req, v, h: `${rot(l, req)}${caixa(v)}` };
   }
+  const rotuloImp = (tab, x) => x ? (x.nome || x.codigo || (tab === 'eventos' ? [dt(x.data), x.tema].filter(Boolean).join(' · ') : '') || '') : '';
   // linhas cheias: se o próximo campo não cabe no que sobra da linha, o último da linha estica até o fim
   function linhasImp(itens) { const L = []; let lin = null, usado = 0;
     itens.forEach(x => { x = Object.assign({}, x); if (!lin || usado + x.s > 6) { if (lin && usado < 6) lin[lin.length - 1].s += 6 - usado; lin = []; L.push(lin); usado = 0; } lin.push(x); usado += x.s; });
@@ -6453,20 +6472,34 @@ ${secs}</div>`;
     return F.map((f, i) => `<div class="pf-pag">${cabImp(titulo, sub)}<div class="pf-corpo">${f.map(x => x.html || blocoImp(x)).join('')}</div>
       <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span>${quem ? `<span class="pf-pe-id">${esc(quem)}: <i></i></span>` : '<span></span>'}<span>${nota ? nota + ' · ' : ''}Folha ${i + 1} de ${n}</span></footer></div>`).join('');
   }
-  function blocosFicha(m) {
-    const M = MOD[m], temData = M.campos.some(c => c[0] === 'data'), secs = [{ t: '', itens: [] }];
-    M.campos.forEach(c => { if (c[2] === 'sec') secs.push({ t: c[1], itens: [] }); else { const x = campoImp(c); if (x) secs[secs.length - 1].itens.push(x); } });
+  // IMPRIMÍVEL com dado pessoal (nome, comunidade, localização de agricultor): a folha leva a frase de LGPD
+  const COM_PESSOAL = ['agricultores', 'visitas', 'distribuicoes'];
+  function blocosFicha(m, r) {
+    const M = MOD[m], temData = M.campos.some(c => c[0] === 'data'), cheio = r && typeof r === 'object', secs = [{ t: '', itens: [] }];
+    M.campos.forEach(c => { if (c[2] === 'sec') { if (c[3] && c[3].edicao) return; secs.push({ t: c[1], itens: [] }); } else { const x = campoImp(c, r); if (x) secs[secs.length - 1].itens.push(x); } });
     const topo = [{ s: temData ? 6 : 3, a: ALT_IMP.cx, tp: 'cx', l: 'Preenchido por', h: '<span class="pf-l">Preenchido por</span><span class="pf-cx"></span>' }].concat(temData ? [] : [{ s: 3, a: ALT_IMP.dt, tp: 'dt', l: 'Data do preenchimento', h: `<span class="pf-l">Data do preenchimento</span>${dataImp}` }]);
-    const inst = { inst: true, html: '<p class="pf-inst">Letra de forma, dentro das caixas. Nas opções, marque com <b>X</b>. Faltou espaço? Continue no verso, com o nome do campo.</p>', cab: 12.2, linhas: [] };
-    return [{ t: '', cab: 0, linhas: linhasImp(topo) }, inst].concat(secs.filter(x => x.itens.length).map(x => ({ t: x.t, cab: (x.t ? H2_IMP : 0) + 3, linhas: linhasImp(x.itens) })));
+    const inst = { inst: true, html: cheio
+      ? `<p class="pf-inst">Ficha gerada do sistema em ${dt(iso(hoje()))}. Confira e corrija à mão o que mudou.${COM_PESSOAL.includes(m) ? ' <b>Esta folha tem dados pessoais (Lei nº 13.709/2018): guarde ou descarte com cuidado.</b>' : ''}</p>`
+      : '<p class="pf-inst">Letra de forma, dentro das caixas. Nas opções, marque com <b>X</b>. Faltou espaço? Continue no verso, com o nome do campo.</p>', cab: cheio && COM_PESSOAL.includes(m) ? 16 : 12.2, linhas: [] };
+    const base = cheio ? [inst] : [{ t: '', cab: 0, linhas: linhasImp(topo) }, inst];   // preenchida: sem a linha "Preenchido por / Data" do campo
+    return base.concat(secs.filter(x => x.itens.length).map(x => ({ t: x.t, cab: (x.t ? H2_IMP : 0) + 3, linhas: linhasImp(x.itens) })));
   }
   function imprimirBranco(m) {
     const M = MOD[m], blocos = blocosFicha(m);
     imprimir(`<section class="pf pf-ficha">${paginasImp(M.um, 'Ficha para preencher em campo', blocos, M.um + ' de', '<em>*</em> obrigatório')}</section>`, `Ficha em branco - ${M.um} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
   }
+  function imprimirFicha(m, id) {
+    const M = MOD[m], r = by(m, id); if (!r) return; const nome = rotuloImp(m, r) || M.um;
+    imprimir(`<section class="pf pf-ficha pf-cheia">${paginasImp(M.um, 'Ficha do sistema · ' + nome, blocosFicha(m, r), M.um, '')}</section>`, `${M.um} - ${nome} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
+  }
   function imprimirLista(evId) {
     const e = by('eventos', evId); if (!e) return;
-    const linhas = Array.from({ length: 20 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
+    // 24/10/2026: se já há nomes na lista, a folha sai com eles preenchidos (as pessoas só assinam ao lado); mais linhas em branco para quem chegar sem estar na lista
+    const ps = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1);
+    const td = v => `<td>${esc(v || '')}</td>`, extras = ps.length ? 6 : 20, total = ps.length + extras;
+    const linhas = Array.from({ length: total }, (_, i) => { const x = ps[i];
+      return x ? `<tr><td>${i + 1}</td><td class="pf-lp-n">${esc(x.nome)}</td>${td(x.comunidade)}${td(x.municipio)}<td>${x.mulher ? 'S' : ''}</td><td></td></tr>`
+               : `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`; }).join('');
     const sub = `${esc(e.tipo)} · ${dt(e.data)}${e.municipio ? ' · ' + esc(e.municipio) : ''}`;
     // 23/10/2026: mesma moldura das fichas (cabeçalho, rodapé no pé da folha), colunas com largura fixa para escrever à mão
     imprimir(`<section class="pf pf-ficha pf-lista"><div class="pf-pag">${cabImp('Lista de presença', sub)}<div class="pf-corpo">
@@ -6530,7 +6563,7 @@ ${secs}</div>`;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab">${icCad(m)}<div class="fm-tt"><span class="fm-eye">${memNovo ? (antigo ? 'Cadastrar substituta' : 'Cadastrar') : m === 'pessoas' && !id && pre ? 'Acompanhamento externo' : id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(memNovo ? NOME_FUNCAO[pre] || M.um : m === 'membros' && id ? r.nome : m === 'pessoas' && !id && pre ? 'Nova pessoa que acompanha' : M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span><b>Vai preencher no papel?</b> Imprima a ficha em branco, preencha em campo e digite aqui depois.</span>${btnImprimir(`data-imprimir="${m}"`, FICHA_PAPEL[m])}</div>` : ''}${memNovo && !ed.convite && convites !== null ? `<button type="button" class="cad-modo" data-gerarlink="${esc(pre)}"><b>Prefere que a pessoa preencha?</b><span>Gere um link e mande pelo WhatsApp.</span><i aria-hidden="true">→</i></button>` : ''}${M.oque && !id && m !== 'membros' && !(m === 'pessoas' && pre) ? `<div class="fm-oque fm-oque-fixo" role="note" aria-label="O que é"><b class="fm-oque-t">O que é</b><p>${esc(M.oque)}</p></div>` : ''}${m !== 'membros' && M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${antigo ? `<p class="fm-sub">Substitui <b>${esc(antigo.nome)}</b>, desligada(o) em ${dt(antigo.fim)}. O histórico liga as duas pessoas.</p>` : ''}${corpo}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR')}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${id && IMPRIMIVEIS.includes(m) ? btnImprimir(`data-imprimircheio="${m}:${esc(id)}"`, 'Imprimir esta ficha') : ''}${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR')}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#dlg').dataset.rede = ['despesas', 'pessoas', 'membros'].includes(m) ? 'conexao' : 'fila';   // aviso sem internet certo para esta janela
     { const d = $('#frm .fm-oque-fixo, #frm .fm-oque-d'), o = $('#frm .fm-obr'); if (d || o) { const w = document.createElement('div'); w.className = 'fm-info'; (d || o).before(w); if (d) w.append(d); if (o) w.append(o); } }   // 21/10/2026: "O que é" e "* obrigatório" numa linha só
     if (id && r._servidor) painelConflito(m, r);
@@ -7194,6 +7227,7 @@ ${secs}</div>`;
     else if (d.novadist) { if ($('#dlg').open && ed && perderia()) return avisarPerda(); abrir('distribuicoes', null, 'lote:' + d.novadist); }
     else if (d.rdcompart !== undefined) compartilharTexto();
     else if (d.imprimirlista) { const e = by('eventos', d.imprimirlista); if (e && d.pdf !== undefined) sairPdf(doc => pdfLista(doc, e), `Lista de presença - ${e.tema || e.tipo} - ${dt(e.data).replace(/\//g, '-')}`); else imprimirLista(d.imprimirlista); }
+    else if (d.imprimircheio) { const [m, id] = d.imprimircheio.split(':'), nm = rotuloImp(m, by(m, id)) || MOD[m].um; if (d.pdf !== undefined) sairPdf(doc => pdfFicha(doc, m, id), `${MOD[m].um} - ${nm} - ${dt(iso(hoje())).replace(/\//g, '-')}`); else imprimirFicha(m, id); }
     else if (d.imprimir) { if (d.pdf !== undefined) sairPdf(doc => pdfFicha(doc, d.imprimir), `Ficha em branco - ${MOD[d.imprimir].um} - ${dt(iso(hoje())).replace(/\//g, '-')}`); else imprimirBranco(d.imprimir); }
     else if (d.fotos) { if ($('#dlg').open && ed && perderia()) return avisarPerda(); const [tt, id] = d.fotos.split(':'); abrirFotos(tt, id); }
     else if (d.fotocam) { if (!demo() && navigator.onLine === false) { $('#ferr').textContent = 'Sem internet a foto não sobe, e a foto tirada por aqui não fica salva no celular. Tire com a câmera do próprio celular e anexe depois em “Escolher foto”: a data dela continua valendo.'; return; } const f = await SQC.fotodia.abrirCamera(m => { $('#ferr').textContent = m; }); if (f) await anexarFoto(d.fotocam, f, true); }
