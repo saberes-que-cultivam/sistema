@@ -115,7 +115,7 @@ dialog form{padding:20px;display:flex;flex-direction:column;gap:14px}
 .fld{display:flex;flex-direction:column;gap:4px;min-width:0}
 .fld.w{grid-column:1/-1}
 
-input,select,textarea{font:var(--t-base) var(--body);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+input,select,textarea{font:var(--t-base) var(--body);padding:8px 10px;border:1px solid color-mix(in srgb,var(--ink) 28%,var(--line));border-radius:6px;background:var(--surface);color:var(--ink);width:100%}   /* 23/10/2026: fundo e borda dos campos como no formulário (com o fundo da página, os filtros do Financeiro sumiam) */
 textarea{min-height:70px;resize:vertical}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 12px}
 fieldset label{display:flex;gap:8px;align-items:center;font:400 var(--t-md) var(--body);color:var(--ink)}
@@ -2246,9 +2246,16 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 
 /* 23/10/2026 (pedido da coordenação): Formação no iPad, em pé e deitado (até 1100 px), sem arrastar a tabela para o lado:
    Lista em cima de Fotos e, em pé, Editar em cima de Excluir (lado a lado, a tabela passava de 85 px a 150 px da tela) */
-@media (min-width:641px) and (max-width:1100px){
+@media (min-width:641px) and (max-width:1300px){
   table.tb-eventos .ev-b{flex-direction:column;align-items:stretch}
   table.tb-eventos .evb{justify-content:flex-start}
+}
+/* 23/10/2026 (computador de 1024 a 1152 px e modo sol em qualquer largura: a Formação rolava de lado): no modo sol, Lista em cima de Fotos sempre;
+   em tabela, a pílula do documento tem limite em px (o limite em % não entra no cálculo da coluna e o nome inteiro, sem quebra, alargava a Atividade) */
+@media (min-width:641px){
+  :root[data-sol] table.tb-eventos .ev-b{flex-direction:column;align-items:stretch}
+  :root[data-sol] table.tb-eventos .evb{justify-content:flex-start}
+  table.tc .doc-mini .lk-in{max-width:240px}
 }
 @media (min-width:641px) and (max-width:1023px){
   /* todas as tabelas-cartão (tc) no tablet em pé e no celular deitado: a varredura de aparelhos achou Biofábricas, Visitas e Acessos passando da tela */
@@ -2293,3 +2300,10 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 .pf-termo .pt-lin small,.pf-termo .pt-dig small{display:block;margin-top:1.5mm;font-size:var(--t-xs);color:#4a5a4f}
 .pf-termo .pt-dig span{display:block;height:28mm;border:1px solid #4a5a4f;border-radius:2mm}
 .pf-termo .pf-cx{min-height:10mm;display:flex;align-items:center;padding:0 2mm;font-size:var(--t-md)}
+
+/* 23/10/2026: lista de presença, colar vários nomes da ata */
+.pr-v{margin:14px 0 0;border:1px solid var(--line);border-radius:10px;padding:0 14px;background:var(--surface)}
+.pr-v>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--accent)}
+.pr-v[open]>summary{border-bottom:1px solid var(--line);margin-bottom:10px}
+.pr-v .acts{margin:8px 0 12px}
+.pr-cf li{gap:12px} .pr-m{display:inline-flex;align-items:center;gap:6px;min-height:44px;flex:none;font-size:var(--t-sm)} .pr-m input{width:20px;height:20px;margin:0}

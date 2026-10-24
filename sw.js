@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v147';
+const VERSAO = 'sqc-v148';
 const ARQUIVOS = ['./', 'index.html', 'css/app.css', 'js/config.js', 'js/simulacao.js', 'js/tudo.js',
   'assets/icon-192.png', 'manifest.webmanifest',
   'assets/fontes/manrope-latin-400-normal.woff2', 'assets/fontes/manrope-latin-500-normal.woff2', 'assets/fontes/manrope-latin-600-normal.woff2',

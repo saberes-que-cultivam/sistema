@@ -4532,7 +4532,7 @@ var qrcode = function() {
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Fotos', v => evid('visitas', v), '', 'equipe'], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome) + (v.lat != null && v.lat !== '' && !fora() ? '<div class="small">com localização</div>' : '')],
         ['Uso e vigor', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span><div class="small">vigor ${v.vigor ? esc(v.vigor) + '/5' : '—'}</div>`],
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
-    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega e há participantes registrados (com data futura, a atividade aparece como agendada; com data passada e sem participantes, não conta). Reunião, articulação e participação em evento ficam registradas, mas não contam.', dicas: { link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.', resumo: 'Tirado da ata ou do relatório de participação: assuntos tratados, decisões e encaminhamentos. Entra no relatório descritivo logo depois da atividade. O SEAB/MDA não vê este campo.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
+    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega e há participantes registrados (com data futura, a atividade aparece como agendada; com data passada e sem participantes, não conta). Reunião, articulação e participação em evento ficam registradas, mas não contam.', dicas: { part: 'Só o número de pessoas. Os nomes vão na lista de presença: botão “Lista” na tabela da Formação, onde dá para colar de uma vez os nomes da ata.', link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.', resumo: 'Tirado da ata ou do relatório de participação: assuntos tratados, decisões e encaminhamentos. Entra no relatório descritivo logo depois da atividade. O SEAB/MDA não vê este campo.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['', 'Capacitação', 'Dia de campo', 'Reunião', 'Articulação', 'Participação em evento'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
         ['part', 'Participantes', 'number'], ['mulheres', 'Quantas são mulheres', 'number'], ['_arq', 'Documento (ata, relatório de participação, lista assinada)', 'arquivo'], ['link', 'Ou o link (Drive, site)', 'text'], ['resumo', 'Resumo do que foi discutido e decidido', 'textarea'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + (String(e.data || '') > iso(hoje()) ? ' <span class="chip info">agendada</span>' : ['Capacitação', 'Dia de campo'].includes(e.tipo) && !R.realizada(db, e) ? ' <span class="chip bad">sem participantes: não conta</span>' : '') + exChip(e)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe'], ['Atividade', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span><div>${esc(e.tema)}</div><div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>${anxMini('eventos', e)}`],
@@ -5929,11 +5929,50 @@ ${secs}</div>`;
       ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3><div class="fields"><div class="fld w"><label for="pr_nome">Nome</label><input id="pr_nome" autocomplete="off" data-tipo="pessoa"></div>
         <div class="fld"><label for="pr_com">Comunidade</label><input id="pr_com" data-tipo="endereco" value="${esc(prUlt.comunidade || '')}"></div><div class="fld"><label for="pr_mun">Município</label><input id="pr_mun" data-tipo="lugar" value="${esc(prUlt.municipio || e.municipio || '')}"></div>
         <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pr_mul">Mulher</label></fieldset></div></div>
-        <div class="acts"><button type="button" class="b p" data-pradd="${esc(evId)}">Adicionar</button></div>` : ''}</div>
+        <div class="acts"><button type="button" class="b p" data-pradd="${esc(evId)}">Adicionar</button></div>
+        <details class="pr-v"${prLote.ev === evId && prLote.nomes.length ? ' open' : ''}><summary>Colar vários nomes de uma vez (da ata, um por linha)</summary>
+          <div class="fld w"><label for="pr_varios">Nomes, um por linha</label><textarea id="pr_varios" rows="6" placeholder="Maria da Silva (exemplo)&#10;José Pereira (exemplo)">${prLote.ev === evId ? esc(prLote.texto) : ''}</textarea>
+          <p class="fm-dica">Copie os nomes da ata e cole aqui. A numeração do começo da linha (1., 2 -) sai sozinha. A comunidade e o município de cima valem para todos; depois de conferir, marque quem é mulher.</p></div>
+          <div class="acts"><button type="button" class="b" data-prconf="${esc(evId)}">Conferir os nomes</button></div>
+          <div id="pr_prev" aria-live="polite">${prLote.ev === evId ? prPrevia(evId) : ''}</div></details>` : ''}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow">${btnImprimir(`data-imprimirlista="${esc(evId)}"`, 'Imprimir lista de presença')}${pode && difere ? `<button type="button" class="b" data-prcontar="${esc(evId)}">Usar o total da lista na atividade</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button></div></div>`;
     if ($('#dlg').open) ($('#pr_nome') || $('#frm .fm-x')).focus(); else $('#dlg').showModal();
   }
   let prEv = null;
+  /* 23/10/2026 (pedido da coordenação): colar de uma vez os nomes da ata na lista de presença. Um por linha (ou separados por ;),
+     sem a numeração do começo, sem repetir quem já está na lista; a pessoa confere e marca quem é mulher antes de gravar. */
+  let prLote = { ev: null, texto: '', nomes: [], fora: 0 };
+  function prSeparar(evId, texto) {
+    const ja = new Set((db.presencas || []).filter(x => x.evento === evId).map(x => R.nrm(x.nome))), vistos = new Set(); let fora = 0;
+    const nomes = String(texto || '').split(/[\n;]+/).map(l => l.replace(/^[\s\-–•*·]*(\d+\s*[.)\-–:ºª°]?\s*)?/, '').replace(/[^\p{L}\s'’.\-()]/gu, '').replace(/\s+/g, ' ').replace(/^[\s.\-]+|[\s.\-]+$/g, '').trim())
+      .filter(n => { if (n.length < 3) return false; const k = R.nrm(n); if (ja.has(k) || vistos.has(k)) { fora++; return false; } vistos.add(k); return true; });
+    return { ev: evId, texto, nomes: nomes.map(nome => ({ nome, mulher: false })), fora };
+  }
+  function prPrevia(evId) {
+    const L = prLote.nomes; if (prLote.ev !== evId) return '';
+    if (!L.length) return `<p class="small">${prLote.fora ? `Esses nomes já estão na lista.` : 'Nenhum nome encontrado. Cole um nome por linha.'}</p>`;
+    return `<p class="pr-t"><b>${L.length}</b> nome${L.length === 1 ? '' : 's'} para entrar${prLote.fora ? ` (${prLote.fora} já estava${prLote.fora === 1 ? '' : 'm'} na lista ou repetido${prLote.fora === 1 ? '' : 's'} e fica${prLote.fora === 1 ? '' : 'm'} de fora)` : ''}. Confira e marque quem é mulher:</p>
+      <ol class="pr-l pr-cf">${L.map((x, i) => `<li><span><b>${esc(x.nome)}</b></span><label class="pr-m"><input type="checkbox" data-prm="${i}"${x.mulher ? ' checked' : ''}>Mulher</label></li>`).join('')}</ol>
+      <div class="acts"><button type="button" class="b p" data-pradds="${esc(evId)}">Adicionar ${L.length === 1 ? 'esta pessoa' : `as ${L.length} pessoas`}</button></div>`;
+  }
+  async function adicionarVarios(evId) {
+    if (prOcupado) return; prOcupado = true;
+    try {
+      const v = id => (($('#' + id) || {}).value || '').trim(), com = v('pr_com'), mun = v('pr_mun'); let ok = 0, fila = 0; const erros = [];
+      for (const x of prLote.nomes.slice()) {
+        const r = { id: SQC.novoId(), evento: evId, nome: x.nome, comunidade: com, municipio: mun, mulher: !!x.mulher };
+        const msg = R.validar(db, 'presencas', r, null); if (msg) { erros.push(`${x.nome}: ${msg}`); continue; }
+        if ((db.presencas || []).some(p => p.evento === evId && R.nrm(p.nome) === R.nrm(r.nome))) continue;
+        const res = await gravarRegistro('presencas', r, null);
+        if (!res.ok) { erros.push(`${x.nome}: ${res.msg}`); continue; }
+        ok++; if (res.fila) fila++; prLote.nomes = prLote.nomes.filter(y => y !== x);
+      }
+      prUlt = { comunidade: com, municipio: mun };
+      if (!prLote.nomes.length) prLote = { ev: null, texto: '', nomes: [], fora: 0 };
+      abrirPresenca(evId, `${ok} pessoa${ok === 1 ? '' : 's'} entr${ok === 1 ? 'ou' : 'aram'} na lista.${fila ? ` ${fila} guardada${fila === 1 ? '' : 's'} neste aparelho, envia${fila === 1 ? '' : 'm'} quando o sinal voltar.` : ''}`);
+      if (erros.length) $('#ferr').textContent = 'Não entraram: ' + erros.join(' · ');
+    } finally { prOcupado = false; }
+  }
   let prOcupado = false;
   async function adicionarPresenca(evId) {
     if (prOcupado) return; prOcupado = true;
@@ -6870,6 +6909,8 @@ ${secs}</div>`;
     else if (d.apSol !== undefined) { SQC.aparencia.mudar('sol', !SQC.aparencia.ler().sol); $('#frm').innerHTML = SQC.aparencia.janela(); $('#frm [data-ap-sol]').focus(); }
     else if (d.apTema) { SQC.aparencia.mudar('tema', d.apTema); $('#frm').innerHTML = SQC.aparencia.janela(); $(`#frm [data-ap-tema="${d.apTema}"]`).focus(); }
     else if (d.presenca) abrirPresenca(d.presenca);
+    else if (d.prconf) { prLote = prSeparar(d.prconf, ($('#pr_varios') || {}).value || ''); $('#pr_prev').innerHTML = prPrevia(d.prconf); const b = $('#pr_prev [data-pradds]'); if (b) b.focus(); }
+    else if (d.pradds) { t.disabled = true; try { await adicionarVarios(d.pradds); } finally { t.disabled = false; } }
     else if (d.pradd) { t.disabled = true; try { await adicionarPresenca(d.pradd); } finally { t.disabled = false; } }
     else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para tirar da lista.'; return; }
       try { await api.excluir('presencas', d.prdel); db.presencas = db.presencas.filter(x => x.id !== d.prdel); if (api.guardarCopia) api.guardarCopia(db); render(); abrirPresenca(prEv, 'Tirado da lista.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
@@ -6985,6 +7026,7 @@ ${secs}</div>`;
     document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-relanexo]')) { relAnexo = ev.target.checked; render(); const c = document.querySelector('[data-relanexo]'); if (c) c.focus(); } });
     document.addEventListener('input', ev => { if (!ev.target.matches || !ev.target.matches('[data-histbusca]')) return; clearTimeout(tBusca);
       tBusca = setTimeout(() => { histBusca = ev.target.value.trim(); render(); const b = $('#hbusca'); if (b) { b.focus({ preventScroll: true }); b.setSelectionRange(b.value.length, b.value.length); } }, 250); });
+    document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-prm]')) { const x = prLote.nomes[+ev.target.dataset.prm]; if (x) x.mulher = ev.target.checked; } });
     document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-histfiltro]')) { histFiltro = ev.target.value; render(); } });
     document.addEventListener('change', ev => {
       const e = ev.target, de = e.dataset || {};
