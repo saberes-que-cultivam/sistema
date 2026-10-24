@@ -2417,3 +2417,8 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 .ag-q small{font:600 var(--t-xs)/1 var(--body);color:var(--txt-2);margin-left:4px;letter-spacing:0;text-transform:none}
 @media (max-width:640px){.dsp-m>summary .ag-tot .ag-rot{flex-basis:100%;margin:2px 0 0} .ag-q{min-height:28px;padding:2px 10px;font-size:var(--t-sm)}}
 .termo-av .termo-bt{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}   /* 24/10/2026: Imprimir termo e Compartilhar PDF dentro do aviso */
+
+/* 24/10/2026 (teste de dados extremos): nas colunas de texto livre (td.tl), palavra longa sem espaço (link, e-mail, nome colado) quebra dentro
+   da célula em vez de esticar a tabela para fora da tela; a largura mínima evita que a coluna seja espremida e parta palavra comum */
+table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
+@media (max-width:640px){table.tc td.tl{min-width:0}}
