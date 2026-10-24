@@ -411,7 +411,7 @@ button.b.ent-b{width:100%;padding:15px 18px;border-radius:12px;font-size:var(--t
 .mp-s{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .mp-s li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:var(--t-base)} .mp-s li>b{font-variant-numeric:tabular-nums}
 .mp-s small{display:block;color:var(--muted);font-size:var(--t-xs)}
-.mp-s.pt li{border-bottom:1px dotted var(--line);padding-bottom:4px}
+.mp-s.mun li{border-bottom:1px dotted var(--line);padding-bottom:4px}
 @media (max-width:860px){.mp{padding:16px}.mp-g{grid-template-columns:1fr}}
 
 /* ---------- rodapé escuro: marca, instituições e processo, ajuda e relato de problema ---------- */
@@ -2385,7 +2385,7 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 
 /* 24/10/2026: coluna Participantes da Formação com ícones (pessoas e mulheres) */
 .pt{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:4px 12px;align-items:center}
-.pt-i{display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;color:var(--txt-1)} .pt-i svg{flex:none;color:var(--txt-2)} .pt-i b{font-weight:700}
+.pt-i{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;color:var(--txt-1)} .pt-i svg{flex:none;width:19px;height:19px;color:var(--txt-2)}   /* 24/10/2026: ícone de participantes um pouco maior (era 16) */ .pt-i b{font-weight:700}
 .pt-m svg{color:var(--accent)}
 /* 24/10/2026 (pedido da coordenação): na conferência dos nomes, × pequeno ao lado do nome e "Mulher" como pílula de marcar */
 .pr-cf .pr-n{display:inline-flex;align-items:center;gap:8px;min-width:0}
