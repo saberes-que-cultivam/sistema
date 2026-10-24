@@ -2408,7 +2408,7 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 @media (max-width:640px){.dsp-m>summary .dsp-v{flex-basis:100%;margin-left:17px;order:9}}
 /* 24/10/2026 (pedido da coordenação): total do grupo em destaque (rótulo pequeno e cada medida numa pílula) */
 .ag-tot{display:inline-flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:6px}
-.ag-rot{font:600 var(--t-xs)/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--txt-2);margin-right:2px}
+.ag-rot{font:600 var(--t-sm)/1.2 var(--body);color:var(--txt-2);margin-right:2px}   /* sem maiúsculas (regra de tipografia do sistema) */
 .ag-q{display:inline-flex;align-items:center;min-height:30px;padding:2px 12px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));color:var(--accent);font:700 var(--t-md)/1.2 var(--body);font-variant-numeric:tabular-nums;white-space:nowrap}
 @media (max-width:640px){.dsp-m>summary .ag-tot{justify-content:flex-start}}
 .ag-q small{font:600 var(--t-xs)/1 var(--body);color:var(--txt-2);margin-left:4px;letter-spacing:0;text-transform:none}
