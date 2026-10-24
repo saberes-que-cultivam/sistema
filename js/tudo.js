@@ -300,9 +300,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
      Visão geral somava só o número digitado e a % saía baixa); temMulheres diz se a atividade tem essa informação (entra na base da %) */
   // mulheres_lista: quem não recebe a lista (SEAB/MDA, bolsista) recebe só quantas mulheres assinaram (41), para a % sair igual
   const daLista = (db, x) => (db.presencas || []).filter(p => p.evento === x.id);
-  const temMulheres = (db, x) => !vazio(x.mulheres) || (vazio(x.part) && (daLista(db, x).length > 0 || (n(x.presentes) > 0 && !vazio(x.mulheres_lista))));
-  const mulheresDe = (db, x) => { if (!vazio(x.mulheres)) return n(x.mulheres); if (!vazio(x.part)) return 0; const L = daLista(db, x); return L.length ? L.filter(p => p.mulher).length : n(x.mulheres_lista); };
-  const participantes = (db, x) => n(x.part) || n(x.presentes) || (db.presencas || []).filter(p => p.evento === x.id).length;
+  /* 23/10/2026 (decisão da coordenação): a quantidade de participantes bate com a lista de presença. Com nomes na lista, participantes e
+     mulheres são contados da lista (o número digitado não vale); sem lista, vale o número digitado. Quem não recebe a lista (SEAB/MDA,
+     bolsista) recebe a contagem dela (presentes, mulheres_lista) e chega ao mesmo número. */
+  const naLista = (db, x) => daLista(db, x).length || n(x.presentes);
+  const pelaLista = (db, x) => naLista(db, x) > 0;
+  const temMulheres = (db, x) => { const L = daLista(db, x); if (L.length) return true; if (n(x.presentes) > 0) return !vazio(x.mulheres_lista); return !vazio(x.mulheres); };
+  const mulheresDe = (db, x) => { const L = daLista(db, x); if (L.length) return L.filter(p => p.mulher).length; if (n(x.presentes) > 0) return n(x.mulheres_lista); return vazio(x.mulheres) ? 0 : n(x.mulheres); };
+  const participantes = (db, x) => naLista(db, x) || n(x.part);
   const realizada = (db, x) => n(x.part) > 0 || n(x.presentes) > 0 || (db.presencas || []).some(p => p.evento === x.id);   // presentes: só a contagem, para quem não recebe a lista (SEAB/MDA e auxiliar, script 32)
   function feito(db, e, ate) {
     ate = ateDia(ate);
@@ -500,6 +505,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function alertas(db, hoje) {
     hoje = hoje || new Date(); const A = [];
     const add = (nivel, cat, titulo, detalhe, prazo, aba) => A.push([nivel, cat, titulo + (detalhe ? ' ' + detalhe : ''), titulo, detalhe || '', prazo || '', aba || '']);
+    // 45: relato da equipe em aberto, logo no topo (só a coordenação recebe a contagem do banco)
+    const nRel = db._avisos ? +db._avisos.abertos || 0 : 0;
+    if (nRel) add('f', 'Relatos', `${nRel} problema${nRel === 1 ? '' : 's'} relatado${nRel === 1 ? '' : 's'} pela equipe em aberto.`, 'Leia, responda e marque como resolvido na aba Histórico.', '', 'historico');
     const F = fin(db), usado = soma(F, 'pago') + soma(F, 'comp'), rec = recebido();
     const prox = D.PARCELAS.find(p => !p.recebida);
     if (usado > rec) add('bad', 'Financeiro', `Pago e comprometido somam ${brl(usado)}, acima do que já foi recebido (${brl(rec)}).`, prox ? 'A próxima parcela está prevista para ' + prox.previsao.split('-').reverse().join('/') + '.' : '', '', 'financeiro');
@@ -753,7 +761,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const extDocumento = nome => { const m = String(nome || '').toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ''; };
   const validarDocumento = a => !a ? 'Escolha o arquivo.' : !DOC_TIPOS[extDocumento(a.name)] ? 'Este tipo de arquivo não é aceito. Envie PDF, Word, Excel, PowerPoint, LibreOffice, JPEG ou PNG.'
     : !(a.size > 0) ? 'O arquivo está vazio.' : a.size > DOC_MAX ? 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' : '';
-  SQC.regras = { qtdBr, participantes, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  SQC.regras = { qtdBr, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, siglaSugerida, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
@@ -900,7 +908,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const G = typeof window !== 'undefined' ? window : globalThis;
   const SQC = (G.SQC = G.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v2-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
+  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v3-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
   const mem = {};   // usado quando o navegador bloqueia o armazenamento (e nos testes)
   const ler = k => { try { const v = G.localStorage.getItem(k); return v == null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } };
   const gravar = (k, v) => { mem[k] = v; try { G.localStorage.setItem(k, v); } catch (e) { /* fica só na memória */ } };
@@ -965,6 +973,32 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const x = out.length; out += `xref\n0 ${obj.length + 1}\n0000000000 65535 f \n` + pos.map(p => String(p).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${obj.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
     return new Blob([out], { type: 'application/pdf' });
   }
+  /* simulação (23/10/2026, "tudo preenchido"): relatos de problema já respondidos e o histórico de alterações montado com os próprios
+     registros fictícios (cada inclusão com quem fez e quando; lotes que ficaram prontos; despesas importadas; planilhas baixadas) */
+  const quando = (d, k) => { const h = 8 + (k % 9), m = (k * 7) % 60; return new Date(`${String(d).slice(0, 10)}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-03:00`).toISOString(); };
+  function relatosSim() {
+    const dia = SIM.dia, ok = d => d <= dia, R_ = [
+      ['p-aux', '2026-09-02', 'Fui salvar uma visita sem internet e não sabia se tinha ido (exemplo).', 'visitas', 'Fica guardada no aparelho e sobe sozinha quando o sinal volta; a faixa no alto mostra quantas esperam (exemplo).'],
+      ['p-form', '2026-11-19', 'Na lista de presença não achei como colocar vários nomes de uma vez (exemplo).', 'eventos', 'Agora tem “Colar vários nomes de uma vez” dentro da Lista: cole os nomes da ata, um por linha (exemplo).'],
+      ['p-equipe', '2027-03-10', 'O documento da entrega não abria no celular (exemplo).', 'painel', 'Era o arquivo, que estava corrompido. Enviei de novo pelo computador e já abre (exemplo).']];
+    return R_.filter(r => ok(r[1])).map((r, k) => ({ id: 'rel-sim-' + k, por: r[0], em: quando(r[1], k + 3), texto: r[2], aba: r[3], versao: 'Versão de exemplo', tecnico: '', situacao: 'Resolvido',
+      resolvido_em: quando(r[1], k + 6), resposta: r[4], respondido_em: quando(r[1], k + 5), respondido_por: 'p-coord', visto_em: quando(r[1], k + 8) })).reverse();
+  }
+  function historicoSim() {
+    const H = [], dia = SIM.dia, AUT = { eventos: 'p-form', presencas: 'p-form', entregas: 'p-equipe', despesas: 'p-coord', unidades: 'p-coord', itens: 'p-coord' };
+    const dataDe = (t, r) => r.data || r.diag || r.inicio || (t === 'presencas' ? ((db.eventos.find(e => e.id === r.evento) || {}).data) : '') || (t === 'unidades' ? r.funcionando_em || '2026-08-01' : '') || r.tirada_em || r.criado_em || '';
+    let n = 0;
+    ['unidades', 'itens', 'lotes', 'agricultores', 'distribuicoes', 'visitas', 'eventos', 'presencas', 'entregas', 'despesas'].forEach(t => (db[t] || []).forEach(r => {
+      const d = String(dataDe(t, r) || '').slice(0, 10); if (!d || d > dia) return;
+      H.push({ id: ++n, tabela: t, registro_id: r.id, acao: 'INSERT', por: AUT[t] || (n % 4 ? 'p-aux' : 'p-coord'), em: quando(d, n), depois: r }); }));
+    (db.lotes || []).forEach(l => { if (l.status === 'Pronto' && l.inicio) { const d = new Date(l.inicio + 'T12:00:00'); d.setDate(d.getDate() + (+l.dias || 30)); const x = d.toISOString().slice(0, 10);
+      if (x <= dia) H.push({ id: ++n, tabela: 'lotes', registro_id: l.id, acao: 'UPDATE', por: 'p-aux', em: quando(x, n), antes: Object.assign({}, l, { status: 'Maturando' }), depois: l }); } });
+    for (let m = new Date('2026-09-28T12:00:00'); m.toISOString().slice(0, 10) <= dia; m.setMonth(m.getMonth() + 1)) {
+      H.push({ id: ++n, tabela: 'planilhas', acao: 'PLANILHA', por: 'p-coord', em: quando(m.toISOString(), n), depois: { tipo: 'json', qtd: D.TABELAS.reduce((t, k) => t + (db[k] || []).length, 0) } }); }
+    // uma visita excluída por engano, para o "Desfazer a exclusão" aparecer
+    const v2 = (db.visitas || [])[1]; if (v2 && !db.visitas.some(x => x.id === 'v-excluida-sim')) H.push({ id: ++n, tabela: 'visitas', registro_id: 'v-excluida-sim', acao: 'DELETE', por: 'p-aux', em: quando(dia, 5), antes: Object.assign({}, v2, { id: 'v-excluida-sim', obs: 'Visita lançada em dobro e excluída (exemplo)' }) });
+    return H.sort((a, b) => a.em < b.em ? 1 : -1);
+  }
   function fotoFicticia(legenda) {
     return new Promise(ok => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const g = c.getContext('2d');
       const gr = g.createLinearGradient(0, 0, 800, 600); gr.addColorStop(0, '#2f6b3f'); gr.addColorStop(1, '#a8c686'); g.fillStyle = gr; g.fillRect(0, 0, 800, 600);
@@ -1021,9 +1055,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     },
     async tirarDocumento(entrega, tabela = 'entregas') { if (!eu || !(tabela === 'entregas' ? ['Coordenação', 'Equipe', 'Auxiliar'] : ['Coordenação', 'Auxiliar']).includes(eu.perfil)) throw falha('O seu perfil não tira este documento.'); const g = (db[tabela] || []).find(x => x.id === entrega); if (g) { g.arquivo = null; g.arquivo_nome = null; persistir(); } },
     /* como no banco (43): relata qualquer perfil; lê e marca só a coordenação (guardado neste navegador) */
-    _rel() { try { return JSON.parse(ler(CHAVE + '-relatos') || '[]'); } catch (e) { return []; } },
+    _rel() { try { const g = ler(CHAVE + '-relatos'); if (g === null && SIM) { const L = relatosSim(); gravar(CHAVE + '-relatos', JSON.stringify(L)); return L; } return JSON.parse(g || '[]'); } catch (e) { return []; } },
     async relatarProblema(r) { if (!eu) throw falha('Entre no sistema para relatar o problema.'); const L = this._rel(); const x = { id: SQC.novoId(), por: eu.id, em: new Date().toISOString(), texto: String(r.texto).slice(0, 4000), aba: r.aba, versao: r.versao, tecnico: r.tecnico, situacao: 'Aberto' }; L.unshift(x); gravar(CHAVE + '-relatos', JSON.stringify(L)); return x.id; },
     async relatos() { return eu && eu.perfil === 'Coordenação' ? this._rel() : []; },
+    async avisosRelatos() { if (!eu) return null; const L = this._rel(); return { abertos: eu.perfil === 'Coordenação' ? L.filter(x => x.situacao !== 'Resolvido').length : 0,
+      respostas: L.filter(x => x.por === eu.id && x.resposta && !x.visto_em).map(x => ({ id: x.id, em: x.em, texto: x.texto, resposta: x.resposta, respondido_em: x.respondido_em, situacao: x.situacao })) }; },
+    async responderRelato(id, resposta) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação responde o relato.'); const L = this._rel(), x = L.find(y => y.id === id); if (!x) throw falha(R.MSG_EXCLUIDO);
+      const t = String(resposta || '').trim().slice(0, 2000) || null; if (t !== (x.resposta || null)) { x.resposta = t; x.respondido_em = t ? new Date().toISOString() : null; x.respondido_por = t ? eu.id : null; x.visto_em = null; }
+      gravar(CHAVE + '-relatos', JSON.stringify(L)); return Object.assign({}, x); },
+    async relatoVisto(id) { if (!eu) return; const L = this._rel(), x = L.find(y => y.id === id && y.por === eu.id && y.resposta); if (x) { x.visto_em = new Date().toISOString(); gravar(CHAVE + '-relatos', JSON.stringify(L)); } },
     async marcarRelato(id, situacao) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação marca o relato.'); const L = this._rel(), x = L.find(y => y.id === id); if (!x) throw falha(R.MSG_EXCLUIDO);
       x.situacao = situacao; x.resolvido_em = situacao === 'Resolvido' ? new Date().toISOString() : null; gravar(CHAVE + '-relatos', JSON.stringify(L)); return Object.assign({}, x); },
     async enviarAnexo(tabela, registro, arquivo) {   // como no banco (42): coordenação e auxiliar, até 10 por registro
@@ -1074,7 +1114,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       }
       if (pf === 'Equipe') c.despesas = [];   // como no banco (33): o bolsista não lê as despesas
       if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
-      return c;
+      c._avisos = await this.avisosRelatos(); return c;
     },
     async salvar(tabela, reg) {
       if (!db) carregarLocal();
@@ -1115,7 +1155,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     },
     /* demonstração: alguns registros fictícios, montados com os dados de exemplo, para mostrar como o histórico aparece */
     async auditoria(limite, antes) {
-      if (!db) carregarLocal(); if (antes) return [];
+      if (!db) carregarLocal();
+      if (SIM) { const H = (this._rest || []).concat(historicoSim()); this._hist = H; return H.filter(x => !antes || x.em < antes).slice(0, limite || 200); }
+      if (antes) return [];
       const quem = (db.pessoas.find(p => p.perfil === 'Coordenação') || {}).id, eqp = (db.pessoas.find(p => p.perfil === 'Equipe') || {}).id, h = Date.now(), H = [];
       const em = horas => new Date(h - horas * 3600e3).toISOString(), l = db.lotes[0], u = db.unidades[0], v = db.visitas[0];
       if (l) H.push({ id: 1, tabela: 'lotes', registro_id: l.id, acao: 'UPDATE', por: eqp, em: em(2), antes: Object.assign({}, l, { status: 'Maturando' }), depois: l });
@@ -1166,7 +1208,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       this._cv(l => l.map(c => { if (c.token === token && c.status === 'aberto' && new Date(c.expira_em) > new Date()) { ok = true; return Object.assign({}, c, { status: 'preenchido', dados: limpo, preenchido_em: new Date().toISOString() }); } return c; }));
       if (!ok) throw falha('Este link já foi usado ou venceu. Peça outro à coordenação do projeto.'); },
     async conviteEncerrar(id, status) { if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.'); this._cv(l => l.map(c => c.id === id ? Object.assign({}, c, { status, dados: null }) : c)); },
-    async acessos() { if (!db) carregarLocal(); return eu && eu.perfil === 'Coordenação' ? db.pessoas.map((p, i) => ({ id: p.id, nome: p.nome, perfil: p.perfil, orgao: p.orgao, ativo: p.ativo !== false, ultimo: p.id === eu.id ? new Date().toISOString() : i === 1 ? new Date(Date.now() - 12 * 864e5).toISOString() : null })) : []; },
+    async acessos() { if (!db) carregarLocal(); return eu && eu.perfil === 'Coordenação' ? db.pessoas.map((p, i) => ({ id: p.id, nome: p.nome, perfil: p.perfil, orgao: p.orgao, ativo: p.ativo !== false, ultimo: p.id === eu.id ? new Date().toISOString() : SIM ? new Date(Date.now() - (i * 19 + 3) * 3600e3).toISOString() : i === 1 ? new Date(Date.now() - 12 * 864e5).toISOString() : null })) : []; },   // simulação: todo mundo entrou nos últimos dias
     /* só na demonstração */
     async apagarExemplos() {
       ['distribuicoes', 'visitas', 'lotes', 'agricultores', 'eventos', 'entregas', 'itens', 'despesas', 'membros'].forEach(t => { db[t] = db[t].filter(r => !r.ex); });
@@ -1346,6 +1388,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const { data, error } = await sb.from('relatos').select('*').order('em', { ascending: false }).limit(300);
       if (error && (error.code === '42P01' || error.code === 'PGRST205' || /relatos/.test(String(error.message)))) return null; if (error) throw erro(error); return data || [];
     },
+    /* 45: a coordenação responde; quem relatou vê a resposta ao entrar. Banco sem o 45: avisosRelatos devolve null */
+    async avisosRelatos() {
+      const { data, error } = await sb.rpc('avisos_relatos'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return null; if (error) throw erro(error); return data;
+    },
+    async responderRelato(id, resposta) {
+      const { data, error } = await sb.from('relatos').update({ resposta }).eq('id', id).select('*'); if (error) throw erro(error);
+      if (!data || !data.length) throw erro({ code: '42501', message: 'permission denied' }); return data[0];
+    },
+    async relatoVisto(id) { const { error } = await sb.rpc('relato_visto', { p_id: id }); if (error && error.code !== 'PGRST202' && error.code !== '42883') throw erro(error); },
     async marcarRelato(id, situacao) {
       const { data, error } = await sb.from('relatos').update({ situacao }).eq('id', id).select('*'); if (error) throw erro(error);
       if (!data || !data.length) throw erro({ code: '42501', message: 'permission denied' }); return data[0];
@@ -1503,6 +1554,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         const rpc = f => sb.rpc(f).then(x => x, e => ({ error: e }));
         const conta = ['Acompanhamento', 'Equipe'].includes(p), reserv = p === 'Coordenação' && !semCompleto;
         const pPr = conta ? rpc('presencas_por_evento') : null, pMu = conta ? rpc('mulheres_por_evento') : null, pRs = reserv ? rpc('membros_reservados') : null;
+        const pAv = rpc('avisos_relatos');   // 45: relatos em aberto (coordenação) e respostas ainda não lidas (quem relatou)
         const listas = await Promise.all(D.TABELAS.map(pedir));
         const db = {}; D.TABELAS.forEach((t, i) => { db[t] = listas[i]; });
         // quem não recebe a lista de presença (SEAB/MDA) recebe só quantas pessoas assinaram cada atividade (32),
@@ -1519,6 +1571,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
           const rs = await pRs; if (rs.error && rs.error.code !== 'PGRST202' && rs.error.code !== '42883') throw erro(rs.error);
           (rs.data || []).forEach(x => { const m = db.membros.find(y => y.id === x.id); if (m) Object.assign(m, x); });
         }
+        { const av = await pAv; db._avisos = av && !av.error && av.data ? av.data : null; }
         if (dono && donoCopia() === dono) { guardar(CHAVE_DADOS, semReservado(db)); guardar(CHAVE_QUANDO, Date.now()); guardar(CHAVE_DE, dono); }
         this.offline = false; return db;
       } catch (e) {
@@ -4532,11 +4585,12 @@ var qrcode = function() {
       cols: [['Data', v => dt(v.data) + exChip(v)], ['Fotos', v => evid('visitas', v), '', 'equipe'], ['Unidade produtiva', v => esc((by('agricultores', v.agricultor) || {}).nome) + (v.lat != null && v.lat !== '' && !fora() ? '<div class="small">com localização</div>' : '')],
         ['Uso e vigor', v => `<span class="chip ${v.usou === 'Sim' ? 'ok' : v.usou === 'Não' ? 'bad' : 'f'}">${esc(v.usou)}</span><div class="small">vigor ${v.vigor ? esc(v.vigor) + '/5' : '—'}</div>`],
         ['Gasto/mês', v => R.vazio(v.gasto) ? '—' : brl(v.gasto), 'n'], ['Observações', v => `${esc(v.obs)}${v.problemas ? `<div class="small">Dificuldade: ${esc(v.problemas)}</div>` : ''}`]] },
-    eventos: { um: 'Atividade', oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega e há participantes registrados (com data futura, a atividade aparece como agendada; com data passada e sem participantes, não conta). Reunião, articulação e participação em evento ficam registradas, mas não contam.', dicas: { part: 'Só o número de pessoas. Os nomes vão na lista de presença: botão “Lista” na tabela da Formação, onde dá para colar de uma vez os nomes da ata.', link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.', resumo: 'Tirado da ata ou do relatório de participação: assuntos tratados, decisões e encaminhamentos. Entra no relatório descritivo logo depois da atividade. O SEAB/MDA não vê este campo.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
+    eventos: { um: 'Atividade', ph: { part: 'Ex.: 25', mulheres: 'Ex.: 15' }, oque: 'Capacitação e dia de campo contam para as metas do plano quando a data chega e há participantes registrados (com data futura, a atividade aparece como agendada; com data passada e sem participantes, não conta). Reunião, articulação e participação em evento ficam registradas, mas não contam.', dicas: { part: 'Digite só o número: quantas pessoas participaram. Os nomes vão na lista de presença: botão “Lista” na tabela da Formação, onde dá para colar de uma vez os nomes da ata.', link: 'Pasta com a lista de presença e as fotos: é a evidência para a prestação de contas.', resumo: 'Tirado da ata ou do relatório de participação: assuntos tratados, decisões e encaminhamentos. Entra no relatório descritivo logo depois da atividade. O SEAB/MDA não vê este campo.' }, nome: 'Formação', titulo: 'Capacitações, dias de campo e reuniões', desc: 'O plano prevê 5 capacitações (etapa 3.2) e 4 dias de campo (etapa 5.1). Reuniões e articulações ficam registradas, mas não contam para essas metas.', novo: 'Registrar atividade',
       campos: [['tipo', 'Tipo', 'select', 1, opt(['', 'Capacitação', 'Dia de campo', 'Reunião', 'Articulação', 'Participação em evento'])], ['data', 'Data', 'date', 1], ['tema', 'Tema', 'text', 1], ['lugar', 'Local', 'text'], ['municipio', 'Município/UF', 'text'],
-        ['part', 'Participantes', 'number'], ['mulheres', 'Quantas são mulheres', 'number'], ['_arq', 'Documento (ata, relatório de participação, lista assinada)', 'arquivo'], ['link', 'Ou o link (Drive, site)', 'text'], ['resumo', 'Resumo do que foi discutido e decidido', 'textarea'], ['obs', 'Observações', 'textarea']],
+        ['part', 'Quantidade de participantes', 'number'], ['mulheres', 'Quantas são mulheres (quantidade)', 'number'], ['_arq', 'Documento (ata, relatório de participação, lista assinada)', 'arquivo'], ['link', 'Ou o link (Drive, site)', 'text'], ['resumo', 'Resumo do que foi discutido e decidido', 'textarea'], ['obs', 'Observações', 'textarea']],
       cols: [['Data', e => dt(e.data) + (String(e.data || '') > iso(hoje()) ? ' <span class="chip info">agendada</span>' : ['Capacitação', 'Dia de campo'].includes(e.tipo) && !R.realizada(db, e) ? ' <span class="chip bad">sem participantes: não conta</span>' : '') + exChip(e)], ['Lista e fotos', e => evid('eventos', e), '', 'equipe'], ['Atividade', e => `<span class="chip ${['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : ''}">${esc(e.tipo)}</span><div>${esc(e.tema)}</div><div class="small">${esc(e.lugar)}${e.municipio ? ' · ' + esc(e.municipio) : ''}</div>${anxMini('eventos', e)}`],
-        ['Participantes', e => { const p = R.participantes(db, e); return !p ? '—' : `${num(p)}${R.vazio(e.part) ? '<div class="small">pela lista</div>' : R.vazio(e.mulheres) ? '' : `<div class="small">${num(e.mulheres)} ${+e.mulheres === 1 ? 'mulher' : 'mulheres'}</div>`}`; }, 'n'],
+        ['Participantes', e => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null, mt = mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`;
+          return `${num(p)}${R.pelaLista(db, e) || mt ? `<div class="small">${[R.pelaLista(db, e) ? 'pela lista' : '', mt].filter(Boolean).join(' · ')}</div>` : ''}`; }, 'n'],
         ['Evidência', e => { const n = anexosDe('eventos', e.id).length; return n ? `<span class="chip ok">${n === 1 ? '1 documento' : n + ' documentos'}</span>` + (e.link ? ' ' + link(e.link, 'link') : '') : e.link ? link(e.link) : '<span class="chip neu">sem documento</span>'; }, '', 'equipe']] },   // 21/10/2026: ata anexada conta como evidência (antes dizia "sem link")
     entregas: { um: 'Entrega do plano de trabalho', oque: 'Relatório, material didático ou produto de comunicação concluído. Cada registro conta 1 na etapa escolhida. Anexe o arquivo (ou informe o link): é a evidência para a prestação de contas.', dicas: { link: 'Use se o documento estiver no Drive ou num site. Se anexou o arquivo acima, não precisa.' }, nome: 'Entregas', titulo: 'Entregas e evidências do plano de trabalho', desc: 'Relatórios, material didático e produtos de comunicação. Cada registro conta para a etapa escolhida.', novo: 'Registrar entrega',
       campos: [['etapa', 'Etapa do plano', 'select', 1, [['', 'Escolha']].concat(D.ETAPAS.filter(e => !D.ETAPAS_AUTOMATICAS.includes(e.id)).map(e => [e.id, `${e.id} · ${e.nome}`]))],
@@ -4617,6 +4671,10 @@ var qrcode = function() {
     // aba ativa à vista no menu que rola: rola só o menu (scrollIntoView movia o ponto de partida do Tab para a aba e o primeiro Tab pulava o cabeçalho)
     const s = $('#tabs [aria-selected="true"]'), tb = $('#tabs'); if (s && tb) mostrarAba(s, tb);
     bordasMenu();
+    // 45: número de relatos em aberto na aba Histórico (só a coordenação recebe a contagem)
+    const nRel = db && db._avisos ? +db._avisos.abertos || 0 : 0;
+    if (nRel) document.querySelectorAll('#tabs [data-tab="historico"], #abas-m [data-tab="historico"]').forEach(b => b.insertAdjacentHTML('beforeend', `<span class="nav-n" title="${nRel} relato(s) em aberto"><span class="so">, </span>${nRel}<span class="so"> relato${nRel === 1 ? '' : 's'} em aberto</span></span>`));
+    const sm = $('#abas-m summary b'); if (nRel && sm && !$('#abas-m summary .nav-n')) sm.insertAdjacentHTML('afterend', `<span class="nav-n" aria-hidden="true">${nRel}</span>`);
   }
   /* listas longas aparecem de 100 em 100 (as mais recentes primeiro): desenhar milhares de linhas trava celular simples */
   const PAGINA = 50, mostrando = {};   // 23/10/2026: de 100 para 50 (no celular simples, 100 visitas custavam quase 0,8 s para desenhar; "Mostrar mais" traz o resto)
@@ -4655,10 +4713,10 @@ var qrcode = function() {
   }
   const resumoDesp = () => { const L = despesasFiltradas(); return `${pl(L.length, 'despesa', 'despesas')} · ${brl(L.reduce((t, d) => t + (+d.valor || 0), 0))}`; };
   function tabelaDespesas() {
-    const M = MOD.despesas, pode = R.podeGravar(eu, 'despesas'), rubs = [...new Set(db.despesas.map(d => d.rubrica).filter(Boolean))];
+    const M = MOD.despesas, pode = R.podeGravar(eu, 'despesas'), rubs = [...D.RUBRICAS.map(r => r.id), ...new Set(db.despesas.map(d => d.rubrica).filter(x => x && !D.RUBRICAS.some(r => r.id === x)))], nRub = x => db.despesas.filter(d => d.rubrica === x).length;   // 23/10/2026: todas as rubricas do plano, na ordem dele, mesmo sem despesa
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : ''}</div></div>
  ${db.despesas.length ? `<div class="dsp-f" role="search" aria-label="Filtrar despesas"><label class="dsp-c"><span>Situação</span><select id="dsp_st"><option value="">Todas</option>${['Solicitado', 'Em compras na FUNCERN', 'Pago'].map(x => `<option${despFiltro.st === x ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
-   <label class="dsp-c"><span>Rubrica</span><select id="dsp_rub"><option value="">Todas</option>${rubs.map(x => `<option value="${esc(x)}"${despFiltro.rub === x ? ' selected' : ''}>${esc(nomeRubrica(x) || x)}</option>`).join('')}</select></label>
+   <label class="dsp-c"><span>Rubrica</span><select id="dsp_rub"><option value="">Todas</option>${rubs.map(x => `<option value="${esc(x)}"${despFiltro.rub === x ? ' selected' : ''}>${esc(nomeRubrica(x) || x)}${nRub(x) ? '' : ' (sem despesa)'}</option>`).join('')}</select></label>
    <label class="dsp-c dsp-q"><span>Buscar</span><input type="search" id="dsp_q" value="${esc(despFiltro.q)}" placeholder="Nome, solicitação, descrição…" autocomplete="off"></label>
    <p class="dsp-r" id="dsp_r" aria-live="polite">${resumoDesp()}</p></div>` : ''}
  <div id="dsp_l">${listaDespesas()}</div>`;
@@ -5264,7 +5322,7 @@ var qrcode = function() {
     const perM = m => iniM(m) && iniM(m) > rel.de || m.fim && m.fim < rel.ate ? `${iniM(m) && iniM(m) > rel.de ? dt(iniM(m)) : dt(rel.de)} a ${m.fim && m.fim < rel.ate ? dt(m.fim) : dt(rel.ate)}` : 'Todo o período';
     const equipeHtml = () => `<div class="rd-vis rd-eq"><div class="vis-g" data-cp=""><table class="tc sem-ac rdm-t"><thead><tr><th>Nome</th><th>Função no projeto</th><th>No período</th></tr></thead><tbody>${equipe.map(m => `<tr data-cp="${esc(`${m.nome} · ${nomeF(m.funcao)} · ${perM(m)}`)}"><td data-r="Nome" class="w"><b>${esc(m.nome)}</b></td><td data-r="Função">${esc(nomeF(m.funcao))}</td><td data-r="No período">${esc(perM(m))}</td></tr>`).join('')}</tbody></table></div></div>`;
     /* 2. o que foi feito: uma frase por atividade, só com o que foi registrado (tema, local, participantes e observações da atividade) */
-    const nPart = e => +e.part || +e.presentes || (db.presencas || []).filter(p => p.evento === e.id).length;
+    const nPart = e => R.participantes(db, e);
     /* resumo da ata e observações: como a equipe escreveu; só fecha com ponto quando falta (sem "decisões:." nem ".”.") */
     const ponto = t => { t = String(t || '').replace(/\s+/g, ' ').trim().replace(/[\s:;,–—-]+$/, ''); return !t ? '' : /[.!?…]["”'’)\]]*$/.test(t) ? t : t + '.'; };
     const frase = t => { t = ponto(t); return t ? ' ' + t : ''; };
@@ -5278,7 +5336,7 @@ var qrcode = function() {
         : /^\s*lista\s+de\s+presen/i.test(n) ? ' Lista de presença anexada ao sistema.' : ' Documento anexado ao sistema.'; };
     const fr = (e, extra) => { const lugar = [e.lugar, e.municipio].filter(Boolean).join(', '), np = nPart(e), m = e.tipo === 'Dia de campo' ? 'realizado' : 'realizada', tp = e.tipo === 'Participação em evento' ? 'Evento' : e.tipo;   // "Evento realizado em Esteio/RS"
       const rem = /\b(meet|zoom|teams|on-?line|virtual|remot|videoconfer|webconfer)/i.test(lugar);   // reunião pela internet: "de forma remota (Google Meet)", não "em Google Meet"
-      const onde = lugar || np ? `${tp} ${tp === 'Evento' ? 'realizado' : m}${lugar ? (rem ? ` de forma remota (${lugar})` : ` em ${lugar}`) : ''}${np ? `${lugar ? ',' : ''} com ${pl(np, 'participante', 'participantes')}${+e.mulheres ? ` (${num(+e.mulheres)} ${+e.mulheres === 1 ? 'mulher' : 'mulheres'})` : ''}` : ''}.` : '';
+      const onde = lugar || np ? `${tp} ${tp === 'Evento' ? 'realizado' : m}${lugar ? (rem ? ` de forma remota (${lugar})` : ` em ${lugar}`) : ''}${np ? `${lugar ? ',' : ''} com ${pl(np, 'participante', 'participantes')}${R.mulheresDe(db, e) ? ` (${num(R.mulheresDe(db, e))} ${R.mulheresDe(db, e) === 1 ? 'mulher' : 'mulheres'})` : ''}` : ''}.` : '';
       return { b: `${dt(e.data)} · ${e.tema ? ponto(e.tema) : e.tipo + '.'}`, t: (onde + frase(e.obs) + (extra ? ' ' + extra : '') + docTxt(e)).trim() }; };
     const frs = e => { const r = paras(e.resumo); return [fr(e, r[0]), ...r.slice(1)]; };   // a atividade e, logo depois, o resumo do que foi discutido
     const passado = ev.filter(e => ateHoje(e.data));
@@ -5388,7 +5446,7 @@ var qrcode = function() {
       if (x.m === 4) { const sem = agrAte.filter(a => !db.distribuicoes.some(d => d.agricultor === a.id && d.data <= fimRel)).length; if (sem) fatos.push(`${pl(sem, 'unidade produtiva cadastrada ainda não recebeu', 'unidades produtivas cadastradas ainda não receberam')} bioinsumo`); }
       return `Meta ${x.m} (${D.METAS[x.m]}): ${pct(x.r)}% realizado até ${dt(fimRel)}, para ${pct(x.pv)}% previsto.${pend.length ? ` Etapas em aberto: ${lista(pend)}.` : ''}${fatos.length ? ` Situação registrada: ${lista(fatos)}.` : ''} Motivo e encaminhamento: [a coordenação descreve aqui o motivo do atraso e o que será feito].`;
     });
-    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
+    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Relatos', 'Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
     const sub = (t, conteudo) => `<section class="rd-s"><h3>${t}</h3>${conteudo}</section>`;
     return `<section class="panel rel-op noprint" aria-label="Opções do relatório descritivo">
       <label class="rel-ck"><input type="checkbox" data-relanexo${relAnexo ? ' checked' : ''}><span><b>Anexar quadros numéricos</b><small>Tabelas de execução física e financeira no fim do relatório.</small></span></label>
@@ -5428,7 +5486,7 @@ var qrcode = function() {
     const QS = [['fis', 'Execução física acumulada', `Até ${dt(fimRel)} · o que está marcado para depois é planejado e não conta`, tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], fis.map(({ e, f }) => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, f, num(Math.min(100, f / e.q * 100)) + '%']), true)],
  ['bio', 'Unidades de produção de bioinsumos', (() => { const fu = u => nCheck(u) === D.CHECK.length && (!u.funcionando_em || u.funcionando_em <= fimRel), m2 = db.unidades.filter(u => u.conta === 'Sim'), ap = db.unidades.length - m2.length;   // 21/10/2026: a Meta 2 conta só as do TED; a de apoio aparece à parte
         return `Meta 2: ${m2.filter(fu).length} de ${m2.length} em funcionamento até ${dt(fimRel)} (com os ${D.CHECK.length} passos)${ap ? ` · mais ${pl(ap, 'unidade de apoio', 'unidades de apoio')}, fora do TED` : ''}`; })(), tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true)],
- ['ati', 'Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); return !p ? '—' : R.vazio(e.part) ? `${num(p)} (pela lista)` : `${num(p)}${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} ${+e.mulheres === 1 ? 'mulher' : 'mulheres'})`}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
+ ['ati', 'Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null; const q = [R.pelaLista(db, e) ? 'pela lista' : '', mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`].filter(Boolean).join(', '); return `${num(p)}${q ? ` (${q})` : ''}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
  ['lot', 'Produção de bioinsumos no período', lo.length ? `${lo.length} lote(s) iniciado(s)` : '', tl(['Lote', 'Tipo', 'Biofábrica', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))],
  ['dis', 'Distribuição no período', '', tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, esc((by('agricultores', d.agricultor) || {}).nome), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; })) + (di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : '')],
  ['mon', 'Monitoramento do uso no período', '', tl(['Data', 'Unidade produtiva', 'Aplicou?', 'Vigor', 'Observações'], vi.map(v => [dt(v.data), esc((by('agricultores', v.agricultor) || {}).nome), esc(v.usou), v.vigor ? esc(v.vigor) + '/5' : '—', esc(v.obs) + (v.problemas ? ' Dificuldade: ' + esc(v.problemas) : '')])) + (vi.length ? `<p>${vi.length} visita(s); em ${aplic} o bioinsumo havia sido aplicado.</p>` : '')],
@@ -5574,6 +5632,24 @@ ${secs}</div>`;
     return L.length ? 'Vai voltar: ' + L.slice(0, 4).map(k => `${rotuloCampo(h.tabela, k)}: ${valorHist(h.tabela, k, atual[k])} → ${valorHist(h.tabela, k, h.antes[k])}`).join('; ') + (L.length > 4 ? ` e mais ${L.length - 4} campo(s)` : '') + '.' : 'O registro já está como nesta versão.';
   }
   /* 43 (23/10/2026, pedido da coordenação): problemas relatados pela equipe guardados no sistema */
+  /* 45: a coordenação respondeu a um relato meu: faixa no alto de qualquer aba até eu ler */
+  function avisoRespostas() {
+    const R_ = db && db._avisos && db._avisos.respostas || []; if (!R_.length) return '';
+    return `<div class="banner rl-av" role="status"><span><b>A coordenação respondeu ${R_.length === 1 ? 'ao seu relato' : `a ${R_.length} relatos seus`}.</b> ${R_.length === 1 ? 'Veja a resposta.' : 'Veja as respostas.'}</span><button type="button" class="b p" data-verresp>Ver ${R_.length === 1 ? 'a resposta' : 'as respostas'}</button></div>`;
+  }
+  async function verRespostas() {
+    const R_ = db && db._avisos && db._avisos.respostas || []; if (!R_.length) return;
+    const dh = x => x ? new Date(x).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    $('#frm').className = 'fm';
+    $('#frm').innerHTML = `<div class="fm-cab"><div class="fm-tt"><span class="fm-eye">Relatar problema</span><h2>Resposta da coordenação</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo"><ul class="rl-l">${R_.map(r => `<li class="rl-i panel"><p class="small">Você relatou em ${dh(r.em)}${r.situacao === 'Resolvido' ? ' · <span class="chip ok">resolvido</span>' : ''}</p><p class="rl-t">${esc(r.texto)}</p>
+       <div class="rl-resp"><span class="rl-resp-r">Resposta da coordenação${r.respondido_em ? ' · ' + dh(r.respondido_em) : ''}</span><p>${esc(r.resposta)}</p></div></li>`).join('')}</ul></div>
+     <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
+    if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal();
+    const ids = R_.map(r => r.id); db._avisos.respostas = []; const fx = $('#view .rl-av'); if (fx) fx.remove();   // a faixa sai já (a tela não redesenha por baixo da janela)
+    try { await Promise.all(ids.map(id => api.relatoVisto(id))); } catch (e) { /* sem rede: volta a aparecer na próxima entrada */ }
+    if (api.guardarCopia) api.guardarCopia(db);
+  }
   let relatos;
   function quadroRelatos() {
     if (relatos === null) return '<div class="banner"><span>Para guardar os relatos no sistema, a coordenação precisa rodar o script <b>43_problemas_relatados.sql</b> no Supabase.</span></div>';
@@ -5584,7 +5660,9 @@ ${secs}</div>`;
         <span class="small">${new Date(r.em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · <b>${esc(quem(r.por))}</b>${r.aba ? ' · aba ' + esc(((TABS.find(t => t[0] === r.aba) || [])[1]) || r.aba) : ''}${r.versao ? ' · ' + esc(r.versao) : ''}</span></div>
       <p class="rl-t">${esc(r.texto)}</p>
       ${r.tecnico ? `<details class="rl-d"><summary>Informações técnicas</summary><pre>${esc(r.tecnico.trim())}</pre></details>` : ''}
-      <div class="rl-a">${btnIc(r.situacao === 'Resolvido' ? IC_GERAR : IC_CHECK_R, r.situacao === 'Resolvido' ? 'Reabrir' : 'Marcar como resolvido', `data-relsit="${esc(r.id)}:${r.situacao === 'Resolvido' ? 'Aberto' : 'Resolvido'}"`, r.situacao === 'Resolvido' ? '' : 'p')}</div></li>`).join('')}</ul>`;
+      ${r.resposta ? `<div class="rl-resp"><span class="rl-resp-r">Sua resposta${r.respondido_em ? ' · ' + new Date(r.respondido_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''} · ${r.visto_em ? 'lida por quem relatou em ' + new Date(r.visto_em).toLocaleDateString('pt-BR') : 'ainda não lida'}</span><p>${esc(r.resposta)}</p></div>` : ''}
+      ${r.situacao === 'Resolvido' && r.resposta ? '' : `<div class="rl-rf"><label for="rr_${esc(r.id)}">${r.resposta ? 'Mudar a resposta' : 'Resposta para quem relatou'}</label><textarea id="rr_${esc(r.id)}" rows="2" maxlength="2000" placeholder="Ex.: Corrigido na versão 150. Feche e abra o sistema de novo.">${esc(r.resposta || '')}</textarea><span class="fm-dica">Quem relatou vê a resposta assim que entrar no sistema.</span></div>`}
+      <div class="rl-a">${btnIc(r.situacao === 'Resolvido' ? IC_GERAR : IC_CHECK_R, r.situacao === 'Resolvido' ? 'Reabrir' : 'Marcar como resolvido', `data-relsit="${esc(r.id)}:${r.situacao === 'Resolvido' ? 'Aberto' : 'Resolvido'}"`, r.situacao === 'Resolvido' ? '' : 'p')}${api.responderRelato && !(r.situacao === 'Resolvido' && r.resposta) ? `<button type="button" class="b" data-relresp="${esc(r.id)}">${r.resposta ? 'Enviar a resposta nova' : 'Enviar resposta'}</button>` : ''}</div></li>`).join('')}</ul>`;
   }
   const IC_CHECK_R = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
   function historico() {
@@ -5684,9 +5762,10 @@ ${secs}</div>`;
     const chave = chaveFoco(document.activeElement);
     R.novoDesenho(); TARDE = new Map();
     if (!eu || !db) return;
+    if (Array.isArray(relatos) && db._avisos && eu.perfil === 'Coordenação') db._avisos.abertos = relatos.filter(r => r.situacao !== 'Resolvido').length;   // 45: o número da aba acompanha o que a coordenação marcou
     if (!abas().some(t => t[0] === tab)) tab = abaInicial();   // antes de desenhar: aba que o perfil não vê nunca chega à tela
     nav(); const v = $('#view');
-    v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + avisoRespostas() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
     tituloDaTela(v); escalaDesenhos(); paradasDeLeitura(); margemDoMenu(); if (chave) requestAnimationFrame(() => devolverFoco(chave));   // depois de desenhar: focar antes forçava refazer a página inteira na hora
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome); atualizarCabecalhoFoto(); carregarFotosEq();
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
@@ -5918,27 +5997,40 @@ ${secs}</div>`;
   function abrirPresenca(evId, msg) {
     $('#dlg').dataset.rede = 'fila';
     const e = by('eventos', evId); if (!e) return;
+    if (prEv !== evId) prEdit = null;
     ed = null; prEv = evId; const L = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1), pode = R.podeGravar(eu, 'presencas'), mul = L.filter(x => x.mulher).length;
-    const difere = L.length && (+e.part !== L.length || +e.mulheres !== mul);
+    const difere = false;   // 23/10/2026: com nomes na lista, a quantidade da atividade é a da lista (R.participantes); não há o que igualar
     $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('presencas')}<div class="fm-tt"><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="fm-sub">${esc(e.tipo)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}</p>
       <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe e anexe em Fotos. Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
-      <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}` : ''}.${difere ? ` ${R.vazio(e.part) ? 'A atividade ainda não tem número de participantes registrado.' : `Na atividade estão registrados ${num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.`}` : ''}</p>
-      ${L.length ? `<ol class="pr-l">${L.map(x => `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · '))}</small></span>${R.podeExcluir(eu, 'presencas', x) && !x._pendente ? `<button type="button" class="ab d" title="Tirar da lista" data-prdel="${esc(x.id)}">${IC_LIXO}<span class="so">Tirar ${esc(x.nome)} da lista</span></button>` : ''}</li>`).join('')}</ol>` : ''}
-      ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3><div class="fields"><div class="fld w"><label for="pr_nome">Nome</label><input id="pr_nome" autocomplete="off" data-tipo="pessoa"></div>
-        <div class="fld"><label for="pr_com">Comunidade</label><input id="pr_com" data-tipo="endereco" value="${esc(prUlt.comunidade || '')}"></div><div class="fld"><label for="pr_mun">Município</label><input id="pr_mun" data-tipo="lugar" value="${esc(prUlt.municipio || e.municipio || '')}"></div>
+      <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}. A quantidade de participantes da atividade é a desta lista` : '. Com nomes aqui, a quantidade de participantes da atividade passa a ser a desta lista'}.${difere ? ` ${R.vazio(e.part) ? 'A atividade ainda não tem número de participantes registrado.' : `Na atividade estão registrados ${num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.`}` : ''}</p>
+      ${L.length ? `<ol class="pr-l">${L.map(x => prEdit === x.id && pode ? `<li class="pr-ed"><span class="pr-ed-n"><b>${esc(x.nome)}</b></span><div class="fields"><div class="fld"><label for="pe_com">Comunidade</label><input id="pe_com" data-tipo="endereco" value="${esc(x.comunidade || '')}"></div><div class="fld"><label for="pe_mun">Município</label><input id="pe_mun" data-tipo="lugar" value="${esc(x.municipio || '')}"></div>
+        <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pe_mul"${x.mulher ? ' checked' : ''}>Mulher</label></fieldset></div></div>
+        <div class="acts"><button type="button" class="b p" data-prsalvar="${esc(x.id)}">Salvar</button><button type="button" class="b" data-prcancel>Cancelar</button></div></li>`
+      : `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · ')) || (pode ? '<i>sem comunidade e município</i>' : '')}</small></span><span class="pr-dir">${pode && !x._pendente ? `<button type="button" class="pr-x pr-lap" data-predit="${esc(x.id)}" title="Completar comunidade, município e se é mulher" aria-label="Completar os dados de ${esc(x.nome)}">${IC_LAPIS_PR}</button>` : ''}${R.podeExcluir(eu, 'presencas', x) && !x._pendente ? `<button type="button" class="pr-x" title="Tirar da lista" data-prdel="${esc(x.id)}" aria-label="Tirar ${esc(x.nome)} da lista"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}</span></li>`).join('')}</ol>` : ''}
+      ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3><div class="fields pr-add"><div class="fld w"><label for="pr_nome">Nome</label><input id="pr_nome" autocomplete="off" data-tipo="pessoa"></div>
         <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pr_mul">Mulher</label></fieldset></div></div>
+        <p class="fm-dica">Basta o nome. Comunidade e município se completam depois, no lápis ao lado de cada nome.</p>
         <div class="acts"><button type="button" class="b p" data-pradd="${esc(evId)}">Adicionar</button></div>
         <details class="pr-v"${prLote.ev === evId && prLote.nomes.length ? ' open' : ''}><summary>Colar vários nomes de uma vez (da ata, um por linha)</summary>
           <div class="fld w"><label for="pr_varios">Nomes, um por linha</label><textarea id="pr_varios" rows="6" placeholder="Maria da Silva (exemplo)&#10;José Pereira (exemplo)">${prLote.ev === evId ? esc(prLote.texto) : ''}</textarea>
-          <p class="fm-dica">Copie os nomes da ata e cole aqui. A numeração do começo da linha (1., 2 -) sai sozinha. A comunidade e o município de cima valem para todos; depois de conferir, marque quem é mulher.</p></div>
+          <p class="fm-dica">Copie os nomes da ata e cole aqui. A numeração do começo da linha (1., 2 -) sai sozinha. Depois de conferir, marque quem é mulher. Comunidade e município se completam depois, nome por nome.</p></div>
           <div class="acts"><button type="button" class="b" data-prconf="${esc(evId)}">Conferir os nomes</button></div>
           <div id="pr_prev" aria-live="polite">${prLote.ev === evId ? prPrevia(evId) : ''}</div></details>` : ''}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status">${esc(msg || '')}</div><div class="frow">${btnImprimir(`data-imprimirlista="${esc(evId)}"`, 'Imprimir lista de presença')}${pode && difere ? `<button type="button" class="b" data-prcontar="${esc(evId)}">Usar o total da lista na atividade</button>` : ''}<button type="button" class="b" data-fechar>Fechar</button></div></div>`;
     if ($('#dlg').open) ($('#pr_nome') || $('#frm .fm-x')).focus(); else $('#dlg').showModal();
   }
-  let prEv = null;
+  let prEv = null, prEdit = null;   // prEdit: nome da lista aberto para completar comunidade, município e mulher (23/10/2026)
+  const IC_LAPIS_PR = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>';
+  async function salvarPresenca(id) {
+    const x = (db.presencas || []).find(p => p.id === id); if (!x) return;
+    const r = Object.assign({}, x, { comunidade: ($('#pe_com').value || '').trim(), municipio: ($('#pe_mun').value || '').trim(), mulher: $('#pe_mul').checked });
+    const msg = R.validar(db, 'presencas', r, x); if (msg) { $('#ferr').textContent = msg; return; }
+    const res = await gravarRegistro('presencas', r, x); if (!res.ok) { $('#ferr').textContent = res.msg; return; }
+    prEdit = null; abrirPresenca(prEv, res.fila ? `${x.nome}: guardado neste aparelho, envia quando o sinal voltar.` : `${x.nome}: dados salvos.`);
+    const b = $(`#frm [data-predit="${CSS.escape(id)}"]`); if (b) b.focus();
+  }
   /* 23/10/2026 (pedido da coordenação): colar de uma vez os nomes da ata na lista de presença. Um por linha (ou separados por ;),
      sem a numeração do começo, sem repetir quem já está na lista; a pessoa confere e marca quem é mulher antes de gravar. */
   let prLote = { ev: null, texto: '', nomes: [], fora: 0 };
@@ -5952,7 +6044,7 @@ ${secs}</div>`;
     const L = prLote.nomes; if (prLote.ev !== evId) return '';
     if (!L.length) return `<p class="small">${prLote.fora ? `Esses nomes já estão na lista.` : 'Nenhum nome encontrado. Cole um nome por linha.'}</p>`;
     return `<p class="pr-t"><b>${L.length}</b> nome${L.length === 1 ? '' : 's'} para entrar${prLote.fora ? ` (${prLote.fora} já estava${prLote.fora === 1 ? '' : 'm'} na lista ou repetido${prLote.fora === 1 ? '' : 's'} e fica${prLote.fora === 1 ? '' : 'm'} de fora)` : ''}. Confira e marque quem é mulher:</p>
-      <ol class="pr-l pr-cf">${L.map((x, i) => `<li><span><b>${esc(x.nome)}</b></span><label class="pr-m"><input type="checkbox" data-prm="${i}"${x.mulher ? ' checked' : ''}>Mulher</label></li>`).join('')}</ol>
+      <ol class="pr-l pr-cf">${L.map((x, i) => `<li><span><b>${esc(x.nome)}</b></span><span class="pr-dir"><label class="pr-m"><input type="checkbox" data-prm="${i}"${x.mulher ? ' checked' : ''}>Mulher</label><button type="button" class="pr-x" data-prtira="${i}" title="Tirar ${esc(x.nome)}" aria-label="Tirar ${esc(x.nome)} dos nomes a adicionar"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span></li>`).join('')}</ol>
       <div class="acts"><button type="button" class="b p" data-pradds="${esc(evId)}">Adicionar ${L.length === 1 ? 'esta pessoa' : `as ${L.length} pessoas`}</button></div>`;
   }
   async function adicionarVarios(evId) {
@@ -6063,73 +6155,83 @@ ${secs}</div>`;
   }
   async function sairPdf(montar, titulo) {
     try { toast('Gerando o PDF…'); await libsPdfOk(); if (!window.jspdf) throw new Error('Não deu para carregar o gerador de PDF. Confira a internet e tente de novo.'); const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-      doc.setProperties({ title: titulo, creator: 'Saberes que Cultivam' }); montar(doc);
+      if (pdfIco === null) pdfIco = await icoPdf(); doc.setProperties({ title: titulo, creator: 'Saberes que Cultivam' }); montar(doc);
       await enviarPdf(new File([doc.output('blob')], nomePdf(titulo) + '.pdf', { type: 'application/pdf' }), titulo); }
     catch (e) { if (!e || e.name !== 'AbortError') { console.error(e); toast((e && e.message) || 'Não deu para gerar o PDF.'); } }
   }
   const PV = [27, 51, 36], PT = [27, 42, 32], PC = [90, 106, 96];   // verde da marca, texto, texto secundário
   const pdfTxt = t => String(t == null ? '' : t).normalize('NFC').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/[^\n\x20-\x7E\xA0-\xFF]/g, '?');   // a fonte do PDF só tem o Latin-1: o resto vira ?
+  /* 23/10/2026: o PDF segue o mesmo desenho da impressão (fichas, lista de presença e termo): cabeçalho verde com o ícone, corpo em grade de
+     6 colunas, faixa verde nas seções, caixas de 12,5 mm, datas em quadrinhos, pauta de 9 mm, rodapé com "Folha N de T" e o nome de quem é a folha.
+     As quebras de folha são as mesmas da impressão (folhasImp). Medidas em mm, iguais às do CSS de impressão. */
+  let pdfIco = null;
+  async function icoPdf() { try { const b = await (await fetch('assets/icon-192.png')).blob(); return await new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.onerror = () => r(''); f.readAsDataURL(b); }); } catch (e) { return ''; } }
+  const PB = [143, 161, 149], PL = [43, 59, 48], PS = [217, 234, 219], PP = [201, 211, 203], X0 = 12, LW = 186, CW = (LW - 25) / 6;
+  const colX = c => X0 + c * (CW + 5), spanW = s_ => s_ * CW + (s_ - 1) * 5;
   function pdfCab(doc, titulo, sub) {
-    doc.setFillColor(...PV); doc.roundedRect(12, 10, 186, 18, 2, 2, 'F'); doc.setTextColor(255, 255, 255);
-    doc.setFont('times', 'bold'); doc.setFontSize(13); doc.text('Saberes que Cultivam', 17, 18);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text('Bioinsumos, agroecologia e agricultura familiar', 17, 23);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text(pdfTxt(titulo), 193, 18, { align: 'right' });
-    if (sub) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(doc.splitTextToSize(pdfTxt(sub), 105)[0], 193, 23, { align: 'right' }); }
-    doc.setTextColor(...PT); return 35;
+    doc.setFillColor(...PV); doc.roundedRect(X0, 9, LW, 19, 3, 3, 'F');
+    if (pdfIco) { try { doc.addImage(pdfIco, 'PNG', X0 + 5, 13, 11, 11); } catch (e) { /* sem ícone */ } }
+    const tx = X0 + (pdfIco ? 20 : 5); doc.setTextColor(255, 255, 255);
+    doc.setFont('times', 'bold'); doc.setFontSize(13); doc.text('Saberes que Cultivam', tx, 18);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(185, 201, 188); doc.text('Bioinsumos, agroecologia e agricultura familiar', tx, 22.5);
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12.5); doc.text(pdfTxt(titulo), X0 + LW - 5, 18, { align: 'right' });
+    if (sub) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(185, 201, 188); doc.text(doc.splitTextToSize(pdfTxt(sub), 95)[0], X0 + LW - 5, 22.5, { align: 'right' }); }
+    doc.setTextColor(...PT); return 32;
   }
-  function pdfPe(doc, txt) {
+  // rodapé igual ao da impressão: projeto à esquerda, "<quem>: ____" no meio, nota e "Folha N de T" à direita
+  function pdfPe(doc, quem, nota, folha) {
     const n = doc.getNumberOfPages();
-    for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...PC); doc.setDrawColor(200, 210, 202); doc.setLineWidth(0.2); doc.line(12, 285, 198, 285);
-      doc.text('Saberes que Cultivam · TED MDA/IFRN', 12, 289.5); doc.text(pdfTxt(`${txt ? txt + ' · ' : ''}folha ${i} de ${n}`), 198, 289.5, { align: 'right' }); }
+    for (let i = 1; i <= n; i++) { doc.setPage(i); const y = 287.5; doc.setDrawColor(...PB); doc.setLineWidth(0.3); doc.line(X0, 282, X0 + LW, 282);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...PC); doc.text('Saberes que Cultivam · TED MDA/IFRN', X0, y);
+      const dir = pdfTxt(`${nota ? nota + ' · ' : ''}${folha || `Folha ${i} de ${n}`}`); doc.text(dir, X0 + LW, y, { align: 'right' });
+      if (quem) { const ini = X0 + 50, fim = X0 + LW - doc.getTextWidth(dir) - 6; doc.text(pdfTxt(quem + ':'), ini, y); const lx = ini + doc.getTextWidth(pdfTxt(quem + ':')) + 2; doc.setDrawColor(...PB); doc.line(lx, y + 0.8, Math.max(lx + 20, fim), y + 0.8); } }
   }
-  /* ficha em branco: os mesmos campos e a mesma lógica da impressão (curtos dois por linha, texto longo com pauta, datas em quadrinhos) */
-  function pdfFicha(doc, m) {
-    const M = MOD[m]; let y = pdfCab(doc, M.um, 'Ficha para preencher em campo'), col = 0, linhaAlt = 0; const X = [12, 105], W1 = 186, WM = 93;
-    const novaPag = () => { doc.addPage(); y = pdfCab(doc, M.um, 'Ficha para preencher em campo (continuação)'); col = 0; linhaAlt = 0; };
-    const fecha = () => { if (col) { y += linhaAlt; col = 0; linhaAlt = 0; } };
-    const rot = (l, req, x) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...PT); doc.text(pdfTxt(l) + (req ? ' *' : ''), x, y + 3.2); };
-    const caixa = (x, w, h) => { doc.setDrawColor(120, 135, 125); doc.setLineWidth(0.3); doc.roundedRect(x, y + 5, w, h, 1.2, 1.2, 'S'); };
-    const quadros = x => { doc.setDrawColor(120, 135, 125); doc.setLineWidth(0.3); doc.setFont('helvetica', 'normal'); doc.setFontSize(10); let cx = x;
-      const q = n => { for (let i = 0; i < n; i++) { doc.rect(cx, y + 5, 6, 8); cx += 6.5; } }; q(2); doc.text('/', cx + 0.3, y + 11); cx += 3.5; q(2); doc.text('/', cx + 0.3, y + 11); cx += 3.5; q(4); };
-    const opcoes = (ops, x, w, y0) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PT); let cx = x, cy = y0;
-      ops.forEach(t => { const tw = doc.getTextWidth(pdfTxt(t)) + 6; if (cx > x && cx + tw > x + w) { cx = x; cy += 6.5; } doc.setDrawColor(120, 135, 125); doc.setLineWidth(0.3); doc.rect(cx, cy, 3.6, 3.6); doc.text(pdfTxt(t), cx + 5.2, cy + 3); cx += tw + 5; }); };
-    const linhasOps = (ops, w) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); let n = 1, cx = 0; ops.forEach(t => { const tw = doc.getTextWidth(pdfTxt(t)) + 11; if (cx > 0 && cx + tw > w) { n++; cx = 0; } cx += tw; }); return n; };
-    // bloco: campo curto ocupa meia linha (dois por linha); o largo, a linha toda
-    const bloco = (alt, largo) => { if (largo) fecha(); if (y + alt > 280) { fecha(); if (y + alt > 280) novaPag(); } const x = largo ? 12 : X[col], w = largo ? W1 : WM - 4;
-      return { x, w, fim: () => { if (largo) y += alt; else { linhaAlt = Math.max(linhaAlt, alt); if (col) { y += linhaAlt; col = 0; linhaAlt = 0; } else col = 1; } } }; };
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
-    doc.text(pdfTxt('Escreva com letra de forma, dentro das caixas. Nas opções, marque com X. Depois, digite no sistema.'), 12, y); y += 4;
-    { const b = bloco(17, false); rot('Preenchido por', false, b.x); caixa(b.x, b.w, 10); b.fim(); }
-    if (!M.campos.some(c => c[0] === 'data')) { const b = bloco(17, false); rot('Data do preenchimento', false, b.x); quadros(b.x); b.fim(); }
-    fecha();
-    M.campos.forEach(([k, l, t, req, o]) => {
-      if (t === 'html' || k === 'link' || t === 'arquivo') return;
-      if (t === 'sec') { if (!l) return; fecha(); if (y + 24 > 280) novaPag(); y += 3; doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...PV); doc.text(pdfTxt(l), 12, y + 4);
-        doc.setDrawColor(...PV); doc.setLineWidth(0.4); doc.line(12, y + 6, 198, y + 6); doc.setTextColor(...PT); y += 9; return; }
-      if (t === 'checks' || t === 'check' || t === 'select' || t === 'simnao') {
-        const ops = t === 'checks' ? D.CHECK.map(c => c[1]) : t === 'check' ? [l] : t === 'simnao' ? ['Sim', 'Não'] : (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]).map(x => x[1]);
-        const largo = t === 'checks' || ops.length > 4, w = largo ? W1 : WM - 4, n = linhasOps(ops, w);
-        if (t === 'check') { const b = bloco(9, false); opcoes(ops, b.x, b.w, y + 2); b.fim(); return; }
-        const b = bloco(8 + n * 6.5, largo); rot(l, req, b.x); opcoes(ops, b.x, b.w, y + 6); b.fim(); return; }
-      if (t === 'textarea') { const b = bloco(51, true); rot(l, req, b.x); doc.setDrawColor(150, 160, 152); doc.setLineWidth(0.25); for (let i = 1; i <= 5; i++) doc.line(12, y + 5 + i * 8.5, 198, y + 5 + i * 8.5); b.fim(); return; }
-      if (t === 'geo') { const b = bloco(17, true); rot(l + ' (GPS, se tiver)', false, b.x); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text('Latitude', 12, y + 11); caixa(27, 70, 10); doc.text('Longitude', 105, y + 11); caixa(122, 76, 10); b.fim(); return; }
-      if (t === 'date') { const b = bloco(17, false); rot(l, req, b.x); quadros(b.x); b.fim(); return; }
-      const curto = t === 'number' || ['uf', 'sigla', 'cep', 'numero', 'siape', 'suap'].includes(k), b = bloco(17, !curto); rot(l, req, b.x); caixa(b.x, b.w, 10); b.fim();
-    });
-    fecha(); pdfPe(doc, `* obrigatório · depois, digite no sistema: ${M.nome}`);
+  const pdfRot = (doc, l, req, x, y) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...PL); doc.text(pdfTxt(l), x, y + 3.4); if (req) { const w = doc.getTextWidth(pdfTxt(l)); doc.setTextColor(168, 100, 10); doc.text('*', x + w + 1, y + 3.4); doc.setTextColor(...PL); } };
+  const pdfCaixa = (doc, x, y, w, h) => { doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, w, h, 2, 2, 'FD'); };
+  function pdfData(doc, x, y) { let cx = x; doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...PB);
+    [2, 2, 4].forEach((q, g) => { for (let i = 0; i < q; i++) { doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(cx, y, 8, 11, 1.2, 1.2, 'S'); cx += 9; } if (g < 2) { doc.text('/', cx + 0.2, y + 7.5); cx += 3; } }); doc.setTextColor(...PT); }
+  function pdfOps(doc, ops, x, y, w) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); let cx = x, cy = y + 1;
+    ops.forEach(t => { const tw = 5 + 2 + doc.getTextWidth(pdfTxt(t)); if (cx > x && cx + tw > x + w) { cx = x; cy += 6; } doc.setDrawColor(74, 92, 80); doc.setLineWidth(0.4); doc.roundedRect(cx, cy, 5, 5, 1, 1, 'S'); doc.text(pdfTxt(t), cx + 7, cy + 3.8); cx += tw + 6; }); }
+  // um campo da grade, no topo y da linha
+  function pdfCampo(doc, it, x, y, w) {
+    if (it.l) pdfRot(doc, it.l, it.req, x, y); const y1 = y + 5.4;
+    if (it.tp === 'cx') pdfCaixa(doc, x, y1, w, 12.5);
+    else if (it.tp === 'dt') pdfData(doc, x, y1);
+    else if (it.tp === 'ops') pdfOps(doc, it.ops, x, y1, w);
+    else if (it.tp === 'ml') { pdfCaixa(doc, x, y1, w, 36); doc.setDrawColor(...PP); doc.setLineWidth(0.25); for (let i = 1; i < 4; i++) doc.line(x + 3, y1 + i * 9, x + w - 3, y1 + i * 9); }
+    else if (it.tp === 'geo') { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PL); const m = w / 2; doc.text('Latitude', x, y1 + 7.5); pdfCaixa(doc, x + 16, y1, m - 19, 12.5); doc.text('Longitude', x + m + 2, y1 + 7.5); pdfCaixa(doc, x + m + 20, y1, m - 20, 12.5); }
   }
+  // folhas da ficha: as mesmas da impressão
+  function pdfFolhas(doc, titulo, sub, blocos, quem, nota) {
+    folhasImp(blocos).forEach((f, i) => { if (i) doc.addPage(); let y = pdfCab(doc, titulo, sub);
+      f.forEach(b => {
+        if (b.inst) { doc.setFillColor(238, 244, 238); doc.roundedRect(X0, y, LW, 8.6, 1.5, 1.5, 'F'); doc.setFillColor(39, 102, 58); doc.rect(X0, y, 1.2, 8.6, 'F');
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PT); doc.text(pdfTxt('Letra de forma, dentro das caixas. Nas opções, marque com X. Faltou espaço? Continue no verso, com o nome do campo.'), X0 + 4.5, y + 5.4); y += 12.2; return; }
+        if (b.t) { doc.setFillColor(...PS); doc.roundedRect(X0, y, LW, 7.6, 1.5, 1.5, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PV); doc.text(pdfTxt(b.t), X0 + 3, y + 5.1);
+          if (b.cont) { const w = doc.getTextWidth(pdfTxt(b.t)); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text('(continuação)', X0 + 5 + w, y + 5.1); } y += 10.2; }
+        b.linhas.forEach(r => { let c = 0; r.itens.forEach(it => { pdfCampo(doc, it, colX(c), y, spanW(it.s)); c += it.s; }); y += r.a; });
+        if (b.t !== undefined) y += 3;
+      }); });
+    pdfPe(doc, quem, nota);
+  }
+  function pdfFicha(doc, m) { const M = MOD[m]; pdfFolhas(doc, M.um, 'Ficha para preencher em campo', blocosFicha(m), M.um + ' de', '* obrigatório'); }
   function pdfLista(doc, e) {
-    let y = pdfCab(doc, 'Lista de presença', 'Folha de assinaturas');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...PT);
-    const info = doc.splitTextToSize(pdfTxt(`${e.tipo} · ${e.tema || ''} · ${dt(e.data)}${e.lugar ? ' · ' + e.lugar : ''}${e.municipio ? ' · ' + e.municipio : ''}`), 186); doc.text(info, 12, y); y += info.length * 4.6 + 1;
+    let y = pdfCab(doc, 'Lista de presença', `${e.tipo} · ${dt(e.data)}${e.municipio ? ' · ' + e.municipio : ''}`);
+    // quadro da atividade (como na impressão)
+    const tema = doc.splitTextToSize(pdfTxt(e.tema || e.tipo), LW - 8), alt = 9 + tema.length * 4.6 + (e.lugar ? 4 : 0);
+    doc.setFillColor(238, 244, 238); doc.roundedRect(X0, y, LW, alt, 1.5, 1.5, 'F'); doc.setFillColor(39, 102, 58); doc.rect(X0, y, 1.2, alt, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...PL); doc.text('Atividade', X0 + 4.5, y + 4.5); doc.setFontSize(10); doc.setTextColor(...PT); doc.text(tema, X0 + 4.5, y + 9.2);
+    if (e.lugar) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(e.lugar), X0 + 4.5, y + 9.2 + tema.length * 4.6); } y += alt + 3;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
-    doc.text(doc.splitTextToSize('Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).', 186), 12, y); y += 8;
-    const cols = [['Nº', 10], ['Nome completo', 60], ['Comunidade', 30], ['Município', 30], ['Mulher? S/N', 19], ['Assinatura', 37]], H = 10.5;
-    doc.setFillColor(225, 235, 226); doc.rect(12, y, 186, 8, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...PT);
-    let x = 12; cols.forEach(([t, w]) => { doc.text(pdfTxt(t), x + 1.5, y + 5.3); x += w; }); y += 8;
-    doc.setFont('helvetica', 'normal'); doc.setDrawColor(150, 160, 152); doc.setLineWidth(0.25);
-    for (let i = 1; i <= 20; i++) { x = 12; cols.forEach(([, w]) => { doc.rect(x, y, w, H); x += w; }); doc.text(String(i), 14, y + 6.5); y += H; }
-    pdfPe(doc, 'Responsável: ______________________');   // o rodapé já numera a folha
+    const av = doc.splitTextToSize(pdfTxt('Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).'), LW); doc.text(av, X0, y + 3); y += av.length * 3.6 + 3;
+    const cols = [['Nº', 9], ['Nome completo', 55], ['Comunidade', 33], ['Município', 28], ['Mulher? S/N', 13], ['Assinatura', LW - 138]], H = 9.6, n = Math.min(20, Math.floor((280 - y - 9) / H));
+    doc.setFillColor(...PV); doc.rect(X0, y, LW, 9, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+    let x = X0; cols.forEach(([t, w], k) => { const L = doc.splitTextToSize(pdfTxt(t), w - 2.5); doc.text(L, k ? x + 2 : x + w / 2, y + (L.length > 1 ? 3.8 : 5.6), k ? {} : { align: 'center' }); x += w; }); y += 9;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
+    for (let i = 1; i <= n; i++) { if (i % 2 === 0) { doc.setFillColor(245, 248, 245); doc.rect(X0, y, LW, H, 'F'); } doc.setDrawColor(...PP); doc.setLineWidth(0.25); doc.line(X0, y, X0 + LW, y);
+      x = X0; cols.forEach(([, w], k) => { if (k) { doc.setDrawColor(225, 232, 226); doc.line(x, y, x, y + H); } x += w; }); doc.text(String(i), X0 + 4.5, y + 6, { align: 'center' }); y += H; }
+    doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(X0, y - n * H - 9, LW, n * H + 9, 2, 2, 'S');
+    pdfPe(doc, 'Responsável', '', 'Folha ____ de ____');
   }
   function pdfEtiqueta(doc, l) {
     const u = by('unidades', l.unidade) || {}, q = qrcode(0, 'M'); q.addData(urlLote(l)); q.make(); const n = q.getModuleCount();
@@ -6153,31 +6255,31 @@ ${secs}</div>`;
     return { nome: f('nome'), comunidade: f('comunidade'), municipio: f('municipio'), uf: f('uf') };
   }
   function imprimirTermo(t) {
-    const cx = (rot, v, w) => `<div class="pf-i${w ? ' w' : ''}"><span class="pf-l">${rot}</span><span class="pf-cx">${esc(v || '')}</span></div>`;
-    imprimir(`<section class="pf pf-termo">${cabImp('Termo de ciência e autorização de uso de dados e imagem', 'IFRN Campus Apodi · TED MDA/IFRN')}
-      <div class="pf-c">${cx('Nome', t.nome, 1)}${cx('Comunidade', t.comunidade, 1)}${cx('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'))}</div>
+    // 23/10/2026: mesma moldura das fichas (cabeçalho, grade de 6 colunas, rodapé no pé da folha)
+    const cx = (rot, v, sp) => `<div class="pf-i" style="grid-column:span ${sp}"><span class="pf-l">${rot}</span><span class="pf-cx">${esc(v || '')}</span></div>`;
+    imprimir(`<section class="pf pf-ficha pf-termo"><div class="pf-pag">${cabImp('Termo de ciência e autorização', 'Uso de dados e imagem · IFRN Campus Apodi')}<div class="pf-corpo">
+      <div class="pf-c">${cx('Nome', t.nome, 6)}${cx('Comunidade', t.comunidade, 3)}${cx('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'), 3)}</div>
       <p class="pt-txt">${esc(TERMO_TXT)}</p>
       <p class="pt-txt">${esc(TERMO_IMG)}</p><p class="pt-sn"><span class="pf-op"><span class="pf-bx"></span>Sim</span><span class="pf-op"><span class="pf-bx"></span>Não</span></p>
-      <div class="pf-c"><div class="pf-i"><span class="pf-l">Data</span>${dataImp}</div></div>
+      <div class="pf-c"><div class="pf-i" style="grid-column:span 3"><span class="pf-l">Data</span>${dataImp}</div></div>
       <div class="pt-ass"><div class="pt-lin"><span></span><small>Assinatura</small></div><div class="pt-dig"><span></span><small>Digital (se não assinar)</small></div></div>
       <div class="pt-ass2"><div class="pt-lin"><span></span><small>A rogo (quem assina pela pessoa)</small></div><div class="pt-lin"><span></span><small>Testemunha</small></div></div>
-      <div class="pt-ass2"><div class="pt-lin"><span></span><small>Responsável pela visita</small></div></div>
-      ${peImp('Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro no sistema')}</section>`, `Termo - ${t.nome || 'em branco'}`);
+      <div class="pt-ass2"><div class="pt-lin"><span></span><small>Responsável pela visita</small></div></div></div>
+      <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span class="pf-pe-nota">Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro</span><span>Folha 1 de 1</span></footer></div></section>`, `Termo - ${t.nome || 'em branco'}`);
   }
   function pdfTermo(doc, t) {
-    let y = pdfCab(doc, 'Termo de ciência e autorização', 'Uso de dados e imagem · IFRN Campus Apodi · TED MDA/IFRN');
-    const lin = (rot, v, x, w) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(rot), x, y); doc.setDrawColor(150, 160, 152); doc.setLineWidth(0.25); doc.rect(x, y + 1.5, w, 9);
-      if (v) { doc.setFontSize(10); doc.setTextColor(...PT); doc.text(pdfTxt(v), x + 2, y + 7.5); } };
-    lin('Nome', t.nome, 12, 186); y += 15; lin('Comunidade', t.comunidade, 12, 120); lin('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'), 136, 62); y += 17;
+    let y = pdfCab(doc, 'Termo de ciência e autorização', 'Uso de dados e imagem · IFRN Campus Apodi');
+    const campo = (rot, v, c, s_) => { const x = colX(c), w = spanW(s_); pdfRot(doc, rot, false, x, y); pdfCaixa(doc, x, y + 5.4, w, 12.5); if (v) { doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...PT); doc.text(doc.splitTextToSize(pdfTxt(v), w - 6)[0], x + 3, y + 13.2); } };
+    campo('Nome', t.nome, 0, 6); y += 21.6; campo('Comunidade', t.comunidade, 0, 3); campo('Município/UF', [t.municipio, t.uf].filter(Boolean).join('/'), 3, 3); y += 21.6 + 2;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...PT);
-    const p1 = doc.splitTextToSize(pdfTxt(TERMO_TXT), 186); doc.text(p1, 12, y, { lineHeightFactor: 1.45 }); y += p1.length * 5.6 + 5;
-    const p2 = doc.splitTextToSize(pdfTxt(TERMO_IMG), 186); doc.text(p2, 12, y, { lineHeightFactor: 1.45 }); y += p2.length * 5.6 + 2;
-    doc.rect(16, y, 5, 5); doc.text('Sim', 24, y + 4); doc.rect(44, y, 5, 5); doc.text(pdfTxt('Não'), 52, y + 4); y += 14;
-    lin('Data', '', 12, 50); y += 24;
-    const ass = (rot, x, w) => { doc.setDrawColor(90, 100, 92); doc.line(x, y, x + w, y); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(rot), x, y + 4.5); };
-    ass('Assinatura', 12, 120); doc.setDrawColor(150, 160, 152); doc.rect(150, y - 22, 34, 26); doc.setFontSize(7.5); doc.text(pdfTxt('Digital (se não assinar)'), 151, y + 8); y += 22;
-    ass('A rogo (quem assina pela pessoa)', 12, 88); ass('Testemunha', 110, 88); y += 22; ass('Responsável pela visita', 12, 120);
-    pdfPe(doc, 'Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro no sistema');
+    const p1 = doc.splitTextToSize(pdfTxt(TERMO_TXT), LW); doc.text(p1, X0, y + 3, { lineHeightFactor: 1.5 }); y += p1.length * 5.6 + 5;
+    const p2 = doc.splitTextToSize(pdfTxt(TERMO_IMG), LW); doc.text(p2, X0, y + 3, { lineHeightFactor: 1.5 }); y += p2.length * 5.6 + 2;
+    pdfOps(doc, ['Sim', 'Não'], X0 + 6, y, 80); y += 14;
+    pdfRot(doc, 'Data', false, X0, y); pdfData(doc, X0, y + 5.4); y += 34;
+    const ass = (rot, x, w) => { doc.setDrawColor(74, 90, 79); doc.setLineWidth(0.3); doc.line(x, y, x + w, y); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...PC); doc.text(pdfTxt(rot), x, y + 4.5); };
+    ass('Assinatura', X0, LW - 46); pdfCaixa(doc, X0 + LW - 36, y - 28, 36, 28); doc.text(pdfTxt('Digital (se não assinar)'), X0 + LW - 36, y + 4.5); y += 24;
+    ass('A rogo (quem assina pela pessoa)', X0, (LW - 10) / 2); ass('Testemunha', X0 + (LW + 10) / 2, (LW - 10) / 2); y += 24; ass('Responsável pela visita', X0, (LW - 10) / 2);
+    pdfPe(doc, '', 'Uma via fica com a pessoa; fotografe a assinada e anexe ao cadastro');
   }
   /* etiqueta do lote com QR (22/10/2026): 8 por folha A4 para recortar e colar no saco ou frasco; o QR abre o lote no sistema
      (endereço do sistema + #lote=<id>; só abre para quem entra com a conta). Sem dado pessoal. */
@@ -6204,33 +6306,69 @@ ${secs}</div>`;
   const cabImp = (titulo, sub) => `<header class="pf-cab"><img src="assets/icon-192.png" alt="" width="44" height="44"><div class="pf-m"><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div><div class="pf-t"><h1>${esc(titulo)}</h1>${sub ? `<p>${sub}</p>` : ''}</div></header>`;
   const dataImp = '<span class="pf-dt" aria-hidden="true"><i></i><i></i><em>/</em><i></i><i></i><em>/</em><i></i><i></i><i></i><i></i></span>';
   const peImp = txt => `<footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span>${txt}</span></footer>`;
+  /* 23/10/2026 (pedido da coordenação): fichas em branco com o mesmo desenho em todas as folhas. As páginas são montadas aqui (o rodapé
+     repetido por tabela fazia o Chrome criar folha em branco): cada folha A4 tem o cabeçalho, o corpo e o rodapé com "Folha N de T" e
+     o nome de quem é a ficha. Campos em grade de 6 colunas, em linhas cheias (o último campo da linha estica até o fim); cada seção
+     fica inteira numa folha. A altura de cada linha vem das medidas fixas (mm) do CSS de impressão, com folga. */
+  const SPAN_IMP = { uf: 2, sigla: 2, cep: 2, numero: 2, area: 2, qtd: 2, part: 3, mulheres: 3, municipio: 3, lugar: 3, tecnico: 3, siape: 2, suap: 3 };
+  const ALT_IMP = { cx: 18.4, dt: 17, ops: 12.9, ml: 42.5, geo: 18.4 }, GAP_IMP = 3.2, H2_IMP = 10.4, CORPO_IMP = 244;   // mm, medidos na impressão (o corpo da folha tem 248)
+  function campoImp([k, l, t, req, o]) {
+    const cx = x => `<span class="pf-op"><span class="pf-bx"></span>${esc(x)}</span>`, rot = (x, r) => `<span class="pf-l">${esc(x)}${r ? ' <em>*</em>' : ''}</span>`;
+    if (t === 'html' || k === 'link' || t === 'arquivo') return null;   // link (Drive) e documento anexado não se escrevem no papel
+    // tipo de desenho (tp) e rótulo (l) vão junto: o PDF desenha com as mesmas medidas (pdfFolhas)
+    if (t === 'checks') { const ops = D.CHECK.map(c => c[1]); return { s: 6, a: ALT_IMP.ops + 6, tp: 'ops', l, ops, h: `${rot(l)}<div class="pf-ops">${ops.map(cx).join('')}</div>` }; }
+    if (t === 'check') return { s: 3, a: ALT_IMP.ops, tp: 'ops', l: '', ops: [l], h: `<span class="pf-l">&nbsp;</span><div class="pf-ops">${cx(l)}</div>` };
+    if (t === 'select' || t === 'simnao') { const ops = (t === 'simnao' ? [['Sim', 'Sim'], ['Não', 'Não']] : (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1])).map(x => String(x[1]));
+      const tam = ops.reduce((a, x) => a + x.length + 5, 0), sp = tam <= 32 ? 3 : 6; return { s: sp, a: ALT_IMP.ops + (tam > 95 ? 6 : 0), tp: 'ops', l, req, ops, h: `${rot(l, req)}<div class="pf-ops">${ops.map(cx).join('')}</div>` }; }
+    if (t === 'textarea') return { s: 6, a: ALT_IMP.ml, tp: 'ml', l, req, h: `${rot(l, req)}<span class="pf-cx pf-ml">${'<i></i>'.repeat(4)}</span>` };
+    if (t === 'geo') return { s: 6, a: ALT_IMP.geo, tp: 'geo', l: l + ' (GPS, se tiver)', h: `${rot(l + ' (GPS, se tiver)')}<span class="pf-gps"><span>Latitude</span><span class="pf-cx"></span><span>Longitude</span><span class="pf-cx"></span></span>` };
+    if (t === 'date') return { s: 3, a: ALT_IMP.dt, tp: 'dt', l, req, h: `${rot(l, req)}${dataImp}` };
+    return { s: SPAN_IMP[k] || (t === 'number' ? (l.length > 22 ? 3 : 2) : 6), a: ALT_IMP.cx, tp: 'cx', l, req, h: `${rot(l, req)}<span class="pf-cx"></span>` };
+  }
+  // linhas cheias: se o próximo campo não cabe no que sobra da linha, o último da linha estica até o fim
+  function linhasImp(itens) { const L = []; let lin = null, usado = 0;
+    itens.forEach(x => { x = Object.assign({}, x); if (!lin || usado + x.s > 6) { if (lin && usado < 6) lin[lin.length - 1].s += 6 - usado; lin = []; L.push(lin); usado = 0; } lin.push(x); usado += x.s; });
+    if (lin && usado < 6) lin[lin.length - 1].s += 6 - usado;
+    return L.map(r => ({ a: Math.max(...r.map(x => x.a)) + GAP_IMP, itens: r, h: r.map(x => `<div class="pf-i" style="grid-column:span ${x.s}">${x.h}</div>`).join('') })); }
+  // distribui blocos (cada um com altura em mm) em folhas; bloco grande demais é partido por linha, com o título repetido
+  function folhasImp(blocos) { const F = [[]]; let livre = CORPO_IMP;
+    blocos.forEach(b => { if (b.html) { if (b.cab > livre && F[F.length - 1].length) { F.push([]); livre = CORPO_IMP; } F[F.length - 1].push(b); livre -= b.cab; return; }
+      const tot = b.cab + b.linhas.reduce((t, r) => t + r.a, 0);
+      if (tot > livre && F[F.length - 1].length && (tot <= CORPO_IMP ? livre < 70 : livre < b.cab + 25)) { F.push([]); livre = CORPO_IMP; }   // só pula de folha se sobrar pouco; senão começa aqui e continua na próxima
+      let parte = { t: b.t, cont: false, linhas: [] }, alt = b.cab;
+      b.linhas.forEach(r => { if (alt + r.a > livre && parte.linhas.length) { F[F.length - 1].push(parte); F.push([]); livre = CORPO_IMP; parte = { t: b.t, cont: true, linhas: [] }; alt = b.cab; } parte.linhas.push(r); alt += r.a; });
+      F[F.length - 1].push(parte); livre -= alt; });
+    return F; }
+  const blocoImp = x => `<section class="pf-sec">${x.t ? `<h2>${esc(x.t)}${x.cont ? ' <small>(continuação)</small>' : ''}</h2>` : ''}<div class="pf-c">${x.linhas.map(r => r.h).join('')}</div></section>`;
+  function paginasImp(titulo, sub, blocos, quem, nota) {
+    const F = folhasImp(blocos), n = F.length;
+    return F.map((f, i) => `<div class="pf-pag">${cabImp(titulo, sub)}<div class="pf-corpo">${f.map(x => x.html || blocoImp(x)).join('')}</div>
+      <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span>${quem ? `<span class="pf-pe-id">${esc(quem)}: <i></i></span>` : '<span></span>'}<span>${nota ? nota + ' · ' : ''}Folha ${i + 1} de ${n}</span></footer></div>`).join('');
+  }
+  function blocosFicha(m) {
+    const M = MOD[m], temData = M.campos.some(c => c[0] === 'data'), secs = [{ t: '', itens: [] }];
+    M.campos.forEach(c => { if (c[2] === 'sec') secs.push({ t: c[1], itens: [] }); else { const x = campoImp(c); if (x) secs[secs.length - 1].itens.push(x); } });
+    const topo = [{ s: temData ? 6 : 3, a: ALT_IMP.cx, tp: 'cx', l: 'Preenchido por', h: '<span class="pf-l">Preenchido por</span><span class="pf-cx"></span>' }].concat(temData ? [] : [{ s: 3, a: ALT_IMP.dt, tp: 'dt', l: 'Data do preenchimento', h: `<span class="pf-l">Data do preenchimento</span>${dataImp}` }]);
+    const inst = { inst: true, html: '<p class="pf-inst">Letra de forma, dentro das caixas. Nas opções, marque com <b>X</b>. Faltou espaço? Continue no verso, com o nome do campo.</p>', cab: 12.2, linhas: [] };
+    return [{ t: '', cab: 0, linhas: linhasImp(topo) }, inst].concat(secs.filter(x => x.itens.length).map(x => ({ t: x.t, cab: (x.t ? H2_IMP : 0) + 3, linhas: linhasImp(x.itens) })));
+  }
   function imprimirBranco(m) {
-    const M = MOD[m], cx = t => `<span class="pf-op"><span class="pf-bx"></span>${esc(t)}</span>`, rot = (l, req) => `<span class="pf-l">${esc(l)}${req ? ' <em>*</em>' : ''}</span>`;
-    const campo = ([k, l, t, req, o]) => {
-      if (t === 'sec') return l ? `<h2>${esc(l)}</h2>` : '';
-      if (t === 'html' || k === 'link' || t === 'arquivo') return '';   // link (Drive) e documento anexado não se escrevem no papel (o PDF faz igual)
-      if (t === 'checks') return `<div class="pf-i w">${rot(l)}<div class="pf-ops">${D.CHECK.map(c => cx(c[1])).join('')}</div></div>`;
-      if (t === 'check') return `<div class="pf-i w pf-1">${cx(l)}</div>`;
-      if (t === 'select' || t === 'simnao') { const ops = t === 'simnao' ? [['Sim', 'Sim'], ['Não', 'Não']] : (typeof o === 'function' ? o() : o).filter(x => x[0] !== '' && x[1]); return `<div class="pf-i${ops.length > 4 ? ' w' : ''}">${rot(l, req)}<div class="pf-ops">${ops.map(x => cx(x[1])).join('')}</div></div>`; }
-      if (t === 'textarea') return `<div class="pf-i w">${rot(l, req)}<span class="pf-cx pf-ml">${'<i></i>'.repeat(5)}</span></div>`;   // pauta em linhas de verdade (19/10: o degradê saía preto no Firefox do Mac)
-      if (t === 'geo') return `<div class="pf-i w">${rot(l + ' (GPS, se tiver)')}<span class="pf-gps"><span>Latitude</span><span class="pf-cx"></span><span>Longitude</span><span class="pf-cx"></span></span></div>`;
-      if (t === 'date') return `<div class="pf-i">${rot(l, req)}${dataImp}</div>`;
-      const curto = t === 'number' || ['uf', 'sigla', 'cep', 'numero', 'siape', 'suap'].includes(k);   // número e sigla cabem em meia linha; nome, local, comunidade… pedem a linha toda
-      return `<div class="pf-i${curto ? '' : ' w'}">${rot(l, req)}<span class="pf-cx"></span></div>`;
-    };
-    imprimir(`<section class="pf">${cabImp(M.um, 'Ficha para preencher em campo')}
-      <div class="pf-meta${M.campos.some(c => c[0] === 'data') ? ' so1' : ''}"><div class="pf-i">${rot('Preenchido por')}<span class="pf-cx"></span></div>${M.campos.some(c => c[0] === 'data') ? '' : `<div class="pf-i">${rot('Data do preenchimento')}${dataImp}</div>`}</div><p class="pf-inst">Escreva com letra de forma, dentro das caixas. Nas opções, marque com <b>X</b>. Se faltar espaço, continue no verso indicando o nome do campo.</p>
-      <div class="pf-c">${M.campos.map(campo).join('')}</div>
-      ${peImp(`<em>*</em> obrigatório · depois, digite no sistema: ${esc(M.nome)}`)}</section>`, `Ficha em branco - ${M.um} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
+    const M = MOD[m], blocos = blocosFicha(m);
+    imprimir(`<section class="pf pf-ficha">${paginasImp(M.um, 'Ficha para preencher em campo', blocos, M.um + ' de', '<em>*</em> obrigatório')}</section>`, `Ficha em branco - ${M.um} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
   }
   function imprimirLista(evId) {
     const e = by('eventos', evId); if (!e) return;
     const linhas = Array.from({ length: 20 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
-    imprimir(`<section class="pf">${cabImp('Lista de presença', `${esc(e.tipo)} · ${esc(e.tema)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}${e.municipio ? ' · ' + esc(e.municipio) : ''}`)}
+    const sub = `${esc(e.tipo)} · ${dt(e.data)}${e.municipio ? ' · ' + esc(e.municipio) : ''}`;
+    // 23/10/2026: mesma moldura das fichas (cabeçalho, rodapé no pé da folha), colunas com largura fixa para escrever à mão
+    imprimir(`<section class="pf pf-ficha pf-lista"><div class="pf-pag">${cabImp('Lista de presença', sub)}<div class="pf-corpo">
+      <div class="pf-lp-tema"><span class="pf-l">Atividade</span><b>${esc(e.tema || e.tipo)}</b>${e.lugar ? `<span>${esc(e.lugar)}</span>` : ''}</div>
       <p class="pf-o">Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).</p>
-      <table class="pf-lp"><thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade</th><th>Município</th><th>Mulher? (S/N)</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table>
-      ${peImp('Responsável: ______________________________ · Folha ____ de ____')}</section>`, `Lista de presença - ${e.tema || e.tipo} - ${dt(e.data).replace(/\//g, '-')}`);
+      <table class="pf-lp"><colgroup><col style="width:9mm"><col style="width:55mm"><col style="width:33mm"><col style="width:28mm"><col style="width:13mm"><col></colgroup>
+      <thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade</th><th>Município</th><th>Mulher? S/N</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table></div>
+      <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span class="pf-pe-id">Responsável: <i></i></span><span>Folha ____ de ____</span></footer></div></section>`, `Lista de presença - ${e.tema || e.tipo} - ${dt(e.data).replace(/\//g, '-')}`);
   }
+
   /* registro que depende de outro (item → biofábrica, lote → biofábrica, entrega → lote pronto e unidade produtiva, visita → unidade produtiva):
      sem o outro cadastrado, em vez de um formulário com a lista vazia, explica o que fazer antes e leva até lá */
   const FALTA_ANTES = { unidades: ['nenhuma biofábrica cadastrada', 'Primeiro é preciso cadastrar a biofábrica (aba Biofábricas, “Nova biofábrica”).'],
@@ -6296,6 +6434,12 @@ ${secs}</div>`;
       const lo = $('#frm label[for="f_orgao"]'); if (lo) lo.textContent = 'Órgão ou setor (opcional)'; }   // a função já veio escolhida: aparece no quadro "Função"
     if (memNovo) $('#fsalvar').textContent = 'Cadastrar';
     if (m === 'membros') ajustarFormMembro($('#frm'));
+    // 23/10/2026: com nomes na lista de presença, a quantidade de participantes e de mulheres é a da lista (campos travados; o Salvar não grava número digitado)
+    if (m === 'eventos' && id && $('#f_part')) { const L = (db.presencas || []).filter(x => x.evento === id);
+      if (L.length) { const mu = L.filter(x => x.mulher).length;
+        [['f_part', L.length], ['f_mulheres', mu]].forEach(([k, v]) => { const el = $('#' + k); if (!el) return; el.value = v; el.readOnly = true; el.classList.add('fm-trav'); el.setAttribute('aria-describedby', 'part_lista'); });
+        const fl = $('#f_part').closest('.fld'), dc = fl && fl.querySelector('.fm-dica'); if (dc) dc.remove();
+        ($('#f_mulheres') || $('#f_part')).closest('.fld').insertAdjacentHTML('afterend', `<p class="fld w fm-dica" id="part_lista">Vem da lista de presença: ${L.length} nome${L.length === 1 ? '' : 's'}${mu ? `, ${mu} mulher${mu === 1 ? '' : 'es'}` : ''}. Para mudar, acrescente ou tire nomes no botão “Lista” da atividade.</p>`); } }
     // "Registrar entrega desta etapa" (Visão geral): a etapa já vem escolhida e fica fixa
     if (m === 'entregas' && !id && pre && $('#f_etapa')) { const s_ = $('#f_etapa'), e_ = D.ETAPAS.find(x => x.id === pre); s_.closest('.fld').hidden = true;
       s_.closest('.fields').insertAdjacentHTML('afterbegin', `<div class="fld w"><div class="fm-fixo"><span>Etapa do plano</span><b>${esc(pre)} · ${esc(e_ ? e_.nome : '')}</b><small>Meta ${e_ ? e_.m + ' · ' + esc(D.METAS[e_.m]) : ''}</small>${e_ && e_.vale ? `<small>${esc(e_.vale)}</small>` : ''}</div></div>`); }
@@ -6365,6 +6509,7 @@ ${secs}</div>`;
     if (m === 'pessoas') r.email = r.email.toLowerCase();
     if (m === 'membros') R.normalizarMembro(r);
     if (m === 'membros' && !id && ed.substitui) r.substitui = ed.substitui;
+    if (m === 'eventos' && id && (db.presencas || []).some(x => x.evento === id)) { r.part = ''; r.mulheres = ''; }   // segue a lista (R.participantes)
     const conviteAberto = ed.convite;
     const msg = R.validar(db, m, r, ant); if (msg) return er(msg);
     const doc = DOC_TAB.includes(m) && $('#f_arquivo') && $('#f_arquivo').files[0], tiraDoc = DOC_TAB.includes(m) && $('#f_tirardoc') && $('#f_tirardoc').checked;
@@ -6407,7 +6552,10 @@ ${secs}</div>`;
   /* foto de perfil (19/10, padrão do Mulheres & Quintais): "Tirar foto" abre a câmera da frente no celular; "Adicionar foto" escolhe da galeria.
      "Remover foto" tem outro nome de propósito: "Tirar a foto" confundia com a câmera. */
   const IC_IMAGEM = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>';
-  const botoesFoto = m => `<div class="foto-acts"><button type="button" class="b foto-b" data-fotoeqtrocar="${esc(m.id)}" data-cam="${eu && R.nrm(eu.email) === R.nrm(m.email) ? 'user' : 'environment'}">${IC_CAMERA}<span>Tirar foto</span></button><button type="button" class="b foto-b" data-fotoeqtrocar="${esc(m.id)}">${IC_IMAGEM}<span>Adicionar foto</span></button>${m.foto ? `<button type="button" class="b s foto-rm" data-fotoeqtirar="${esc(m.id)}">Remover foto</button>` : ''}<span class="small">A foto aparece só para a equipe do projeto.</span></div>`;
+  const botoesFoto = m => `<div class="foto-acts"><button type="button" class="b foto-b" data-fotoeqtrocar="${esc(m.id)}" data-cam="${eu && R.nrm(eu.email) === R.nrm(m.email) ? 'user' : 'environment'}">${IC_CAMERA}<span>Tirar foto</span></button><button type="button" class="b foto-b" data-fotoeqtrocar="${esc(m.id)}">${IC_IMAGEM}<span>Adicionar foto</span></button><span class="small">A foto aparece só para a equipe do projeto.</span></div>`;
+  // 23/10/2026 (pedido da coordenação): remover a foto é um × no canto da própria foto (o botão "Remover foto" na fileira ficava feio); dois toques
+  const IC_X_AV = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const comX = (m, html) => m && m.foto && podeFoto(m) ? `<span class="av-wrap">${html}<button type="button" class="av-x" data-fotoeqtirar="${esc(m.id)}" title="Remover a foto" aria-label="Remover a foto${m.nome ? ' de ' + esc(m.nome) : ''}">${IC_X_AV}</button></span>` : html;
   function carregarFotosEq() {
     document.querySelectorAll('[data-fotoeq]:not([data-fotook])').forEach(async el => {
       el.dataset.fotook = '1';
@@ -6447,7 +6595,7 @@ ${secs}</div>`;
     const perf = [['agricultor', 'É agricultor(a)?'], ['atua_af', 'Atua com agricultura familiar?'], ['zona_rural', 'Mora na zona rural?'], ['celular_internet', 'Tem celular com internet?']].filter(([k]) => m[k]).map(([k, t]) => l(t, esc(m[k]))).join('');
     ed = null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(NOME_FUNCAO[m.funcao] || 'Equipe')}</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
-     <div class="fm-corpo fi"><div class="fi-top">${avatar(m)}<div><span class="chip ${ativo ? 'ok' : ''}">${ativo ? (m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe') : 'Desligado(a) em ' + dt(m.fim)}</span>${res ? seloHab(m) : ''}${F ? `<p class="small">${esc(F[4])}</p>` : ''}</div></div>
+     <div class="fm-corpo fi"><div class="fi-top">${comX(m, avatar(m))}<div><span class="chip ${ativo ? 'ok' : ''}">${ativo ? (m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe') : 'Desligado(a) em ' + dt(m.fim)}</span>${res ? seloHab(m) : ''}${F ? `<p class="small">${esc(F[4])}</p>` : ''}</div></div>
       ${podeFoto(m) ? botoesFoto(m) : ''}
       ${bloco('Contato', l('E-mail (login)', esc(m.email)) + l('Celular', esc(m.telefone)) + l('Município', esc(m.municipio)))}
       ${bloco('Vínculo', l('Nome social', esc(m.nome_social)) + l('Instituição ou curso', esc(m.vinculo)) + l('Organização', esc(m.organizacao)) + l('SIAPE', esc(m.siape)) + l('Matrícula SUAP', esc(m.suap)))}
@@ -6455,7 +6603,7 @@ ${secs}</div>`;
       ${res ? bloco('Habilitação na FUNCERN', l('Cadastro no Arlo', esc(m.arlo || 'não informado')) + l('Termo assinado em', m.termo_em ? dt(m.termo_em) : 'ainda não')) : ''}
       ${res ? bloco('Dados para o cadastro no Arlo (reservados)', l('CPF', m.cpf ? fmtCpf(m.cpf) : '') + l('PIS/NIS', esc(m.pis)) + l('Nascimento', m.nascimento ? dt(m.nascimento) : '') + l('Endereço', end)) : ''}
       ${perf || m.experiencia ? bloco('Perfil no campo', perf + l('Experiência', esc(m.experiencia))) : ''}
-      ${coord() ? bloco('Questionário socioeconômico', l('Respondeu', m.socio ? 'Sim (só a coordenação vê as respostas, no formulário de edição)' : 'Não')) : ''}</div>
+      ${coord() ? bloco('Questionário socioeconômico', l('Respondeu', m.socio ? 'Sim <small class="fi-nota">As respostas ficam só com a coordenação, no Editar.</small>' : 'Não')) : ''}</div>
      <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="ok-msg" id="fok" role="status"></div><div class="frow"><button type="button" class="b" data-fechar>Fechar</button>${res ? `<button type="button" class="b" data-habilitar="${esc(m.id)}">Marcar habilitação</button>` : ''}${coord() && ativo && !m.fim ? `<button type="button" class="b d" data-desligar="${esc(m.id)}">Desligar da equipe</button>` : ''}${R.podeGravar(eu, 'membros') ? `<button type="button" class="b p" data-edit="membros:${esc(m.id)}">Editar cadastro</button>` : ''}</div></div>`;
     if ($('#dlg').open) focarDlg(); else $('#dlg').showModal();
     carregarFotosEq();
@@ -6879,7 +7027,7 @@ ${secs}</div>`;
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
     else if (d.fotoeqtrocar) escolherFotoEq(d.fotoeqtrocar, t);
-    else if (d.fotoeqtirar) await tirarFotoEq(d.fotoeqtirar, t);
+    else if (d.fotoeqtirar) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para remover a foto'; const er = $('#ferr'); if (er) er.textContent = 'Toque de novo no × para remover a foto.'; return; } await tirarFotoEq(d.fotoeqtirar, t); }
     else if (d.fichamembro) abrirFichaMembro(d.fichamembro);
     else if (d.habilitar) abrirHabilitacao(d.habilitar);
     else if (d.habsalvar !== undefined) await salvarHabilitacao(t);
@@ -6908,11 +7056,15 @@ ${secs}</div>`;
     else if (d.aparencia !== undefined) { ed = null; $('#frm').className = 'fm'; $('#frm').innerHTML = SQC.aparencia.janela(); $('#dlg').classList.add('dlg-ap'); if ($('#dlg').open) $('#frm .fm-x').focus(); else $('#dlg').showModal(); }
     else if (d.apSol !== undefined) { SQC.aparencia.mudar('sol', !SQC.aparencia.ler().sol); $('#frm').innerHTML = SQC.aparencia.janela(); $('#frm [data-ap-sol]').focus(); }
     else if (d.apTema) { SQC.aparencia.mudar('tema', d.apTema); $('#frm').innerHTML = SQC.aparencia.janela(); $(`#frm [data-ap-tema="${d.apTema}"]`).focus(); }
-    else if (d.presenca) abrirPresenca(d.presenca);
+    else if (d.presenca) { prEdit = null; abrirPresenca(d.presenca); }
+    else if (d.predit) { prEdit = d.predit; abrirPresenca(prEv); const c = $('#pe_com'); if (c) c.focus(); }
+    else if (d.prcancel !== undefined) { const id = prEdit; prEdit = null; abrirPresenca(prEv); const b = id && $(`#frm [data-predit="${CSS.escape(id)}"]`); if (b) b.focus(); }
+    else if (d.prsalvar) { t.disabled = true; try { await salvarPresenca(d.prsalvar); } finally { t.disabled = false; } }
     else if (d.prconf) { prLote = prSeparar(d.prconf, ($('#pr_varios') || {}).value || ''); $('#pr_prev').innerHTML = prPrevia(d.prconf); const b = $('#pr_prev [data-pradds]'); if (b) b.focus(); }
+    else if (d.prtira !== undefined) { prLote.nomes.splice(+d.prtira, 1); prLote.fora = prLote.fora; const ev_ = prLote.ev; $('#pr_prev').innerHTML = prPrevia(ev_); const nx = $('#pr_prev [data-prtira="' + Math.min(+d.prtira, prLote.nomes.length - 1) + '"]') || $('#pr_prev [data-pradds]') || $('#pr_varios'); if (nx) nx.focus(); }
     else if (d.pradds) { t.disabled = true; try { await adicionarVarios(d.pradds); } finally { t.disabled = false; } }
     else if (d.pradd) { t.disabled = true; try { await adicionarPresenca(d.pradd); } finally { t.disabled = false; } }
-    else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo na lixeira para tirar da lista.'; return; }
+    else if (d.prdel) { if (!d.ok) { d.ok = 1; t.classList.add('conf'); t.title = 'Toque de novo para confirmar'; $('#ferr').textContent = 'Toque de novo no × para tirar da lista.'; return; }
       try { await api.excluir('presencas', d.prdel); db.presencas = db.presencas.filter(x => x.id !== d.prdel); if (api.guardarCopia) api.guardarCopia(db); render(); abrirPresenca(prEv, 'Tirado da lista.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.prcontar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: trocar os participantes pelos da lista'; return; } const e = by('eventos', d.prcontar), L = db.presencas.filter(x => x.evento === d.prcontar), r = Object.assign({}, e, { part: L.length, mulheres: L.filter(x => x.mulher).length });
       const res = await gravarRegistro('eventos', r, e); render(); abrirPresenca(d.prcontar, res.ok ? 'Participantes da atividade atualizados pela lista.' : res.msg); }
@@ -6962,6 +7114,11 @@ ${secs}</div>`;
         if (r && r.conflito) { t.disabled = false; t.dataset.ok = 'forcar'; t.textContent = 'Restaurar mesmo assim'; toast('Este registro mudou de novo depois desta versão. Restaurar desfaz também as mudanças mais novas. Toque em "Restaurar mesmo assim" para seguir.'); return; }
         await recarregarDb(); hist = await api.auditoria(Math.max(200, hist.length)); histFim = hist.length < 200; render(); toast('Restaurado. A restauração ficou registrada no histórico.');
       } catch (e) { t.disabled = false; delete t.dataset.ok; t.textContent = h.acao === 'DELETE' ? 'Desfazer a exclusão' : 'Restaurar como estava antes'; t.classList.remove('p'); toast(e.message || 'Não deu para restaurar.'); } }
+    else if (d.verresp !== undefined) await verRespostas();
+    else if (d.relresp) { const rid = d.relresp, tx = (($('#rr_' + CSS.escape(rid)) || {}).value || '').trim();
+      if (!tx) { toast('Escreva a resposta antes de enviar.'); const c = $('#rr_' + CSS.escape(rid)); if (c) c.focus(); return; }
+      t.disabled = true; try { const x = await api.responderRelato(rid, tx); relatos = relatos.map(r => r.id === rid ? Object.assign({}, r, x) : r); render(); toast('Resposta enviada. Quem relatou vê ao entrar no sistema.'); const b = $(`[data-relresp="${CSS.escape(rid)}"]`); if (b) b.focus(); }
+      catch (e) { t.disabled = false; toast(e.semRede ? 'Sem internet: a resposta não foi enviada.' : e.message); } }
     else if (d.relatos !== undefined) { t.disabled = true; t.textContent = 'Carregando…'; try { relatos = await api.relatos(); render(); } catch (e) { t.disabled = false; toast(e.message || String(e)); } }
     else if (d.relsit) { const [rid, sit] = d.relsit.split(':'); t.disabled = true;
       try { const x = await api.marcarRelato(rid, sit); relatos = relatos.map(r => r.id === rid ? Object.assign({}, r, x) : r); render(); toast(sit === 'Resolvido' ? 'Marcado como resolvido.' : 'Reaberto.'); }
@@ -6987,7 +7144,7 @@ ${secs}</div>`;
     ed = null; $('#frm').className = 'fm md';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(demo() ? 'Demonstração · ' + (R.NOME_PERFIL[eu.perfil] || eu.perfil) : (R.NOME_PERFIL[eu.perfil] || eu.perfil) + (eu.orgao ? ' · ' + eu.orgao : ''))}</span><h2>Meus dados</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">
-      <section class="md-c" aria-label="Seus dados"><div class="md-t">${m && m.foto ? avatar(m, "md-av") : `<span class="md-av" aria-hidden="true">${esc(iniciais(demo() ? eu.perfil : eu.nome))}</span>`}<div class="md-tx"><b>${esc(demo() ? eu.nome : (m && m.nome) || eu.nome)}</b><span>${esc(m ? NOME_FUNCAO[m.funcao] || '' : eu.perfil)}${m && !ativo ? ' · saiu em ' + dt(m.fim) : ''}</span>${m && ativo && podeFoto(m) ? botoesFoto(m) : ''}</div></div>
+      <section class="md-c" aria-label="Seus dados"><div class="md-t">${m && m.foto ? comX(m, avatar(m, "md-av")) : `<span class="md-av" aria-hidden="true">${esc(iniciais(demo() ? eu.perfil : eu.nome))}</span>`}<div class="md-tx"><b>${esc(demo() ? eu.nome : (m && m.nome) || eu.nome)}</b><span>${esc(m ? NOME_FUNCAO[m.funcao] || '' : eu.perfil)}${m && !ativo ? ' · saiu em ' + dt(m.fim) : ''}</span>${m && ativo && podeFoto(m) ? botoesFoto(m) : ''}</div></div>
        ${!m && coord() ? '<p class="note">Para ter foto de perfil, cadastre-se em Equipe como Coordenação do projeto, com este mesmo e-mail.</p>' : ''}
        <dl class="md-l">${linha('E-mail de acesso', eu.email)}${linha('Perfil no sistema', R.NOME_PERFIL[eu.perfil] || eu.perfil)}${linha('Órgão', eu.orgao)}${m ? linha('Celular', m.telefone) + linha('Município', m.municipio) + linha('Vínculo', m.vinculo) + linha('Na equipe desde', dt(m.inicio)) : ''}</dl></section>
       ${m && ativo ? `<section class="md-c" aria-labelledby="md-ed"><h3 class="fm-sec" id="md-ed">Atualizar meu celular e município</h3><div class="fields"><div class="fld"><label for="f_telefone">Celular (com DDD)</label><input id="f_telefone" autocomplete="tel" inputmode="tel" value="${esc(m.telefone || '')}"></div><div class="fld"><label for="md_mun">Município</label><input id="md_mun" autocomplete="address-level2" data-tipo="lugar" value="${esc(m.municipio || '')}"></div></div>

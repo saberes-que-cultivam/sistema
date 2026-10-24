@@ -2167,7 +2167,7 @@ nav .rede.ok{background:var(--accent-soft);color:var(--accent);border-top-color:
 #frm .fm-info .fm-oque-fixo{flex:1 1 100%;order:-1;margin:4px 0 2px;padding:12px 16px 14px;background:color-mix(in srgb,var(--accent) 11%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-left:5px solid var(--accent);border-radius:12px;box-shadow:0 1px 3px color-mix(in srgb,var(--txt-1) 8%,transparent)}
 #frm .fm-info .fm-oque-t{display:flex;align-items:center;gap:8px;color:var(--accent);font:700 var(--t-sm)/1.3 var(--body);letter-spacing:.01em}
 #frm .fm-info .fm-oque-t::before{content:"i";display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--surface);font:700 var(--t-2xs)/1 var(--body)}
-#frm .fm-info .fm-oque-fixo>p{margin:6px 0 0;max-width:78ch;color:var(--txt-1);font-size:var(--t-base);line-height:1.55}
+#frm .fm-info .fm-oque-fixo>p{margin:6px 0 0;max-width:none;color:var(--txt-1);font-size:var(--t-base);line-height:1.55}
 #frm .fm-info .fm-oque-fixo+.fm-obr{margin-left:auto}
 @media (max-width:640px){#frm .fm-info .fm-oque-fixo{padding:10px 12px 12px;border-left-width:4px} #frm .fm-info .fm-oque-fixo>p{font-size:var(--t-sm)}}
 /* dica do campo de texto ao lado do Falar (23/10/2026) */
@@ -2307,3 +2307,60 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 .pr-v[open]>summary{border-bottom:1px solid var(--line);margin-bottom:10px}
 .pr-v .acts{margin:8px 0 12px}
 .pr-cf li{gap:12px} .pr-m{display:inline-flex;align-items:center;gap:6px;min-height:44px;flex:none;font-size:var(--t-sm)} .pr-m input{width:20px;height:20px;margin:0}
+.fm input.fm-trav{background:var(--bg-2,var(--bg));color:var(--txt-2);cursor:not-allowed}
+/* 23/10/2026 (pedido da coordenação): × ao lado de cada nome da lista de presença e da prévia dos nomes colados */
+.pr-dir{display:inline-flex;align-items:center;gap:10px;flex:none}
+.pr-x{flex:none;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--txt-2);cursor:pointer;padding:0}
+.pr-x:hover,.pr-x:focus-visible,.pr-x.conf{color:var(--bad);background:var(--bad-soft);border-color:var(--bad)}
+.pr-l li small i{font-style:normal;color:var(--txt-3,var(--txt-2))}
+.pr-l li.pr-ed{display:block;padding:10px 12px;margin:4px 0;border:1px solid var(--accent);border-radius:10px;background:var(--surface)}
+.pr-ed .fields{margin-top:8px} .pr-ed .acts{margin-top:6px}
+.pr-x.pr-lap:hover,.pr-x.pr-lap:focus-visible{color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-color:var(--accent)}
+.fi-dl dd small.fi-nota{display:block;margin-top:2px;font-size:var(--t-sm);font-weight:400;color:var(--txt-2)}   /* 23/10/2026: "Sim" + nota numa linha própria (o texto longo quebrava no meio da coluna) */
+/* 45 (23/10/2026): relatos com resposta, número na aba Histórico e faixa para quem relatou */
+.nav-n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:6px;border-radius:999px;background:var(--bad);color:#fff;font-size:var(--t-xs);font-weight:700;line-height:1;vertical-align:middle}
+.nav-n{color:var(--surface)}
+.rl-resp{margin:10px 0 0;padding:10px 12px;border-left:4px solid var(--accent);border-radius:6px;background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.rl-resp-r{display:block;font-size:var(--t-sm);color:var(--txt-2);font-weight:600} .rl-resp p{margin:4px 0 0;white-space:pre-wrap}
+.rl-rf{display:flex;flex-direction:column;gap:4px;margin:12px 0 0} .rl-rf label{font-size:var(--t-sm);font-weight:600}
+.rl-a{flex-wrap:wrap;gap:8px}
+.banner.rl-av{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
+/* 23/10/2026: × no canto da foto de perfil para remover (dois toques) */
+.av-wrap{position:relative;display:inline-flex;flex:none}
+.av-x{position:absolute;top:-4px;right:-4px;width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:2px solid var(--surface);background:var(--txt-2);color:var(--surface);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.av-x::before{content:"";position:absolute;inset:-9px}   /* área de toque de 44 px */
+.av-x:hover,.av-x:focus-visible,.av-x.conf{background:var(--bad)}
+/* 23/10/2026: "Nova unidade" rolava para uma janela branca: o campo de arquivo escondido (position:absolute) tinha a janela como referência,
+   escapava do recorte do corpo do formulário e esticava a janela. O corpo que rola e os blocos de arquivo passam a ser a referência. */
+#frm .fm-corpo,.anx-add,.doc-esc{position:relative}
+/* 23/10/2026: fichas em branco padronizadas em todas as folhas (pedido da coordenação). Cada folha é montada na tela (paginasImp):
+   A4 de altura fixa, cabeçalho em cima, rodapé embaixo com "Folha N de T"; a página continua sem margem (o navegador não imprime endereço e data). */
+@media print{
+  #impresso .pf.pf-ficha{padding:0}
+  #impresso .pf-pag{box-sizing:border-box;height:296.5mm;padding:9mm 12mm 7mm;display:flex;flex-direction:column;overflow:hidden;break-after:page;page-break-after:always}
+  #impresso .pf-pag:last-child{break-after:auto;page-break-after:auto}
+  #impresso .pf-pag>.pf-cab{flex:none;margin:0 0 4mm}
+  #impresso .pf-corpo{flex:1 1 auto;min-height:0}
+  #impresso .pf-pag>.pf-pe{flex:none;margin:3mm 0 0;display:grid;grid-template-columns:auto 1fr auto;align-items:end;gap:5mm}
+  #impresso .pf-pe-id{display:flex;align-items:flex-end;gap:2mm;white-space:nowrap} #impresso .pf-pe-id i{flex:1;min-width:30mm;border-bottom:.3mm solid #8FA195;height:4mm}
+  #impresso .pf-ficha .pf-c{grid-template-columns:repeat(6,minmax(0,1fr));gap:3.2mm 5mm}
+  #impresso .pf-ficha .pf-inst{margin:0 0 3.5mm;padding:2mm 3.5mm}
+  #impresso .pf-sec{margin:0 0 3mm}
+  #impresso .pf-sec>h2{margin:0 0 2.6mm;padding:1.6mm 3mm;border-radius:1.5mm;background:#D9EADB;color:#1B3324;font:700 var(--t-md)/1.2 var(--body)}
+  #impresso .pf-sec>h2 small{font-weight:500;color:#4A5C50}
+  #impresso .pf-ficha .pf-cx{height:12.5mm}
+  #impresso .pf-ficha .pf-ml{height:auto} #impresso .pf-ficha .pf-ml i{height:9mm}
+  #impresso .pf-ficha .pf-ops{min-height:7mm;align-items:center}
+  #impresso .pf-ficha .pf-sec>.pf-c+.pf-c{margin-top:3.2mm}
+}
+@media print{
+  #impresso .pf-lista .pf-lp{table-layout:fixed}
+  #impresso .pf-lista .pf-lp td{height:9.6mm}
+  #impresso .pf-lista .pf-lp th{white-space:normal;line-height:1.15}
+  #impresso .pf-lp-tema{display:grid;gap:.6mm;margin:0 0 2.5mm;padding:2.5mm 3.5mm;border-left:1.2mm solid #27663A;border-radius:1.5mm;background:#EEF4EE}
+  #impresso .pf-lp-tema b{font:700 var(--t-md)/1.3 var(--body);color:#1B2A20} #impresso .pf-lp-tema span:not(.pf-l){font-size:var(--t-sm);color:#3E4F44}
+  #impresso .pf-pe-nota{text-align:center;color:#4A5C50}
+  #impresso .pf-termo .pt-txt{margin:4mm 0 0}
+}
+@media print{#impresso .pf-termo .pf-cx{display:flex;align-items:center;padding:0 3mm;font-size:var(--t-md)}}
+@media print{#impresso .pf-lista .pf-lp td:first-child,#impresso .pf-lista .pf-lp th:first-child{padding:0 1mm;text-align:center;white-space:nowrap}}

@@ -65,8 +65,9 @@
 
     /* unidades de produção: implantação passo a passo, com as datas de cada passo */
     const passos = { u1: ['2026-08-20', '2026-09-10', '2026-10-15', '2026-11-05', '2026-11-20', '2026-12-18', '2027-01-12', '2027-01-26'],
-      u2: ['2026-08-25', '2026-09-18', '2026-10-28', '2026-11-12', '2026-11-27', '2027-01-08', '2027-02-05', '2027-02-19'] };
-    const parceiro = { u1: 'Associação de agricultores do Potengi (fictícia)', u2: 'Cooperativa do Maciço (fictícia)' };
+      u2: ['2026-08-25', '2026-09-18', '2026-10-28', '2026-11-12', '2026-11-27', '2027-01-08', '2027-02-05', '2027-02-19'],
+      u3: ['2026-07-20', '2026-07-22', '2026-07-24', '2026-07-27', '2026-07-29', '2026-07-31', '2026-08-03', '2026-08-05'] };   // a de apoio (campus), pronta logo no começo
+    const parceiro = { u1: 'Associação de agricultores do Potengi (fictícia)', u2: 'Cooperativa do Maciço (fictícia)', u3: 'Setor de produção do campus (fictício)' };
     db.unidades.forEach(u => { const p = passos[u.id]; if (!p) return;
       D.CHECK.forEach((c, i) => { u[c[0]] = ja(p[i]); }); if (u.funcionando) u.funcionando_em = p[7];
       if (u.parceiro_ok) u.parceiro = parceiro[u.id]; if (u.local_ok) u.modelo = 'Microrganismos isolados'; u.responsavel = 'Técnico responsável (fictício)'; });
@@ -159,6 +160,8 @@
     // o que já passou entra; o que vem no próximo mês aparece como agendado
     const ate = mais(HOJE, 30);
     db.eventos = db.eventos.filter(e => e.data <= HOJE).concat(novos.filter(e => e.data <= ate).map(e => e.data > HOJE ? Object.assign(e, { part: '', mulheres: '' }) : e));
+    // participação em evento já feita e sem número: quem da equipe foi (a lista de presença não se aplica)
+    db.eventos.forEach(e => { if (e.tipo === 'Participação em evento' && e.data <= HOJE && !e.part) { e.part = 2; e.mulheres = 1; } });
     db.eventos.sort((x, y) => x.data < y.data ? -1 : 1);
 
     /* listas de presença das capacitações e dias de campo já feitos (nomes das unidades produtivas e de outras pessoas, todos fictícios) */
@@ -244,6 +247,9 @@
       }
     });
     db.entregas.forEach(g => { g.link = g.link || 'https://exemplo.br/documento-ficticio'; g.obs = g.obs || 'Entregue no prazo e enviado à coordenação (fictício).'; if (!g.arquivo) { g.arquivo = `${g.id}/${uid()}.pdf`; g.arquivo_nome = String(g.titulo || 'documento').replace(/[“”"(),]/g, '').replace(/\s+/g, '_').slice(0, 80) + '.pdf'; } });
+    // foto de perfil fictícia: figura desenhada (não é foto de ninguém), uma cor por pessoa
+    const avatarFicticio = i => { const C = [['#D9EADB', '#2E6B44'], ['#F3E3C3', '#8A5A12'], ['#DCE6F2', '#2F5A87'], ['#F2DCDC', '#8C3B3B'], ['#E6DDF2', '#5B3F8C'], ['#DDEFEF', '#26706F'], ['#EFE6D9', '#6B4F2E'], ['#E2EBD5', '#4F6B26']][i % 8];
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${C[0]}"/><circle cx="32" cy="25" r="11" fill="${C[1]}"/><path d="M12 60c2-12 10-19 20-19s18 7 20 19z" fill="${C[1]}"/></svg>`); };
     const ESC = ['Superior completo', 'Pós-graduação', 'Médio completo', 'Superior incompleto'];
     db.membros.forEach((m, i) => {
       const doc = m.funcao === 'discente';
@@ -252,7 +258,7 @@
         experiencia: m.experiencia || (doc ? 'Estudo ou estágio na área' : 'Mais de 2 anos de trabalho'), arlo: 'Sim', nascimento: m.nascimento || `19${80 + i * 3}-0${1 + i % 9}-1${i % 9}`, pis: m.pis || '000' + String(10000000 + i).slice(0, 8),
         cep: m.cep || '59700000', numero: m.numero || String(10 + i * 7), logradouro: m.logradouro || 'Rua das Flores (fictícia)', complemento: m.complemento || 'Casa', bairro: m.bairro || 'Centro', uf: m.uf || 'RN',
         socio: !!(i % 2), escolaridade: m.escolaridade || (doc ? 'Superior incompleto' : ESC[i % ESC.length]), raca_cor: m.raca_cor || ['Parda', 'Preta', 'Branca', 'Parda', 'Indígena', 'Parda', 'Amarela', 'Parda'][i % 8],
-        renda: m.renda || 1500 + i * 250, pessoas_casa: m.pessoas_casa || 2 + i % 4, termo_em: m.termo_em || m.inicio, obs: m.obs || 'Cadastro conferido pela coordenação (fictício).' });
+        renda: m.renda || 1500 + i * 250, pessoas_casa: m.pessoas_casa || 2 + i % 4, termo_em: m.termo_em || m.inicio, obs: m.obs || 'Cadastro conferido pela coordenação (fictício).', foto: m.foto || avatarFicticio(i) });
       if (doc) m.suap = m.suap.slice(0, 14).padEnd(14, '0');
     });
     db.pessoas.forEach(p => { p.orgao = p.orgao || (p.perfil === 'Acompanhamento' ? 'SEAB/MDA' : 'IFRN Campus Apodi'); p.cargo = p.cargo || { 'Coordenação': 'Coordenador do projeto', 'Equipe': 'Bolsista', 'Auxiliar': 'Auxiliar administrativo', 'Formador': 'Formador(a)', 'Acompanhamento': 'Acompanhamento do TED' }[p.perfil] || ''; });
