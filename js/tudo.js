@@ -327,17 +327,35 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const fimDoMes = h => new Date(h.getFullYear(), h.getMonth() + 1, 0).getDate() === h.getDate() || iso(h) >= D.VIGENCIA.fim;
   const mesesEntre = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
   /* fonte 'equipe': usa a janela do cronograma da equipe (e.eq) quando a etapa está nele; senão, a do plano de trabalho (TED) */
+  /* 24/10/2026 (decisão da coordenação): etapa de entrega única (quantidade 1: diagnóstico, material didático, sistematização, prestação de contas,
+     gestão) não tem "metade feita": o previsto fica em 0% até o mês do prazo e vai a 100% nele (degrau). Antes subia mês a mês e o painel dizia
+     "Abaixo do previsto" o projeto quase todo, sem atraso nenhum. */
+  const degrau = e => e.q === 1;
   function previstoEtapa(e, hoje, fonte) {
     const j = fonte === 'equipe' && e.eq ? e.eq : e, v0 = pd(D.VIGENCIA.ini), ini0 = pd(j.ini);
     // 19/10/2026: etapa marcada no TED para antes da vigência (07/2026) começa a contar em 08/2026; antes, o painel dizia "Abaixo do previsto" no 1º dia
     const ini = ini0 < v0 ? new Date(v0.getFullYear(), v0.getMonth(), 1) : ini0, total = Math.max(1, mesesEntre(ini, pd(j.fim)) + 1);
     // o mês conta como passado no último dia dele e no último dia da vigência (30/07/2027): aí o previsto é 100%
     const ultimo = fimDoMes(hoje);
-    return Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth() + (ultimo ? 1 : 0), 1)) / total));
+    const fr = Math.max(0, Math.min(1, mesesEntre(ini, new Date(hoje.getFullYear(), hoje.getMonth() + (ultimo ? 1 : 0), 1)) / total));
+    return degrau(e) ? (fr >= 1 ? 1 : 0) : fr;
+  }
+  /* avanço da etapa na execução física (0 a 1). Biofábricas (2.1, decisão da coordenação de 24/10/2026): conta os passos da implantação
+     já feitos nas unidades do TED (8 por unidade); a unidade inteira só com os 8 passos e a data de funcionamento (unidadePronta).
+     A META continua contando só unidade pronta (feito). Nas outras etapas, avanço = feito ÷ quantidade. */
+  function passosUnidades(db, ate) {
+    const us = db.unidades.filter(u => u.conta === 'Sim').map(u => unidadePronta(u, ate) ? D.CHECK.length : Math.min(D.CHECK.length - 1, nCheck(u))).sort((a, b) => b - a);
+    return { feitos: us.slice(0, 2).reduce((t, x) => t + x, 0), total: 2 * D.CHECK.length };
+  }
+  function avanco(db, e, ate) {
+    /* os passos não têm data: valem só para a situação de hoje. Para um período que termina antes de hoje (relatório passado), volta a contar
+       só a unidade pronta, como a meta (revisão independente, 24/10/2026: passos de janeiro entravam num relatório de agosto). */
+    if (e.id === '2.1' && ateDia(ate) >= iso(new Date())) { const p = passosUnidades(db, ate); return Math.max(Math.min(1, feito(db, e, ate) / e.q), Math.min(1, p.feitos / Math.max(p.total, e.q * D.CHECK.length))); }
+    return Math.min(1, feito(db, e, ate) / e.q);
   }
   function execucaoGeral(db, hoje) {
     hoje = hoje || new Date();
-    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: Math.min(1, feito(db, e, iso(hoje)) / e.q), prev: previstoEtapa(e, hoje), prevEq: previstoEtapa(e, hoje, 'equipe') }));
+    const linhas = D.ETAPAS.map(e => ({ e, valor: e.q * e.v, feito: avanco(db, e, iso(hoje)), prev: previstoEtapa(e, hoje), prevEq: previstoEtapa(e, hoje, 'equipe') }));
     const tot = linhas.reduce((s, x) => s + x.valor, 0);
     const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
     const prevEq = linhas.reduce((s, x) => s + x.valor * x.prevEq, 0) / tot * 100;
@@ -538,6 +556,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     db.eventos.forEach(x => { if (['Capacitação', 'Dia de campo'].includes(x.tipo) && String(x.data || '') < hj && !realizada(db, x))
       add('f', 'Atividade', `${x.tipo} “${x.tema || 'sem tema'}” (${dt(x.data)}) está sem participantes registrados.`, 'Informe quantas pessoas participaram ou exclua, se não aconteceu. Sem isso, não conta para a meta.', '', 'eventos'); });
     D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
+    /* 24/10/2026 (decisão da coordenação): avisa antes de vencer. Faltando 60 dias ou menos para o fim do prazo do TED e com o feito abaixo
+       da quantidade, um aviso por etapa (amarelo até 31 dias, vermelho a 30 ou menos). Fora do relatório descritivo. */
+    D.ETAPAS.forEach(e => { if (venceu(e, hoje)) return; const f = feito(db, e, hj), fv = pd(D.VIGENCIA.fim), fm = fimMes(e.fim), fimE = fm > fv ? fv : fm, d = dias(pd(hj), fimE);   /* dia contra dia (a hora não muda a conta); o prazo não passa do fim da vigência (30/07/2027) */ if (f >= e.q || d > 60 || d < 0) return;   /* depois do fim da vigência não é "próximo" */
+      add(d <= 30 ? 'bad' : 'f', 'Prazo próximo', `Etapa ${e.id}: ${qtdBr(f)} de ${qtdBr(e.q)} até agora; o prazo do TED termina ${d === 0 ? 'hoje' : `em ${dt(iso(fimE))} (${d} dia${d === 1 ? '' : 's'})`}.`, e.nome + '.', iso(fimE), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
     // urgente primeiro; dentro do mesmo nível, o que tem prazo mais próximo
     return A.sort((a, b) => (a[0] === 'bad' ? 0 : 1) - (b[0] === 'bad' ? 0 : 1) || (a[5] || '9') .localeCompare(b[5] || '9'));
   }
@@ -761,7 +783,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const extDocumento = nome => { const m = String(nome || '').toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ''; };
   const validarDocumento = a => !a ? 'Escolha o arquivo.' : !DOC_TIPOS[extDocumento(a.name)] ? 'Este tipo de arquivo não é aceito. Envie PDF, Word, Excel, PowerPoint, LibreOffice, JPEG ou PNG.'
     : !(a.size > 0) ? 'O arquivo está vazio.' : a.size > DOC_MAX ? 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' : '';
-  SQC.regras = { qtdBr, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  SQC.regras = { qtdBr, avanco, passosUnidades, degrau, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, siglaSugerida, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
@@ -876,10 +898,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     enviando: false,
     async sincronizar(api, dono) {
       if (F.enviando) return { enviados: 0, erros: 0 };
-      F.enviando = true; let enviados = 0, erros = 0;
+      F.enviando = true; let enviados = 0, erros = 0; const presos = new Set();   // 24/10/2026: registro que não subiu segura quem depende dele (a visita da unidade nova recusada caía em "cadastro que não existe mais")
+      const depende = it => Object.entries(it.dados || {}).some(([k, v]) => k !== 'id' && typeof v === 'string' && presos.has(v));
       try {
         for (const it of await F.listar(dono)) {
-          if (it.erro && !it.reenviar) { erros++; continue; }
+          const prende = () => { if (it.op && it.op.novo && it.dados && it.dados.id) presos.add(it.dados.id); };   // só registro NOVO segura os outros: o que já existe no servidor pode receber visita mesmo com a edição dele em erro
+          if (it.erro && !it.reenviar) { erros++; prende(); continue; }
+          if (depende(it)) { prende(); continue; }   // espera: sobe depois que o outro for corrigido
           // enquanto este envio corria, a pessoa pode ter corrigido o mesmo registro (mesma chave, versão nova):
           // aí o item da fila é o novo e não pode ser apagado nem sobrescrito pelo resultado do antigo
           const atual = async () => { const x = await F.ler(it.id); return !!x && x.versao === it.versao; };
@@ -887,7 +912,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
           catch (e) {
             if (e.semRede) break;
             if (!(await atual())) continue;
-            it.erro = e.message || 'Não foi possível enviar. Tente de novo.'; it.reenviar = false; erros++;
+            it.erro = e.message || 'Não foi possível enviar. Tente de novo.'; it.reenviar = false; erros++; prende();
             await F.salvar(it);
           }
         }
@@ -908,7 +933,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const G = typeof window !== 'undefined' ? window : globalThis;
   const SQC = (G.SQC = G.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v3-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
+  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v4-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
   const mem = {};   // usado quando o navegador bloqueia o armazenamento (e nos testes)
   const ler = k => { try { const v = G.localStorage.getItem(k); return v == null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } };
   const gravar = (k, v) => { mem[k] = v; try { G.localStorage.setItem(k, v); } catch (e) { /* fica só na memória */ } };
@@ -1730,8 +1755,9 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function mostrarAviso(ms) {
     if (!caixa) {
       caixa = document.createElement('div'); caixa.className = 'sessao-aviso'; caixa.setAttribute('role', 'alertdialog'); caixa.setAttribute('aria-live', 'assertive');
-      document.body.appendChild(caixa);
     }
+    const casa = document.querySelector('dialog[open]') || document.body;   // 24/10/2026: com janela aberta, o aviso vai dentro dela (fora, ficava por trás da janela e a pessoa saía sem ver)
+    if (caixa.parentNode !== casa) casa.appendChild(caixa);
     caixa.innerHTML = `<div class="sessao-in"><b>Você está sem usar o sistema.</b>
       <span>Por segurança, ele sai sozinho em <b class="num">${fmt(ms)}</b>. O que estiver guardado no celular não se perde.</span>
       <button type="button" class="b p" data-acao="sessao-continuar">Continuar usando</button></div>`;
@@ -4494,7 +4520,8 @@ var qrcode = function() {
     const falta = a && 'termo_em' in a && !a.termo_em;
     if (!falta) { if (av) av.remove(); return; }
     if (!av) { av = document.createElement('div'); av.id = 'termo_av'; av.className = 'aviso termo-av'; av.setAttribute('role', 'status'); fld.after(av); }
-    av.innerHTML = `<b>${esc(a.nome)} ainda não assinou o termo de uso de dados e imagem.</b> Leve o termo ${ed.m === 'visitas' ? 'nesta visita' : 'nesta entrega'}: “Imprimir termo” fica no rodapé do cadastro da unidade produtiva. Sem o termo, fotos da família e da propriedade não podem ser usadas.`;
+    const txt = `<b>${esc(a.nome)} ainda não assinou o termo de uso de dados e imagem.</b> Leve o termo ${ed.m === 'visitas' ? 'nesta visita' : 'nesta entrega'} para assinar; depois, anexe a foto do termo assinado no cadastro da unidade produtiva. Sem o termo, fotos da família e da propriedade não podem ser usadas.<span class="termo-bt">${btnImprimir(`data-termo="${esc(a.id)}"`, 'Imprimir termo')}</span>`;   // 24/10/2026: imprime dali mesmo, sem trocar de aba
+    if (av.innerHTML !== txt) { if (!av.innerHTML) requestAnimationFrame(() => { av.innerHTML = txt; }); else av.innerHTML = txt; }   // região de aviso criada vazia e preenchida depois: o leitor de tela anuncia
   }
   const termoChip = a => ('termo_em' in a ? (a.termo_em ? '' : '<span class="chip f">sem termo</span>') : '') + (a.imagem === 'Não' ? '<span class="chip neu">não autoriza foto</span>' : '');   // 44: o termo assinado do agricultor também vai para a lista de documentos
   const podeAnexos = () => !!eu && ['Coordenação', 'Auxiliar'].includes(eu.perfil);
@@ -4515,17 +4542,22 @@ var qrcode = function() {
   const IC_GERAR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>';
   const IC_IMPRIMIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/><path d="M17.5 12h.01"/></svg>';
   const link = (u, txt) => /^https?:\/\//i.test(String(u || '')) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${txt || 'abrir'}</a>` : (u ? esc(u) : '<span class="chip f">sem link</span>');
-  const saldo = l => R.saldo(db, l), nCheck = R.nCheck;
+  const saldo = l => agSal ? (+l.qtd || 0) - (agSal.get(l.id) || 0) : R.saldo(db, l), nCheck = R.nCheck;   /* dentro de comSaldos, a soma do desenho */
   /* de que biofábricas a unidade produtiva recebeu de fato: pelas entregas até hoje (o cadastro guarda só a de referência) */
   const deOnde = id => { const hj = iso(hoje()); return [...new Set(recebeu(id).filter(d => String(d.data || '') <= hj).map(d => (by('lotes', d.lote) || {}).unidade).filter(Boolean))]; };
   const visitasDe = id => R.visitasDe(db, id), recebeu = id => R.recebeu(db, id), acompanhada = a => R.acompanhada(db, a), feito = e => R.feito(db, e);
   let toastT = null, toastAcT = null;
   /* aviso: dentro da janela aberta (fora dela, a janela modal deixa o aviso inerte e por baixo do fundo escuro) */
+  function anunciar(txt) { let a = $('#anuncio'); if (!a) { a = document.createElement('div'); a.id = 'anuncio'; a.className = 'so'; a.setAttribute('aria-live', 'polite'); } const casa = document.querySelector('dialog[open]') || document.body; if (a.parentNode !== casa) casa.append(a);   /* janela modal deixa o resto inerte */ a.textContent = ''; requestAnimationFrame(() => { a.textContent = txt; }); }   // aviso só para o leitor de tela
+  function tiraCulpa(x) { delete x.dataset.culpa; x.removeAttribute('aria-invalid'); const d = (x.getAttribute('aria-describedby') || '').replace(/\bferr\b/, '').trim(); if (d) x.setAttribute('aria-describedby', d); else x.removeAttribute('aria-describedby'); }
+  const suave = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; } catch (e) { return 'auto'; } };   // 24/10/2026: quem pediu menos movimento não vê a rolagem animada
   const casaToast = () => document.querySelector('dialog[open]') || document.body;
   function toast(msg) { let t = $('.toast:not(.toast-ac)'); const casa = casaToast();
     if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); }
     if (t.parentNode !== casa) casa.appendChild(t);
-    t.textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 5000); }
+    t.textContent = msg; clearTimeout(toastT);
+    const ms = Math.min(15000, Math.max(6000, String(msg).length * 70)), some = () => { if (matchMedia('(hover: hover)').matches && t.matches(':hover')) { toastT = setTimeout(some, 1500); return; } t.remove(); };   // 24/10/2026: tempo pelo tamanho do texto (aviso longo sumia em 5 s) e não some com o mouse em cima
+    toastT = setTimeout(some, ms); }
   /* aviso com um botão (22/10/2026: "Desfazer" depois de excluir, "Compartilhar" do PDF pronto). Elemento próprio, para outro aviso
      não apagar o botão; o tempo para enquanto o mouse ou o foco estão nele; sem foco em lugar nenhum (a linha excluída sumiu), o foco vai ao botão. */
   function toastAcao(msg, rotulo, fn, ms) { const velho = $('.toast-ac'); if (velho) velho.remove(); clearTimeout(toastAcT);
@@ -4570,7 +4602,7 @@ var qrcode = function() {
         ['insumos', 'Ingredientes e proporções', 'textarea'], ['obs', 'Qualidade (cheiro, temperatura, pH, aspecto)', 'textarea']],
       cols: [['Lote', l => `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span>${exChip(l)}<div class="small">${esc(l.tipo)} · ${esc((by('unidades', l.unidade) || {}).nome)}</div>`],
         ['Situação', l => `<span class="chip ${l.status === 'Pronto' ? 'ok' : l.status === 'Descartado' ? 'bad' : 'f'}">${esc(l.status)}</span>`],
-        ['Maturação', l => { const p = R.dias(pd(l.inicio), hoje()); return l.status === 'Pronto' || l.status === 'Descartado' ? `<span class="small">início ${dt(l.inicio)}</span>` : `${bar(p, l.dias, 'f')}<div class="small">dia ${Math.max(0, p)} de ${l.dias} · previsto ${dt(iso(R.pronto(l)))}</div>`; }],
+        ['Maturação', l => { const p = R.dias(pd(l.inicio), hoje()); return l.status === 'Pronto' || l.status === 'Descartado' ? `<span class="small">início ${dt(l.inicio)}${l.status === 'Pronto' && l.pronto_em ? ` · pronto em ${dt(l.pronto_em)}` : ''}</span>` : `${bar(p, l.dias, 'f')}<div class="small">dia ${Math.max(0, p)} de ${l.dias} · previsto ${dt(iso(R.pronto(l)))}</div>`; }],
         ['Produzido', l => `${qt(l.qtd)} ${esc(l.med)}`, 'n'], ['Saldo', l => `<b>${qt(Math.round(saldo(l) * 100) / 100)} ${esc(l.med)}</b>`, 'n']] },
     agricultores: { tam: { comunidade: 'w', municipio: 'g', uf: 'p' }, um: 'Unidade produtiva', oque: 'Agricultor ou agricultora atendido(a) pelo projeto. Conta como “acompanhada” quando recebe bioinsumo e tem pelo menos uma visita de monitoramento no dia da primeira entrega ou depois. É dado pessoal: registre só o necessário e não compartilhe fora da equipe.', dicas: { unidade: 'A biofábrica que, pelo território, deve abastecer esta unidade produtiva. De onde ela recebeu de fato o sistema mostra pelas entregas.', diag: 'Dia em que você levantou a situação antes do projeto. Sem essa data, a avaliação final não tem com o que comparar.', gasto0: 'Quanto a família gastava por mês com adubo e defensivo comprados, antes de receber bioinsumo.', kitdata: 'Obrigatória quando o kit foi entregue.', termo_em: 'O termo é assinado em papel, na visita: use “Imprimir termo”, no rodapé desta janela. Se a pessoa não assina, ela põe a digital e alguém assina a rogo, com uma testemunha.', imagem: 'O que a pessoa marcou no termo. Com “Não”, foto de visita só da plantação ou do bioinsumo, sem pessoas, e nada na divulgação.' }, nome: 'Unidades produtivas', titulo: 'Agricultores e unidades produtivas', desc: 'Meta de 30 unidades produtivas acompanhadas e 30 kits. Registre a linha de base antes da primeira entrega de bioinsumo.', novo: 'Nova unidade produtiva',
       campos: [['_s1', 'Dados pessoais', 'sec'], ['nome', 'Nome do agricultor ou agricultora', 'text', 1], ['comunidade', 'Comunidade ou assentamento', 'text'], ['municipio', 'Município', 'text'], ['uf', 'UF', 'select', 0, [['', '']].concat(opt(D.UFS))],
@@ -4585,7 +4617,7 @@ var qrcode = function() {
         ['Kit', a => a.kit ? `<span class="chip ok">${dt(a.kitdata)}</span>` : '<span class="chip">não</span>'],
         ['Acompanhamento', a => { const r = recebeu(a.id).length, v = visitasDe(a.id); return `<span class="chip ${acompanhada(a) ? 'ok' : ''}">${r} entrega(s) · ${v.length} visita(s)</span>${v[0] ? `<div class="small">última ${dt(v[0].data)}</div>` : ''}`; }]] },
     distribuicoes: { um: 'Entrega de bioinsumo', oque: 'Liga um lote a quem recebeu. O sistema desconta do saldo do lote e não deixa entregar mais do que existe.', nome: 'Distribuição', titulo: 'Distribuição de bioinsumos', desc: 'Cada entrega liga um lote a uma unidade produtiva. É o que permite dizer de onde veio o que foi aplicado.', novo: 'Registrar entrega de bioinsumo',
-      campos: [['data', 'Data', 'date', 1], ['lote', 'Lote (só os prontos)', 'ref', 1, 'lotes', l => l.status === 'Pronto'], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['qtd', 'Quantidade', 'number', 1],
+      campos: [['data', 'Data', 'date', 1], ['lote', 'Lote (só os prontos com saldo)', 'ref', 1, 'lotes', l => l.status === 'Pronto' && saldo(l) > 0.004], ['agricultor', 'Unidade produtiva', 'ref', 1, 'agricultores'], ['qtd', 'Quantidade', 'number', 1],
         ['cultura', 'Cultura que vai receber', 'text'], ['area', 'Área de aplicação (ha)', 'number'], ['forma', 'Forma de aplicação', 'select', 0, opt(['No solo', 'Foliar', 'Na cova ou sulco', 'Tratamento de sementes', 'Outro'])]],
       cols: [['Data', d => dt(d.data) + exChip(d)], ['Lote', d => { const l = by('lotes', d.lote) || {}; return `<span class="mono">${esc(l.codigo || 'código ao enviar')}</span><div class="small">${esc(l.tipo)}</div>`; }],
         ['Para', d => esc((by('agricultores', d.agricultor) || {}).nome)], ['Uso', d => `${esc(d.cultura)}<div class="small">${[esc(d.forma), R.vazio(d.area) ? '' : num(d.area, 1) + ' ha'].filter(Boolean).join(' · ')}</div>`],
@@ -4677,13 +4709,13 @@ var qrcode = function() {
     t.classList.toggle('mais-esq', sobra > 2 && t.scrollLeft > 2); t.classList.toggle('mais-dir', sobra > 2 && t.scrollLeft < sobra - 2); }
   function nav() {
     const tem = abas();
-    $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button role="tab" aria-selected="${t[0] === tab}" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
+    $('#tabs').innerHTML = GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<div class="ng" role="presentation"><span class="ng-r" aria-hidden="true">${g[0]}</span><div class="ng-a" role="presentation">${ts.map(t => `<button type="button" data-tab="${t[0]}"${t[0] === tab ? ' aria-current="page"' : ''}>${t[1]}</button>`).join('')}</div></div>` : ''; }).join('');
     // celular e tablet (até 1100 px): menu "Seção" que abre a grade das abas por grupo, no padrão do Mulheres & Quintais
     const nomeAba = (tem.find(t => t[0] === tab) || tem[0] || ['', ''])[1], m = $('#abas-m');
     if (m) m.innerHTML = `<summary><span class="abas-m-r">Seção</span><b>${nomeAba}</b><svg class="abas-m-seta" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></summary>
       <div class="abas-m-grade">${GRUPOS.map(g => { const ts = g[1].map(k => tem.find(t => t[0] === k)).filter(Boolean); return ts.length ? `<span class="abas-m-g">${g[0]}</span>${ts.map(t => `<button type="button" data-tab="${t[0]}"${t[0] === tab ? ' aria-current="page"' : ''}>${t[1]}</button>`).join('')}` : ''; }).join('')}</div>`;
     // aba ativa à vista no menu que rola: rola só o menu (scrollIntoView movia o ponto de partida do Tab para a aba e o primeiro Tab pulava o cabeçalho)
-    const s = $('#tabs [aria-selected="true"]'), tb = $('#tabs'); if (s && tb) mostrarAba(s, tb);
+    const s = $('#tabs [aria-current="page"]'), tb = $('#tabs'); if (s && tb) mostrarAba(s, tb);
     bordasMenu();
     // 45: número de relatos em aberto na aba Histórico (só a coordenação recebe a contagem)
     const nRel = db && db._avisos ? +db._avisos.abertos || 0 : 0;
@@ -4698,24 +4730,29 @@ var qrcode = function() {
   /* 24/10/2026 (pedido da coordenação, protótipo): Lotes, Distribuição e Monitoramento num quadro só, em grupos que abrem e fecham,
      com filtros em cima (como Despesas). Grupo fechado só desenha a tabela ao abrir (lista longa no fim do projeto). */
   const agF = {}, agAb = {};
-  const temDif = v => { const t = String(v.problemas || '').trim(); return !!t && !/^(nenhum|nenhuma|nada|sem (problema|dificuldade|ocorr)|n[ãa]o (houve|teve|h[áa]|relatou|relatado)|n[ãa]o$|-+$)/i.test(t); };   // "Nenhum problema relatado" não é dificuldade
-  const medSoma = ls => { const t = {}; ls.forEach(([q, md]) => { if (+q) t[md || ''] = (t[md || ''] || 0) + +q; }); return Object.keys(t).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1).map(md => `${qt(Math.round(t[md] * 100) / 100)} ${esc(md)}${md === 'kg' ? ' <small>de sólidos</small>' : md === 'L' ? ' <small>de líquidos</small>' : ''}`); };   // kg antes de L; cada medida vira um destaque e diz o que é (kg = sólidos, L = líquidos)
+  const temDif = v => { const t = String(v.problemas || '').trim(); return !!t && !/^(nenhum(a)?( (problema|dificuldade|ocorr[êe]ncia|intercorr[êe]ncia)s?)?( (relatad|encontrad|observad)[oa]s?)?|nada( (a relatar|relatado|consta|de (problema|dificuldade|anormal)))?|sem (problemas?|dificuldades?|ocorr[êe]ncias?|intercorr[êe]ncias?|novidades?)( (relatad|encontrad)[oa]s?)?|n[ãa]o (houve|teve|h[áa])( (nenhum|nenhuma))?( (problemas?|dificuldades?|ocorr[êe]ncias?|intercorr[êe]ncias?))?|n[ãa]o (relatou|relatado|foram relatad[oa]s|apresentou)( (nenhum|nenhuma))?( (problemas?|dificuldades?))?|n[ãa]o|tudo (certo|bem|ok)|ok|-+)[.!]?$/i.test(t); };   // "Nenhum problema relatado" não é dificuldade
+  const IC_SOLIDO = '<svg class="ag-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 3h5l-1.2 3.2A6 6 0 0 1 19 12v4.5A4.5 4.5 0 0 1 14.5 21h-5A4.5 4.5 0 0 1 5 16.5V12a6 6 0 0 1 5.7-5.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 6.3h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',   // saco (sólidos, kg)
+    IC_LIQUIDO = '<svg class="ag-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.2s-6.2 7-6.2 11.3a6.2 6.2 0 0 0 12.4 0C18.2 10.2 12 3.2 12 3.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';   // gota (líquidos, L)
+  const medSoma = ls => { const t = {}; ls.forEach(([q, md]) => { if (+q) t[md || ''] = (t[md || ''] || 0) + +q; }); return Object.keys(t).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1).map(md => ({ md, h: `${md === 'kg' ? IC_SOLIDO : md === 'L' ? IC_LIQUIDO : ''}${qt(Math.round(t[md] * 100) / 100)} ${esc(md)}${md === 'kg' ? ' <small>de sólidos</small>' : md === 'L' ? ' <small>de líquidos</small>' : ''}` })); };   // kg antes de L; cada medida vira um destaque e diz o que é (kg = sólidos, L = líquidos)
   const porMes = (L, dataDe) => { const G = {}; L.forEach(r => { const ym = String(dataDe(r) || '').slice(0, 7) || 'sem data'; (G[ym] = G[ym] || []).push(r); }); return Object.keys(G).sort().reverse().map((ym, i) => ({ k: ym, t: ym === 'sem data' ? 'Sem data' : mesTitulo(ym), ls: G[ym], ab: i === 0 })); };
+  let agSal = null;   // 24/10/2026: entregue por lote, somado uma vez por desenho da lista (antes, cada lote percorria todas as entregas)
+  const salAg = l => saldo(l);
+  const comSaldos = f => { if (agSal) return f(); agSal = new Map(); db.distribuicoes.forEach(d => agSal.set(d.lote, (agSal.get(d.lote) || 0) + (+d.qtd || 0))); try { return f(); } finally { agSal = null; } };
   const AGR = {
     lotes: { ph: 'Código, tipo, responsável…', busca: l => [l.codigo, l.tipo, (by('unidades', l.unidade) || {}).nome, l.responsavel],
       filtros: [['unidade', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome])], ['tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t])]],
-      grupos: L => [['prod', 'Em produção', l => l.status === 'Em preparo' || l.status === 'Maturando', 1], ['pronto', 'Prontos para entregar', l => l.status === 'Pronto' && saldo(l) > 0.004, 1],
-        ['fim', 'Entregues por completo', l => l.status === 'Pronto' && saldo(l) <= 0.004, 0], ['desc', 'Descartados', l => l.status === 'Descartado', 0]].map(([k, t, f, ab]) => ({ k, t, ls: L.filter(f), ab: !!ab })).filter(g => g.ls.length),
+      grupos: L => [['prod', 'Em produção', l => l.status === 'Em preparo' || l.status === 'Maturando', 1], ['pronto', 'Prontos para entregar', l => l.status === 'Pronto' && salAg(l) > 0.004, 1],
+        ['fim', 'Entregues por completo', l => l.status === 'Pronto' && salAg(l) <= 0.004, 0], ['desc', 'Descartados', l => l.status === 'Descartado', 0]].map(([k, t, f, ab]) => ({ k, t, ls: L.filter(f), ab: !!ab })).filter(g => g.ls.length),
       resumo: (g) => { const n = pl(g.ls.length, 'lote', 'lotes');
         if (g.k === 'prod') { const hj = iso(hoje()), ds = g.ls.map(l => R.pronto(l)).filter(Boolean).map(d => iso(d)).sort(), venc = ds.filter(d => d < hj).length, pr = ds.find(d => d >= hj);
           return [n, venc ? `${venc === 1 ? '1 já passou' : venc + ' já passaram'} do dia previsto: confira e marque “Pronto”` : pr ? `o próximo fica pronto em ${dt(pr)}` : '', '', 'f', 'em produção']; }
-        if (g.k === 'pronto') return [n, '', { rot: 'Saldo', v: medSoma(g.ls.map(l => [saldo(l), l.med])) }, 'ok', 'para entregar'];
-        if (g.k === 'fim') return [n, '', { rot: 'Produzido', v: medSoma(g.ls.map(l => [l.qtd, l.med])) }, '', ''];
+        if (g.k === 'pronto') return [n, '', { rot: 'Saldo para entregar', v: medSoma(g.ls.map(l => [salAg(l), l.med])) }, 'ok', 'para entregar'];
+        if (g.k === 'fim') return [n, '', { rot: 'Total produzido', v: medSoma(g.ls.map(l => [l.qtd, l.med])) }, '', ''];
         return [n, '', '', 'bad', 'descartados']; } },
     distribuicoes: { ph: 'Unidade produtiva, lote, cultura…', busca: d => { const l = by('lotes', d.lote) || {}; return [(by('agricultores', d.agricultor) || {}).nome, l.codigo, l.tipo, d.cultura]; },
       filtros: [['_bio', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome]), d => (by('lotes', d.lote) || {}).unidade], ['_tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t]), d => (by('lotes', d.lote) || {}).tipo]],
       grupos: L => porMes(L, d => d.data),
-      resumo: g => [pl(g.ls.length, 'entrega', 'entregas'), pl(new Set(g.ls.map(d => d.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), { rot: 'Entregue', v: medSoma(g.ls.map(d => [d.qtd, (by('lotes', d.lote) || {}).med])) }, '', ''] },
+      resumo: g => [pl(g.ls.length, 'entrega', 'entregas'), pl(new Set(g.ls.map(d => d.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), { rot: 'Total entregue', v: medSoma(g.ls.map(d => [d.qtd, (by('lotes', d.lote) || {}).med])) }, '', ''] },
     visitas: { ph: 'Unidade produtiva, quem visitou…', busca: v => [(by('agricultores', v.agricultor) || {}).nome, v.tecnico, v.obs, v.problemas],
       filtros: [['usou', 'Aplicou o bioinsumo?', () => [['Sim', 'Sim'], ['Parcial', 'Parcial'], ['Não', 'Não']]], ['_dif', 'Dificuldade', () => [['sim', 'Com dificuldade relatada']], v => temDif(v) ? 'sim' : '']],
       grupos: L => porMes(L, v => v.data),
@@ -4726,21 +4763,25 @@ var qrcode = function() {
     const A = AGR[m], F = agF[m] = agF[m] || { q: '' }, q = semAcento(F.q || '').trim();
     return db[m].filter(r => A.filtros.every(([k, , , val]) => !F[k] || String(val ? val(r) : r[k]) === F[k]) && (!q || semAcento(A.busca(r).filter(Boolean).join(' ')).includes(q)));
   }
-  function agLinhas(m, M, rs, acoes) { const semAc = fora() || !rs.some(r => /<button/.test(acoes(r))); return `<div class="scroll"><table class="tc tb-${m}${semAc ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${semAc ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rs.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${semAc ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table></div>`; }
+  function agLinhas(m, M, rs, acoes, tit) { const semAc = fora() || !rs.some(r => /<button/.test(acoes(r))); return `<div class="scroll" tabindex="0" role="region" data-nome aria-label="Tabela: ${esc(tit || M.titulo || '')}"><table class="tc tb-${m}${semAc ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${semAc ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rs.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${semAc ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table></div>`; }
   let agCtx = {};
-  function agLista(m) {
+  function agLista(m) { return comSaldos(() => agLista0(m)); }
+  function agLista0(m) {
     const A = AGR[m], { M, acoes } = agCtx[m], F = agF[m] || {}, L = agFiltradas(m), filtro = A.filtros.some(([k]) => F[k]) || !!String(F.q || '').trim(), ab = agAb[m] = agAb[m] || {};
     if (!L.length) return '<div class="empty">Nenhum registro com esse filtro.</div>';
     const ord = (a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1;
-    return A.grupos(L).map(g => { const aberto = g.k in ab ? ab[g.k] : filtro || g.ab, [n, s2, dir, chipC, chipT] = A.resumo(g);
-      return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir && dir.v && dir.v.length ? `<span class="dsp-v ag-tot"><span class="ag-rot">${esc(dir.rot)}</span>${dir.v.map(x => `<b class="ag-q">${x}</b>`).join('')}</span>` : ''}</summary>
-        <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes) : ''}</div></details>`; }).join('');
+    const GR = A.grupos(L).map(g => ({ g, r: A.resumo(g) })), med = r => (r[2] && r[2].v || []).map(x => typeof x === 'string' ? { md: '', h: x } : x),
+      cols = [...new Set(GR.flatMap(({ r }) => med(r).map(x => x.md)))].sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1);   // 24/10/2026: cada medida na mesma coluna em todas as linhas (sem L num mês, fica o lugar vazio)
+    const pilulas = r => cols.map(md => { const x = med(r).find(y => y.md === md); return x ? `<b class="ag-q">${x.h}</b>` : '<b class="ag-q ag-q0" aria-hidden="true"></b>'; }).join('');
+    return GR.map(({ g, r }) => { const aberto = g.k in ab ? ab[g.k] : filtro || g.ab, [n, s2, dir, chipC, chipT] = r;
+      return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir && dir.v && dir.v.length ? `<span class="dsp-v ag-tot"><span class="ag-rot">${esc(dir.rot)}</span>${pilulas(r)}</span>` : ''}</summary>
+        <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes, g.t) : ''}</div></details>`; }).join('');
   }
   /* abre o grupo onde está o registro (QR do lote, testes): limpa o filtro se ele esconde o registro */
-  function revelar(m, id) {
+  function revelar(m, id, semDesenhar) {
     if (!AGR[m]) return; if (!agFiltradas(m).some(r => r.id === id)) agF[m] = { q: '' };
     const g = AGR[m].grupos(agFiltradas(m)).find(x => x.ls.some(r => r.id === id)); if (!g) return;
-    (agAb[m] = agAb[m] || {})[g.k] = true; if (tab === m) render();
+    (agAb[m] = agAb[m] || {})[g.k] = true; if (tab === m && !semDesenhar) render();
   }
   const agResumo = m => { const L = agFiltradas(m), T = { lotes: ['lote', 'lotes'], distribuicoes: ['entrega', 'entregas'], visitas: ['visita', 'visitas'] }[m]; return pl(L.length, T[0], T[1]); };
   function agrupada(m, M, pode, acoes) {
@@ -4776,7 +4817,7 @@ var qrcode = function() {
       const aberto = ym in despAberto ? despAberto[ym] : filtro || ym === hojeYm || abertas > 0;
       return `<details class="dsp-m" data-ym="${esc(ym)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${ym === 'sem data' ? 'Sem data' : mesTitulo(ym)}</span><span class="dsp-n">${pl(ds.length, 'despesa', 'despesas')}</span>
         <span class="chip ${abertas ? 'f' : 'ok'}">${abertas ? (abertas === 1 ? '1 a pagar' : abertas + ' a pagar') : 'tudo pago'}</span><b class="dsp-v">${brl(tot)}</b></summary>
-        <div class="scroll"><table class="tc sem-ac"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${ds.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
+        <div class="scroll" tabindex="0" role="region" data-nome aria-label="Tabela: despesas de ${ym === 'sem data' ? 'sem data' : esc(mesTitulo(ym))}"><table class="tc sem-ac"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${ds.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
     }).join('');
   }
   const resumoDesp = () => { const L = despesasFiltradas(); return `${pl(L.length, 'despesa', 'despesas')} · ${brl(L.reduce((t, d) => t + (+d.valor || 0), 0))}`; };
@@ -4814,7 +4855,8 @@ var qrcode = function() {
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
     const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo' && String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).length;   // só o realizado, como os participantes
     const sub = { '2.1': uConta.length ? `${uConta.filter(u => R.unidadePronta(u)).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !R.unidadePronta(u)).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
-      '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base${db.agricultores.some(a => 'termo_em' in a) ? ` · ${db.agricultores.filter(a => a.termo_em).length} com termo assinado` : ''}`,   // 24/10/2026: o termo à vista (só quem lê o termo: coordenação e auxiliar) '3.3': `${db.agricultores.filter(a => !a.kit || String(a.kitdata || '') > iso(hoje())).length} cadastrada(s) ainda sem kit entregue`,
+      '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base${db.agricultores.some(a => 'termo_em' in a) ? ` · ${db.agricultores.filter(a => a.termo_em).length} com termo assinado` : ''}`,
+      '3.3': `${db.agricultores.filter(a => !a.kit || String(a.kitdata || '') > iso(hoje())).length} cadastrada(s) ainda sem kit entregue`,   // 24/10/2026: no 4.1, o termo à vista só para quem lê o termo (coordenação e auxiliar)
       '3.2': `${num(caps.filter(e => String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).reduce((s, e) => s + R.participantes(db, e), 0))} participante(s) · ${dc} dia(s) de campo` };   // só o realizado
     const A = R.alertas(db, hoje()).filter(a => !bolsista() || !['Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1]));   // bolsista: só o que é de campo
     const prazoTxt = p => { const d = R.dias(new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), pd(p)); return d < 0 ? `venceu há ${-d} dia${d === -1 ? '' : 's'}` : d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`; }; const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
@@ -4837,7 +4879,7 @@ var qrcode = function() {
       const conta = es.length === 1 ? `<b>${num(feito(es[0]))}</b> de ${num(es[0].q)} (${esc(es[0].un)})` : `<b>${prontas}</b> de ${es.length} etapas concluídas`;
       return `<li><details class="mt ${stM[0]}"><summary><span class="mt-n" aria-hidden="true">M${pm.m}</span><span class="mt-c"><span class="mt-t"><b>${esc(D.METAS[pm.m])}</b><span class="chip ${stM[0]}">${stM[1]}</span></span>
         <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado; previsto até o mês passado: ${pct(pv)}%${pm.temEq ? ` pelo cronograma da equipe e ${pct(pm.prev)}% pelo plano de trabalho` : ''}"><i style="width:${Math.min(100, pm.feito)}%"></i>${pv > 0 && pv < 100 ? `<b style="left:${pv}%"></b>` : ''}${pm.temEq && pm.prev > 0 && pm.prev < 100 && Math.abs(pm.prev - pv) > 0.5 ? `<b class="ted" style="left:${pm.prev}%"></b>` : ''}</span>
-        <span class="mt-p"><span>${conta} · ${pct(pm.feito)}% realizado</span><span class="mt-v">Ver detalhes</span></span></span></summary>
+        <span class="mt-p"><span>${conta} · ${pct(pm.feito)}% ${pm.m === 2 && pm.feito > 0 && es.length === 1 && feito(es[0]) < es[0].q ? 'da implantação' : 'realizado'}</span><span class="mt-v">Ver detalhes</span></span></span></summary>
         <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${e.eq ? 'Plano de trabalho: ' : ''}${mesAno(e.ini)} a ${mesAno(e.fim)}${e.eq ? ` · cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}` : ''}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small>${e.vale ? `<small class="mt-vale">${esc(e.vale)}</small>` : ''}${e.ajuste ? `<small class="mt-vale">${esc(e.ajuste)}</small>` : ''}</span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
     /* próximos marcos: saem do que já está no plano (início e prazo de etapa ainda não concluída, parcela a receber, fim da vigência) */
     const dia0 = new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), marcosT = [];
@@ -4858,7 +4900,7 @@ var qrcode = function() {
    <div class="medidor" role="img" aria-label="Executado ${pct(X.real)}%; previsto até o mês passado: ${pct(X.prevEq)}% pelo cronograma da equipe e ${pct(X.prev)}% pelo plano de trabalho"><i class="${ST[X.stEq][0]}" style="width:${Math.min(100, X.real)}%"></i>${X.prevEq > 0 ? `<b style="left:${Math.min(100, X.prevEq)}%"></b>` : ''}${X.prev > 0 && Math.abs(X.prev - X.prevEq) > 0.5 ? `<b class="ted" style="left:${Math.min(100, X.prev)}%"></b>` : ''}</div>
    <p class="dx-exec-sub"><span>Previsto até ${X.ate}</span><span>Mês <b>${X.mes}</b> de ${X.meses}</span></p>
    <p class="dx-exec-prev"><span><i class="pv-eq" aria-hidden="true"></i>Cronograma da equipe: <b>${pct(X.prevEq)}%</b></span><span><i class="pv-ted" aria-hidden="true"></i>Plano de trabalho (TED): <b>${pct(X.prev)}%</b></span></p>
-   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${semDinheiro() ? 'peso ' + Math.round(x.valor / D.TOTAL * 100) + '%' : brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista; atividade, kit ou entrega com data depois de hoje é planejada e só conta quando a data chega; capacitação e dia de campo só contam com participantes registrados; biofábrica só conta com os 8 passos da implantação. O traço cheio na barra é o previsto até o fim do mês passado pelo cronograma de atividades da equipe (nas etapas que ele não trata, vale o plano de trabalho); o traço vazado, quando aparece, é o previsto pelo plano de trabalho assinado (TED), que é a referência da prestação de contas. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
+   <details class="dx-como"><summary>Como é calculado</summary><p>Média ponderada pelo valor que o plano de trabalho destina a cada meta: ${X.porMeta.map(x => `Meta ${x.m} (${semDinheiro() ? 'peso ' + Math.round(x.valor / D.TOTAL * 100) + '%' : brl(x.valor).replace(',00', '')}): ${Math.round(x.feito)}%`).join(' · ')}. Cada etapa conta a quantidade registrada sobre a prevista; atividade, kit ou entrega com data depois de hoje é planejada e só conta quando a data chega; capacitação e dia de campo só contam com participantes registrados. Biofábricas: a execução conta os passos da implantação já feitos nas duas unidades do TED (${(() => { const p = R.passosUnidades(db); return p.feitos + ' de ' + p.total; })()} passos); a meta só conta a unidade com os 8 passos. Etapas de entrega única (diagnóstico, material didático, sistematização, prestação de contas e gestão) não têm parte feita: o previsto delas é 0% até o mês do prazo e 100% nele. O traço cheio na barra é o previsto até o fim do mês passado pelo cronograma de atividades da equipe (nas etapas que ele não trata, vale o plano de trabalho); o traço vazado, quando aparece, é o previsto pelo plano de trabalho assinado (TED), que é a referência da prestação de contas. É execução física (o que foi entregue), não quanto do dinheiro foi gasto.</p></details></div>
   <div class="dx-kpis">${st.map((e, i) => kpi(i + 1, feito(e) / e.q * 100, feito(e), e.q, lab[e.id], sub[e.id], { '2.1': 'unidades', '4.1': 'agricultores', '3.3': 'agricultores', '3.2': 'eventos' }[e.id] || '')).join('')}</div>
  </section>
  ${fora() || formador() ? '' : `<section class="at panel ${A.some(a => a[0] === 'bad') ? 'crit' : A.length ? 'pend' : ''}" aria-label="O que pede atenção">
@@ -5368,7 +5410,7 @@ var qrcode = function() {
     const fim = pd(fimRel), ateHoje = x => !!x && x <= fimRel;   // o que tem data depois de hoje é planejado: não entra como feito
     const metas = Object.keys(D.METAS).map(Number);
     const daMeta = m => fis.filter(x => x.e.m === m), peso = l => l.reduce((t, x) => t + x.e.q * x.e.v, 0) || 1;
-    const realMeta = m => { const l = daMeta(m); return l.reduce((t, x) => t + x.e.q * x.e.v * Math.min(1, x.f / x.e.q), 0) / peso(l) * 100; };
+    const realMeta = m => { const l = daMeta(m); return l.reduce((t, x) => t + x.e.q * x.e.v * (x.av !== undefined ? x.av : Math.min(1, x.f / x.e.q)), 0) / peso(l) * 100; };
     const prevMeta = m => { const l = daMeta(m); return l.reduce((t, x) => t + x.e.q * x.e.v * R.previstoEtapa(x.e, fim), 0) / peso(l) * 100; };
     const unidMeta2 = db.unidades.filter(u => u.conta === 'Sim'), unidPer = unidMeta2.filter(u => !u.criado_em || String(u.criado_em).slice(0, 10) <= fimRel), muni = u => [u.municipio, u.uf].filter(Boolean).join('/');
     const porData = (x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0;
@@ -5514,7 +5556,7 @@ var qrcode = function() {
       if (x.m === 4) { const sem = agrAte.filter(a => !db.distribuicoes.some(d => d.agricultor === a.id && d.data <= fimRel)).length; if (sem) fatos.push(`${pl(sem, 'unidade produtiva cadastrada ainda não recebeu', 'unidades produtivas cadastradas ainda não receberam')} bioinsumo`); }
       return `Meta ${x.m} (${D.METAS[x.m]}): ${pct(x.r)}% realizado até ${dt(fimRel)}, para ${pct(x.pv)}% previsto.${pend.length ? ` Etapas em aberto: ${lista(pend)}.` : ''}${fatos.length ? ` Situação registrada: ${lista(fatos)}.` : ''} Motivo e encaminhamento: [a coordenação descreve aqui o motivo do atraso e o que será feito].`;
     });
-    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Relatos', 'Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
+    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Relatos', 'Financeiro', 'Rubrica', 'Patrimônio', 'Prazo próximo'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
     const sub = (t, conteudo) => `<section class="rd-s"><h3>${t}</h3>${conteudo}</section>`;
     return `<section class="panel rel-op noprint" aria-label="Opções do relatório descritivo">
       <label class="rel-ck"><input type="checkbox" data-relanexo${relAnexo ? ' checked' : ''}><span><b>Anexar quadros numéricos</b><small>Tabelas de execução física e financeira no fim do relatório.</small></span></label>
@@ -5546,12 +5588,12 @@ var qrcode = function() {
     const ben = new Set(di.map(d => d.agricultor)).size, tp = ev.reduce((s, e) => s + R.participantes(db, e), 0), tmA = ev.reduce((s, e) => s + R.mulheresDe(db, e), 0), pmA = ev.filter(e => R.temMulheres(db, e)).reduce((s, e) => s + R.participantes(db, e), 0),
       evF = ev.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && R.realizada(db, e)), tpF = evF.reduce((s, e) => s + R.participantes(db, e), 0),
       tmF = evF.reduce((s, e) => s + R.mulheresDe(db, e), 0), pmF = evF.filter(e => R.temMulheres(db, e)).reduce((s, e) => s + R.participantes(db, e), 0);   // 21/10/2026: % de mulheres e participações como na Visão geral (só formação realizada)
-    const fis = D.ETAPAS.map(e => ({ e, f: R.feito(db, e, fimRel) })), pfis = fis.reduce((t, x) => t + x.e.q * x.e.v * Math.min(1, x.f / x.e.q), 0) / D.TOTAL * 100;
+    const fis = D.ETAPAS.map(e => ({ e, f: R.feito(db, e, fimRel), av: R.avanco(db, e, fimRel) })), pfis = fis.reduce((t, x) => t + x.e.q * x.e.v * x.av, 0) / D.TOTAL * 100;   /* avanço como no painel (biofábricas pelos passos, 24/10/2026) */
     const gasto = de.reduce((t, d) => t + (+d.valor || 0), 0), pagas = de.filter(d => d.status === 'Pago').length, aplic = vi.filter(v => v.usou === 'Sim').length;
     const atalho = [['mes', 'Mês passado'], ['tri', 'Últimos 3 meses'], ['ano', 'Este ano'], ['tudo', 'Desde o início']];
     const relAtivo = (rel.k && periodoPronto(rel.k) === rel.de + '|' + rel.ate) ? rel.k : ((atalho.map(x => x[0]).reverse().find(k => periodoPronto(k) === rel.de + '|' + rel.ate)) || '');   // marca o atalho tocado; sem ele, dois iguais (ex.: este ano = desde o início, ambos cortados no início da vigência): o mais amplo
     /* 19/10/2026: seção sem registro no período não aparece; as que ficam são numeradas em ordem */
-    const QS = [['fis', 'Execução física acumulada', `Até ${dt(fimRel)} · o que está marcado para depois é planejado e não conta`, tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], fis.map(({ e, f }) => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, f, num(Math.min(100, f / e.q * 100)) + '%']), true)],
+    const QS = [['fis', 'Execução física acumulada', `Até ${dt(fimRel)} · o que está marcado para depois é planejado e não conta`, tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], fis.map(({ e, f, av }) => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, e.id === '2.1' && av > Math.min(1, f / e.q) ? `${f} <span class="small">(${(() => { const p = R.passosUnidades(db, fimRel); return p.feitos + ' de ' + p.total; })()} passos da implantação)</span>` : f, num(Math.min(100, (av !== undefined ? av : f / e.q) * 100)) + '%']), true)],
  ['bio', 'Unidades de produção de bioinsumos', (() => { const fu = u => nCheck(u) === D.CHECK.length && (!u.funcionando_em || u.funcionando_em <= fimRel), m2 = db.unidades.filter(u => u.conta === 'Sim'), ap = db.unidades.length - m2.length;   // 21/10/2026: a Meta 2 conta só as do TED; a de apoio aparece à parte
         return `Meta 2: ${m2.filter(fu).length} de ${m2.length} em funcionamento até ${dt(fimRel)} (com os ${D.CHECK.length} passos)${ap ? ` · mais ${pl(ap, 'unidade de apoio', 'unidades de apoio')}, fora do TED` : ''}`; })(), tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true)],
  ['ati', 'Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null; const q = [R.pelaLista(db, e) ? 'pela lista' : '', mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`].filter(Boolean).join(', '); return `${num(p)}${q ? ` (${q})` : ''}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
@@ -5804,7 +5846,7 @@ ${secs}</div>`;
       if (!el.getAttribute('role') && !/^(SECTION|LI)$/.test(el.tagName)) el.setAttribute('role', 'group');
     });
     // cada tabela com nome próprio (antes, todas se chamavam "Tabela", e o leitor de tela não distinguia uma da outra)
-    document.querySelectorAll('#view .scroll[role=region]').forEach(el => {
+    document.querySelectorAll('#view .scroll[role=region]:not([data-nome])').forEach(el => {   /* data-nome: a tabela já tem nome próprio (grupos, meses) */
       const c = el.closest('details, section, .panel'), h = c && (c.querySelector(':scope > summary') || c.querySelector('h2,h3,h4'));
       const t = h && h.textContent.replace(/\s+/g, ' ').trim(); if (t) el.setAttribute('aria-label', `Tabela: ${t.slice(0, 80)} (role para o lado no celular)`);
     });
@@ -5844,6 +5886,7 @@ ${secs}</div>`;
     if (!abas().some(t => t[0] === tab)) tab = abaInicial();   // antes de desenhar: aba que o perfil não vê nunca chega à tela
     nav(); const v = $('#view');
     v.innerHTML = (real ? `<div class="banner sim"><span><b>Pré-visualização.</b> É assim que ${esc(eu.orgao || 'SEAB/MDA')} vê o sistema: só leitura, sem nomes de agricultores e sem a equipe. Você continua com a sua conta.</span><button class="b p" data-sairver>Voltar à minha visão</button></div>` : '') + avisoFila() + avisoRespostas() + (tab === 'painel' ? painel() : tab === 'dados' ? dados() : tab === 'financeiro' ? financeiro() : tab === 'equipe' ? equipe() : tab === 'historico' ? telaHistorico() : tab === 'relatorios' ? relatorio() : tab === 'unidades' ? tabela('unidades') + tabela('itens') : tab === 'agricultores' ? telaAgricultores() : tabela(tab));
+    { const ab = abas().find(t => t[0] === tab); document.title = (ab ? String(ab[1]).replace(/<[^>]*>/g, '').trim() + ' · ' : '') + 'Saberes que Cultivam'; }   // 24/10/2026: o nome da seção no título da página (leitor de tela, abas do navegador)
     tituloDaTela(v); escalaDesenhos(); paradasDeLeitura(); margemDoMenu(); if (chave) requestAnimationFrame(() => devolverFoco(chave));   // depois de desenhar: focar antes forçava refazer a página inteira na hora
     $('#quem-av').textContent = iniciais(demo() ? eu.perfil : eu.nome); atualizarCabecalhoFoto(); carregarFotosEq();
     $('#quem-nome').textContent = demo() ? 'Demonstração' : eu.nome;
@@ -5936,7 +5979,7 @@ ${secs}</div>`;
       if (t === 'checks') return `<div class="fld w"><fieldset><legend>${l}</legend>${D.CHECK.map(c => `<label><input type="checkbox" id="f_${c[0]}" ${r[c[0]] ? 'checked' : ''}>${c[1]}</label>`).join('')}</fieldset></div>`;
       if (t === 'check') return `<div class="fld w"><fieldset><label><input type="checkbox" id="${idc}" ${v ? 'checked' : ''}>${l}</label></fieldset></div>`;
       if (t === 'select') { let ops = typeof o === 'function' ? o() : o; if (v !== '' && !ops.some(x => String(x[0]) === String(v))) ops = ops.concat([[v, v + ' (cadastro antigo)']]); return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}>${ops.map(x => `<option value="${esc(x[0])}" ${String(v) === String(x[0]) ? 'selected' : ''}>${esc(x[1]) || 'Selecione…'}</option>`).join('')}</select></div>`; }
-      if (t === 'ref') { const lista = db[o].filter(x => !filtro || filtro(x) || x.id === v); return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
+      if (t === 'ref') { const ORD_REF = { lotes: (a, b) => b._s - a._s, eventos: (a, b) => String(b.data || '').localeCompare(String(a.data || '')) }, lista = (o === 'lotes' ? comSaldos(() => db[o].filter(x => !filtro || filtro(x) || x.id === v).map(x => Object.assign(Object.create(x), { _s: saldo(x) }))) : db[o].filter(x => !filtro || filtro(x) || x.id === v)).sort(ORD_REF[o] || ((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt', { sensitivity: 'base' })));   /* 24/10/2026: em ordem (nome; lote pelo maior saldo; atividade pela mais recente) */ return `<div class="fld"><label for="${idc}">${L}</label><select id="${idc}"${Rq}><option value="">Escolha</option>${lista.map(x => `<option value="${esc(x.id)}" ${v === x.id ? 'selected' : ''}>${esc(rotulo[o](x))}</option>`).join('')}</select></div>`; }
       if (t === 'html') return `<div class="fld w fm-html">${o}</div>`;
       if (t === 'simnao') return `<div class="fld w"><div class="sn-q" role="group" aria-labelledby="l_${k}"><span class="sn-t" id="l_${k}">${L}</span><span class="sn-par">${['Sim', 'Não'].map(x => `<button type="button" class="sn-b" data-sn="${k}" data-v="${x}" aria-pressed="${v === x}">${x}</button>`).join('')}</span></div><input type="hidden" id="${idc}" value="${esc(v)}"></div>`;
       if (t === 'arquivo' && !podeAnexar(M)) return '';
@@ -6081,7 +6124,7 @@ ${secs}</div>`;
     $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('presencas')}<div class="fm-tt"><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="fm-sub">${esc(e.tipo)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}</p>
-      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe e anexe em Fotos. Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
+      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe ou digitalize e anexe como documento da atividade (no Editar da atividade, “Adicionar documento”: aceita foto, PDF e Word). Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
       <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}. A quantidade de participantes da atividade é a desta lista` : '. Com nomes aqui, a quantidade de participantes da atividade passa a ser a desta lista'}.${difere ? ` ${R.vazio(e.part) ? 'A atividade ainda não tem número de participantes registrado.' : `Na atividade estão registrados ${num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.`}` : ''}</p>
       ${L.length ? `<ol class="pr-l">${L.map(x => prEdit === x.id && pode ? `<li class="pr-ed"><span class="pr-ed-n"><b>${esc(x.nome)}</b></span><div class="fields"><div class="fld"><label for="pe_com">Comunidade ou instituição</label><input id="pe_com" data-tipo="endereco" value="${esc(x.comunidade || '')}"></div><div class="fld"><label for="pe_mun">Município</label><input id="pe_mun" data-tipo="lugar" value="${esc(x.municipio || '')}"></div>
         <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pe_mul"${x.mulher ? ' checked' : ''}>Mulher</label></fieldset></div></div>
@@ -6437,7 +6480,7 @@ ${secs}</div>`;
   /* registro que depende de outro (item → biofábrica, lote → biofábrica, entrega → lote pronto e unidade produtiva, visita → unidade produtiva):
      sem o outro cadastrado, em vez de um formulário com a lista vazia, explica o que fazer antes e leva até lá */
   const FALTA_ANTES = { unidades: ['nenhuma biofábrica cadastrada', 'Primeiro é preciso cadastrar a biofábrica (aba Biofábricas, “Nova biofábrica”).'],
-    lotes: ['nenhum lote pronto', 'Só se entrega bioinsumo de lote com situação “Pronto”: registre a produção na aba Lotes e marque o lote como pronto quando terminar a maturação.'],
+    lotes: ['nenhum lote pronto com saldo', 'Só se entrega bioinsumo de lote com situação “Pronto” e com saldo: registre a produção na aba Lotes e marque o lote como pronto quando terminar a maturação. Lote já entregue por completo não aparece.'],
     agricultores: ['nenhuma unidade produtiva cadastrada', 'Primeiro é preciso cadastrar a agricultora ou o agricultor (aba Unidades produtivas, “Nova unidade produtiva”).'],
     eventos: ['nenhuma atividade cadastrada', 'Primeiro é preciso registrar a atividade na aba Formação.'] };
   function faltaAntes(m) { return MOD[m].campos.filter(x => x[2] === 'ref' && x[3] && db[x[4]] && !db[x[4]].some(y => !x[5] || x[5](y))).map(x => x[4]); }
@@ -6557,6 +6600,8 @@ ${secs}</div>`;
     ev.preventDefault(); if (!ed) return; const depoisFotos = ed.depoisFotos; ed.depoisFotos = false;   // vale só para este envio (um erro de validação não deixa o pedido ligado)
     const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
     const er = t => { $('#ferr').textContent = t; };
+    document.querySelectorAll('#frm [data-culpa]').forEach(tiraCulpa);   /* só a marca que o Salvar pôs (a das máscaras, como CPF inválido, fica) */
+    const culpa = el => { el.setAttribute('aria-invalid', 'true'); el.dataset.culpa = ''; const db0 = el.getAttribute('aria-describedby') || ''; if (!/\bferr\b/.test(db0)) el.setAttribute('aria-describedby', (db0 + ' ferr').trim()); el.focus(); };   // 24/10/2026: o campo com erro fica marcado e ligado à mensagem (leitor de tela)
     if (m === 'membros' && ant && ant._sr) return er('Os dados pessoais desta pessoa (CPF, endereço…) não foram carregados, porque o sistema abriu sem internet. Para não apagá-los, feche, espere a conexão voltar e abra o cadastro de novo.');
     for (const [k, l, t, req] of M.campos) {
       if (t === 'sec' || t === 'html' || t === 'arquivo') continue;
@@ -6564,14 +6609,21 @@ ${secs}</div>`;
       if (t === 'geo') { const la = $('#f_lat').value, lo = $('#f_lng').value, pr = $('#f_precisao').value; r.lat = la === '' ? null : +la; r.lng = lo === '' ? null : +lo; r.precisao = la === '' || pr === '' ? null : +pr; continue; }
       const el = $('#f_' + k); if (!el) continue;   // campo que só existe na edição (desligamento)
       r[k] = t === 'check' ? el.checked : t === 'number' ? numCampo(el.value) : el.value.trim();
-      if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo, como 120 ou 120,50.`); el.focus(); return; }
-      if (t === 'number' && INTEIROS.includes(k) && r[k] !== '' && !Number.isInteger(r[k])) { er(`“${l}” precisa ser um número inteiro, sem vírgula.`); el.focus(); return; }
-      if (t === 'number' && r[k] !== '' && !INTEIROS.includes(k) && Math.abs(Math.round(r[k] * 100) - r[k] * 100) > 1e-6) { er(TIPO_TXT[k] === 'moeda' ? `“${l}” vai até os centavos: use no máximo 2 casas depois da vírgula.` : `“${l}”: use no máximo 2 casas depois da vírgula (o banco guarda assim; 0,004 viraria 0).`); el.focus(); return; }   // 21/10/2026: quantidade e área também (numeric com 2 casas)   // 20/10/2026: nada de arredondar calado
+      if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo, como 120 ou 120,50.`); culpa(el); return; }
+      if (t === 'number' && INTEIROS.includes(k) && r[k] !== '' && !Number.isInteger(r[k])) { er(`“${l}” precisa ser um número inteiro, sem vírgula.`); culpa(el); return; }
+      if (t === 'number' && r[k] !== '' && !INTEIROS.includes(k) && Math.abs(Math.round(r[k] * 100) - r[k] * 100) > 1e-6) { er(TIPO_TXT[k] === 'moeda' ? `“${l}” vai até os centavos: use no máximo 2 casas depois da vírgula.` : `“${l}”: use no máximo 2 casas depois da vírgula (o banco guarda assim; 0,004 viraria 0).`); culpa(el); return; }   // 21/10/2026: quantidade e área também (numeric com 2 casas)   // 20/10/2026: nada de arredondar calado
       // cadastro antigo da equipe, de antes de CPF, celular e e-mail serem obrigatórios: pode ser editado sem eles (R.obrigatoriosMembro decide)
       const antigo = m === 'membros' && ant && ['cpf', 'telefone', 'email'].includes(k) && !String(ant[k] == null ? '' : ant[k]).trim();
-      if (req && !antigo && (r[k] === '' || r[k] == null)) { er(`Preencha “${l}”.`); el.focus(); return; }
+      if (req && !antigo && (r[k] === '' || r[k] == null)) { er(`Preencha “${l}”.`); culpa(el); return; }
     }
     if (m === 'lotes' && !r.dias && r.dias !== 0) r.dias = (D.TIPOS[r.tipo] || [0, 30])[1];
+    /* 24/10/2026 (decisão da coordenação): marcar "Pronto" antes do dia previsto pede confirmação (não bloqueia: a maturação varia com o clima).
+       O banco (47) guarda o dia em que ficou pronto; aqui a mesma conta, para a demonstração e para a tela antes da resposta do servidor. */
+    if (m === 'lotes' && r.status === 'Pronto' && (!ant || ant.status !== 'Pronto') && r.inicio) {
+      const prev = iso(R.pronto(r)), hj = iso(hoje());
+      if (prev > hj && ed.confPronto !== prev + '|' + r.inicio + '|' + r.dias) { ed.confPronto = prev + '|' + r.inicio + '|' + r.dias; er(`Pelo início (${dt(r.inicio)}) e pelos ${r.dias} dias de maturação, este lote fica pronto em ${dt(prev)}. Se ele já está pronto, toque em Salvar de novo para confirmar.`); culpa($('#f_status')); return; }
+    }
+    if (m === 'lotes') r.pronto_em = r.status !== 'Pronto' ? null : ant && ant.status === 'Pronto' ? (ant.pronto_em || null) : iso(hoje());
     if (m === 'pessoas') r.email = r.email.toLowerCase();
     if (m === 'membros') R.normalizarMembro(r);
     if (m === 'membros' && !id && ed.substitui) r.substitui = ed.substitui;
@@ -6879,7 +6931,7 @@ ${secs}</div>`;
     const l = by('lotes', decodeURIComponent(mh[1]));
     if (!l) return toast('Este lote não está no sistema (pode ter sido excluído).');
     if (!abas().some(t => t[0] === 'lotes')) return toast('O seu perfil não vê os lotes.');
-    tab = 'lotes'; revelar('lotes', l.id); render();
+    revelar('lotes', l.id, true); tab = 'lotes'; render();
     // quem só consulta o lote (SEAB/MDA) não ganha um formulário de edição: vê o lote na lista
     if (!R.podeGravar(eu, 'lotes')) { const lin = document.querySelector(`#view tr[data-id="${CSS.escape(l.id)}"]`);
       if (lin) { lin.scrollIntoView({ block: 'center' }); lin.classList.add('realce'); setTimeout(() => lin.classList.remove('realce'), 4000); }
@@ -6942,6 +6994,7 @@ ${secs}</div>`;
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
     // 24/10/2026 (auditoria): os nomes colados na Lista e a folha impressa (o termo leva o nome do agricultor) não ficam para a próxima pessoa
+    document.title = 'Saberes que Cultivam';   /* a tela de entrada não fica com o nome da última seção */
     prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; Object.keys(agF).forEach(k => delete agF[k]); Object.keys(agAb).forEach(k => delete agAb[k]); agCtx = {}; Object.assign(despFiltro, { st: '', rub: '', q: '' }); Object.keys(despAberto).forEach(k => delete despAberto[k]);   // 24/10/2026: a busca pode ter nome de agricultor: não passa para quem entrar depois
     { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; } document.body.classList.remove('imprimindo');
     eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; relResAberto = false; relResN = 20; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
@@ -7152,14 +7205,14 @@ ${secs}</div>`;
       if (k === 'ac') acessos = undefined; else if (k === 'rl') { relatos = undefined; relResAberto = false; relResN = 20; } else { hist = null; histFim = false; }
       render(); const b = document.querySelector(`[${atr}]`); if (b) b.focus(); }
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
-    else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
+    else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: suave(), block: 'center' }); } }
     else if (d.abrirRub !== undefined) { const todos = [...t.closest('.head').parentNode.querySelectorAll('details.rb')], abrir = todos.some(x => !x.open); todos.forEach(x => { x.open = abrir; }); t.textContent = abrir ? 'Fechar todas' : 'Abrir todas'; }
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); await recarregarDb(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
       const uso = R.emUso(db, m, id).map(c => ({ presencas: 'lista de presença', fotos: 'fotos' })[c] || MOD[c].nome.toLowerCase());
-      if (uso.length) { t.textContent = 'Em uso em ' + uso.join(', '); t.disabled = true; return; }
-      if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; return; }
+      if (uso.length) { toast('Não dá para excluir: este registro está em uso em ' + uso.join(', ') + '. Exclua ou mude esses registros antes.'); t.focus(); return; }   // 24/10/2026: avisa e mantém o foco (antes o botão travava e o foco se perdia)
+      if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; anunciar('Toque de novo para confirmar a exclusão.'); return; }
       t.disabled = true;
       const antigo = Object.assign({}, by(m, id));
       try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render();
@@ -7297,12 +7350,13 @@ ${secs}</div>`;
     const agRedesenha = m => { const l = document.querySelector(`[data-agl="${m}"]`), r = document.querySelector(`[data-agr="${m}"]`); if (l) l.innerHTML = agLista(m); if (r) r.textContent = agResumo(m); };
     let agT = 0; document.addEventListener('input', ev => { const m = ev.target.dataset && ev.target.dataset.agq; if (!m) return; (agF[m] = agF[m] || {}).q = ev.target.value; clearTimeout(agT); agT = setTimeout(() => agRedesenha(m), 180); });
     document.addEventListener('change', ev => { const d = ev.target.dataset && ev.target.dataset.agfil; if (!d) return; const [m, k] = d.split(':'); (agF[m] = agF[m] || {})[k] = ev.target.value; agAb[m] = {}; agRedesenha(m); });
-    document.addEventListener('toggle', ev => { const g = ev.target; if (!g.matches || !g.matches('details.ag-g')) return; const m = g.dataset.agm, k = g.dataset.agk; (agAb[m] = agAb[m] || {})[k] = g.open;
-      const c = g.querySelector('.ag-c'); if (g.open && c && !c.firstChild && agCtx[m]) { const grp = AGR[m].grupos(agFiltradas(m)).find(x => x.k === k); if (grp) c.innerHTML = agLinhas(m, agCtx[m].M, grp.ls.sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1), agCtx[m].acoes); } }, true);
+    document.addEventListener('toggle', ev => { const g = ev.target; if (!g.matches || !g.matches('details.ag-g')) return; const m = g.dataset.agm, k = g.dataset.agk;   // o toggle também dispara ao desenhar: o que a pessoa abriu ou fechou vem do clique (abaixo)
+      const c = g.querySelector('.ag-c'); if (g.open && c && !c.firstChild && agCtx[m]) { const grp = comSaldos(() => AGR[m].grupos(agFiltradas(m)).find(x => x.k === k)); if (grp) c.innerHTML = comSaldos(() => agLinhas(m, agCtx[m].M, grp.ls.sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1), agCtx[m].acoes, grp.t)); } }, true);
     const despRedesenha = () => { const l = $('#dsp_l'), r = $('#dsp_r'); if (l) l.innerHTML = listaDespesas(); if (r) r.textContent = resumoDesp(); };
+    ['input', 'change'].forEach(tp => document.addEventListener(tp, ev => { const t = ev.target; if (t && t.dataset && 'culpa' in t.dataset) tiraCulpa(t); }));   /* corrigiu o campo: a marca de erro sai */
     let despT = 0; document.addEventListener('input', ev => { if (ev.target.id !== 'dsp_q') return; despFiltro.q = ev.target.value; clearTimeout(despT); despT = setTimeout(despRedesenha, 180); });
     document.addEventListener('change', ev => { const t = ev.target; if (t.id === 'dsp_st') despFiltro.st = t.value; else if (t.id === 'dsp_rub') despFiltro.rub = t.value; else return; despRedesenha(); });
-    document.addEventListener('click', ev => { const sm = ev.target.closest && ev.target.closest('details.dsp-m > summary'); if (sm) despAberto[sm.parentNode.dataset.ym] = !sm.parentNode.open; }, true);   // só o que a pessoa abriu ou fechou (o toggle também dispara ao desenhar)
+    document.addEventListener('click', ev => { const sm = ev.target.closest && ev.target.closest('details.dsp-m > summary'); if (!sm) return; const g = sm.parentNode; if (g.classList.contains('ag-g')) (agAb[g.dataset.agm] = agAb[g.dataset.agm] || {})[g.dataset.agk] = !g.open; else despAberto[g.dataset.ym] = !g.open; }, true);   // só o que a pessoa abriu ou fechou (o toggle também dispara ao desenhar)
     document.addEventListener('change', ev => { const t = ev.target; if (t.id !== 'f_arquivo') return; const a = t.files && t.files[0], n = $('#f_arquivo_n');
       if (n) n.textContent = a ? `${a.name} (${a.size >= 1048576 ? num(Math.round(a.size / 104857.6) / 10) + ' MB' : Math.max(1, Math.round(a.size / 1024)) + ' KB'})` : 'nenhum arquivo escolhido'; });
     document.addEventListener('input', ev => { if (ev.target.id === 'rl_txt' && $('#rl_saida') && !$('#rl_saida').hidden) { $('#rl_saida').hidden = true; const g = $('[data-relatook]'); if (g) { g.textContent = 'Gerar e copiar o texto'; delete g.dataset.guardado; } } });
@@ -7342,7 +7396,7 @@ ${secs}</div>`;
     // celular: o campo em foco não fica escondido atrás do teclado nem do rodapé da janela
     document.addEventListener('focusin', ev => { const t = ev.target, tb = t && t.closest && t.closest('#tabs'); if (tb && t.matches('[data-tab]:focus-visible')) mostrarAba(t, tb); });   // só pelo teclado: no toque/clique, rolar a barra no meio do clique tirava o botão de baixo do dedo
     document.addEventListener('focusin', ev => { const el = ev.target; if (!el.closest || !el.closest('#frm .fm-corpo') || !el.matches('input,select,textarea') || window.innerHeight > 700) return;
-      setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 300); });
+      setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: suave() }); } catch (e) {} }, 300); });
     // sem internet: o aviso aparece também dentro das janelas (ficam por cima de tudo)
     const marcarRede = () => document.documentElement.classList.toggle('sem-rede', navigator.onLine === false);
     marcarRede(); window.addEventListener('online', marcarRede); window.addEventListener('offline', marcarRede);   // fechou ou recarregou a página logado: volta ao mesmo lugar

@@ -95,7 +95,7 @@
         db.lotes.push({ id: id('l'), codigo: `${cod}-${String(seq[cod]).padStart(3, '0')}`, unidade: u, tipo, inicio: ini, dias, qtd: med === 'L' ? entre(200, 400) : entre(250, 600), med,
           insumos: { 'Húmus de minhoca': 'Esterco bovino curtido, restos de capina', 'Composto orgânico': 'Palhada, esterco e poda triturada', 'Biofertilizante líquido': 'Esterco fresco, melaço, cinzas, água sem cloro',
             'Microrganismo isolado': 'Cepa local isolada da mata, meio de cultura', 'Microrganismos eficientes (EM)': 'Arroz cozido, melaço, serrapilheira', 'Bokashi': 'Farelos, carvão, EM ativado' }[tipo],
-          responsavel: 'Equipe do polo (fictícia)', status: ja(pronto) ? 'Pronto' : mais(ini, 3) <= HOJE ? 'Maturando' : 'Em preparo', obs: '' });
+          responsavel: 'Equipe do polo (fictícia)', status: ja(pronto) ? 'Pronto' : mais(ini, 3) <= HOJE ? 'Maturando' : 'Em preparo', pronto_em: ja(pronto) ? pronto : null, obs: '' });   // 47: dia em que ficou pronto
       }
     });
 
