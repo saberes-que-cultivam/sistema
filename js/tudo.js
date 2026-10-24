@@ -4487,6 +4487,15 @@ var qrcode = function() {
      O documento único de antes (coluna arquivo) ainda aparece na lista até o script 42 passá-lo para ela. */
   const ANX_TAB = ['eventos', 'unidades', 'agricultores'];
   /* 44: o termo de uso de dados e imagem aparece no cartão e na ficha da unidade produtiva (só para quem lê o cadastro inteiro: SEAB/MDA e bolsista não têm o campo) */
+  /* 24/10/2026 (pedido da coordenação): na visita e na entrega, lembra de levar o termo quando a unidade produtiva ainda não assinou */
+  function avisoTermo() {
+    const sel = $('#f_agricultor'); if (!sel || !ed || !['visitas', 'distribuicoes'].includes(ed.m)) return;
+    const a = by('agricultores', sel.value), fld = sel.closest('.fld'); let av = $('#termo_av');
+    const falta = a && 'termo_em' in a && !a.termo_em;
+    if (!falta) { if (av) av.remove(); return; }
+    if (!av) { av = document.createElement('div'); av.id = 'termo_av'; av.className = 'aviso termo-av'; av.setAttribute('role', 'status'); fld.after(av); }
+    av.innerHTML = `<b>${esc(a.nome)} ainda não assinou o termo de uso de dados e imagem.</b> Leve o termo ${ed.m === 'visitas' ? 'nesta visita' : 'nesta entrega'}: “Imprimir termo” fica no rodapé do cadastro da unidade produtiva. Sem o termo, fotos da família e da propriedade não podem ser usadas.`;
+  }
   const termoChip = a => ('termo_em' in a ? (a.termo_em ? '' : '<span class="chip f">sem termo</span>') : '') + (a.imagem === 'Não' ? '<span class="chip neu">não autoriza foto</span>' : '');   // 44: o termo assinado do agricultor também vai para a lista de documentos
   const podeAnexos = () => !!eu && ['Coordenação', 'Auxiliar'].includes(eu.perfil);
   function anexosDe(m, id) {
@@ -4686,12 +4695,65 @@ var qrcode = function() {
   const IC_LAPIS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.800 2.800 0 0 0-4-4L4 16v4zM13.500 6.500l4 4"/></svg>';
   const IC_LIXO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   const IC_SUBIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
+  /* 24/10/2026 (pedido da coordenação, protótipo): Lotes, Distribuição e Monitoramento num quadro só, em grupos que abrem e fecham,
+     com filtros em cima (como Despesas). Grupo fechado só desenha a tabela ao abrir (lista longa no fim do projeto). */
+  const agF = {}, agAb = {};
+  const temDif = v => { const t = String(v.problemas || '').trim(); return !!t && !/^(nenhum|nenhuma|sem|não|nao|nada)\b/i.test(t); };   // "Nenhum problema relatado" não é dificuldade
+  const medSoma = ls => { const t = {}; ls.forEach(([q, md]) => { if (+q) t[md || ''] = (t[md || ''] || 0) + +q; }); return Object.keys(t).sort().map(md => `${qt(Math.round(t[md] * 100) / 100)} ${esc(md)}`).join(' e '); };   // sempre kg antes de L
+  const porMes = (L, dataDe) => { const G = {}; L.forEach(r => { const ym = String(dataDe(r) || '').slice(0, 7) || 'sem data'; (G[ym] = G[ym] || []).push(r); }); return Object.keys(G).sort().reverse().map((ym, i) => ({ k: ym, t: ym === 'sem data' ? 'Sem data' : mesTitulo(ym), ls: G[ym], ab: i === 0 })); };
+  const AGR = {
+    lotes: { ph: 'Código, tipo, responsável…', busca: l => [l.codigo, l.tipo, (by('unidades', l.unidade) || {}).nome, l.responsavel],
+      filtros: [['unidade', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome])], ['tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t])]],
+      grupos: L => [['prod', 'Em produção', l => l.status === 'Em preparo' || l.status === 'Maturando', 1], ['pronto', 'Prontos para entregar', l => l.status === 'Pronto' && saldo(l) > 0.004, 1],
+        ['fim', 'Entregues por completo', l => l.status === 'Pronto' && saldo(l) <= 0.004, 0], ['desc', 'Descartados', l => l.status === 'Descartado', 0]].map(([k, t, f, ab]) => ({ k, t, ls: L.filter(f), ab: !!ab })).filter(g => g.ls.length),
+      resumo: (g) => { const n = pl(g.ls.length, 'lote', 'lotes');
+        if (g.k === 'prod') { const pr = g.ls.map(l => R.pronto(l)).filter(Boolean).sort((a, b) => a - b)[0]; return [n, pr ? `o próximo fica pronto em ${dt(iso(pr))}` : '', '', 'f', 'em produção']; }
+        if (g.k === 'pronto') return [n, '', 'saldo ' + medSoma(g.ls.map(l => [saldo(l), l.med])), 'ok', 'para entregar'];
+        if (g.k === 'fim') return [n, '', medSoma(g.ls.map(l => [l.qtd, l.med])) + ' produzidos', '', ''];
+        return [n, '', '', 'bad', 'descartados']; } },
+    distribuicoes: { ph: 'Unidade produtiva, lote, cultura…', busca: d => { const l = by('lotes', d.lote) || {}; return [(by('agricultores', d.agricultor) || {}).nome, l.codigo, l.tipo, d.cultura]; },
+      filtros: [['_bio', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome]), d => (by('lotes', d.lote) || {}).unidade], ['_tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t]), d => (by('lotes', d.lote) || {}).tipo]],
+      grupos: L => porMes(L, d => d.data),
+      resumo: g => [pl(g.ls.length, 'entrega', 'entregas'), pl(new Set(g.ls.map(d => d.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), medSoma(g.ls.map(d => [d.qtd, (by('lotes', d.lote) || {}).med])), '', ''] },
+    visitas: { ph: 'Unidade produtiva, quem visitou…', busca: v => [(by('agricultores', v.agricultor) || {}).nome, v.tecnico, v.obs, v.problemas],
+      filtros: [['usou', 'Aplicou o bioinsumo?', () => [['Sim', 'Sim'], ['Parcial', 'Parcial'], ['Não', 'Não']]], ['_dif', 'Dificuldade', () => [['sim', 'Com dificuldade relatada']], v => temDif(v) ? 'sim' : '']],
+      grupos: L => porMes(L, v => v.data),
+      resumo: g => { const ap = g.ls.filter(v => v.usou === 'Sim').length, dif = g.ls.filter(temDif).length;
+        return [pl(g.ls.length, 'visita', 'visitas'), pl(new Set(g.ls.map(v => v.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), `aplicaram: ${ap} de ${g.ls.length}`, dif ? 'f' : '', dif ? (dif === 1 ? '1 com dificuldade' : dif + ' com dificuldade') : '']; } }
+  };
+  function agFiltradas(m) {
+    const A = AGR[m], F = agF[m] = agF[m] || { q: '' }, q = semAcento(F.q || '').trim();
+    return db[m].filter(r => A.filtros.every(([k, , , val]) => !F[k] || String(val ? val(r) : r[k]) === F[k]) && (!q || semAcento(A.busca(r).filter(Boolean).join(' ')).includes(q)));
+  }
+  function agLinhas(m, M, rs, acoes) { return `<div class="scroll"><table class="tc tb-${m}${fora() ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rs.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table></div>`; }
+  let agCtx = {};
+  function agLista(m) {
+    const A = AGR[m], { M, acoes } = agCtx[m], F = agF[m] || {}, L = agFiltradas(m), filtro = A.filtros.some(([k]) => F[k]) || !!String(F.q || '').trim(), ab = agAb[m] = agAb[m] || {};
+    if (!L.length) return '<div class="empty">Nenhum registro com esse filtro.</div>';
+    const ord = (a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1;
+    return A.grupos(L).map(g => { const aberto = g.k in ab ? ab[g.k] : filtro || g.ab, [n, s2, dir, chipC, chipT] = A.resumo(g);
+      return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir ? `<b class="dsp-v">${dir}</b>` : ''}</summary>
+        <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes) : ''}</div></details>`; }).join('');
+  }
+  /* abre o grupo onde está o registro (QR do lote, testes): limpa o filtro se ele esconde o registro */
+  function revelar(m, id) {
+    if (!AGR[m]) return; if (!agFiltradas(m).some(r => r.id === id)) agF[m] = { q: '' };
+    const g = AGR[m].grupos(agFiltradas(m)).find(x => x.ls.some(r => r.id === id)); if (!g) return;
+    (agAb[m] = agAb[m] || {})[g.k] = true; if (tab === m) render();
+  }
+  const agResumo = m => { const L = agFiltradas(m), T = { lotes: ['lote', 'lotes'], distribuicoes: ['entrega', 'entregas'], visitas: ['visita', 'visitas'] }[m]; return pl(L.length, T[0], T[1]); };
+  function agrupada(m, M, pode, acoes) {
+    agCtx[m] = { M, acoes }; const A = AGR[m], F = agF[m] = agF[m] || { q: '' };
+    return `<div class="panel dsp-p ag-p"><div class="dsp-f ag-f" role="search" aria-label="Filtrar ${esc(M.nome)}">${A.filtros.map(([k, rot, ops]) => `<label class="fld dsp-c"><span>${esc(rot)}</span><select data-agfil="${m}:${k}"><option value="">Todos</option>${ops().map(([v, t]) => `<option value="${esc(v)}"${F[k] === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}
+      <label class="fld dsp-c dsp-q"><span>Buscar</span><input type="search" data-agq="${m}" value="${esc(F.q || '')}" placeholder="${esc(A.ph)}" autocomplete="off"></label>
+      <p class="dsp-r" data-agr="${m}" aria-live="polite">${agResumo(m)}</p></div><div class="ag-l" data-agl="${m}">${agLista(m)}</div></div>`;
+  }
   function tabela(m) {
     const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !((c[3] === 'equipe' && fora()) || (semDinheiro() && COLS_DINHEIRO.includes(m + ':' + c[0])))) }, semDinheiro() && m === 'itens' ? { desc: 'Cada item passa por orçamento, compra pela FUNCERN e entrega.' } : {}), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
     const acoes = r => `<span class="ac">${pode && !M0.soLeitura ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
- <div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc tb-${m}${fora() || !rows.some(r => (pode && !M0.soLeitura) || (!M.semExcluir && R.podeExcluir(eu, m, r))) ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? (m === 'despesas' ? ' Use “Importar planilha da FUNCERN”.' : ` Use “${M.novo}”.`) : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`;
+ ${AGR[m] && todas.length ? agrupada(m, M, pode, acoes) : `<div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc tb-${m}${fora() || !rows.some(r => (pode && !M0.soLeitura) || (!M.semExcluir && R.podeExcluir(eu, m, r))) ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? (m === 'despesas' ? ' Use “Importar planilha da FUNCERN”.' : ` Use “${M.novo}”.`) : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`}`;
   }
   /* 23/10/2026 (pedido da coordenação): despesas agrupadas por mês, com o total do mês, e filtros (situação, rubrica, busca).
      No fim do projeto eram ~130 linhas soltas. Abertos: o mês de hoje e todo mês com algo ainda não pago (ou todos com resultado, quando há filtro). */
@@ -4705,26 +4767,26 @@ var qrcode = function() {
   }
   function listaDespesas() {
     const L = despesasFiltradas(), M = MOD.despesas, filtro = !!(despFiltro.st || despFiltro.rub || despFiltro.q.trim()), hojeYm = iso(hoje()).slice(0, 7);
-    if (!db.despesas.length) return `<div class="panel"><div class="empty">Nenhuma despesa ainda.${R.podeGravar(eu, 'despesas') ? ' Use “Importar planilha da FUNCERN”.' : ''}</div></div>`;
-    if (!L.length) return '<div class="panel"><div class="empty">Nenhuma despesa com esse filtro.</div></div>';
+    if (!db.despesas.length) return `<div class="empty">Nenhuma despesa ainda.${R.podeGravar(eu, 'despesas') ? ' Use “Importar planilha da FUNCERN”.' : ''}</div>`;
+    if (!L.length) return '<div class="empty">Nenhuma despesa com esse filtro.</div>';
     const G = {}; L.forEach(d => { const ym = String(d.data || '').slice(0, 7) || 'sem data'; (G[ym] = G[ym] || []).push(d); });
-    return '<div class="panel dsp-p">' + Object.keys(G).sort().reverse().map(ym => {   // 24/10/2026: um quadro só, os meses em linhas
+    return Object.keys(G).sort().reverse().map(ym => {   // 24/10/2026: um quadro só (filtros e meses), os meses em linhas
       const ds = G[ym].sort((a, b) => (b.data || '') > (a.data || '') ? 1 : -1), tot = ds.reduce((t, d) => t + (+d.valor || 0), 0), abertas = ds.filter(d => d.status !== 'Pago').length;
       const aberto = ym in despAberto ? despAberto[ym] : filtro || ym === hojeYm || abertas > 0;
       return `<details class="dsp-m" data-ym="${esc(ym)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${ym === 'sem data' ? 'Sem data' : mesTitulo(ym)}</span><span class="dsp-n">${pl(ds.length, 'despesa', 'despesas')}</span>
         <span class="chip ${abertas ? 'f' : 'ok'}">${abertas ? (abertas === 1 ? '1 a pagar' : abertas + ' a pagar') : 'tudo pago'}</span><b class="dsp-v">${brl(tot)}</b></summary>
         <div class="scroll"><table class="tc sem-ac"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}</tr></thead><tbody>${ds.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
-    }).join('') + '</div>';
+    }).join('');
   }
   const resumoDesp = () => { const L = despesasFiltradas(); return `${pl(L.length, 'despesa', 'despesas')} · ${brl(L.reduce((t, d) => t + (+d.valor || 0), 0))}`; };
   function tabelaDespesas() {
     const M = MOD.despesas, pode = R.podeGravar(eu, 'despesas'), rubs = [...D.RUBRICAS.map(r => r.id), ...new Set(db.despesas.map(d => d.rubrica).filter(x => x && !D.RUBRICAS.some(r => r.id === x)))], nRub = x => db.despesas.filter(d => d.rubrica === x).length;   // 23/10/2026: todas as rubricas do plano, na ordem dele, mesmo sem despesa
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode ? `<label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : ''}</div></div>
- ${db.despesas.length ? `<div class="dsp-f" role="search" aria-label="Filtrar despesas"><label class="fld dsp-c"><span>Situação</span><select id="dsp_st"><option value="">Todas</option>${['Solicitado', 'Em compras na FUNCERN', 'Pago'].map(x => `<option${despFiltro.st === x ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+ <div class="panel dsp-p">${db.despesas.length ? `<div class="dsp-f" role="search" aria-label="Filtrar despesas"><label class="fld dsp-c"><span>Situação</span><select id="dsp_st"><option value="">Todas</option>${['Solicitado', 'Em compras na FUNCERN', 'Pago'].map(x => `<option${despFiltro.st === x ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
    <label class="fld dsp-c"><span>Rubrica</span><select id="dsp_rub"><option value="">Todas</option>${rubs.map(x => `<option value="${esc(x)}"${despFiltro.rub === x ? ' selected' : ''}>${esc(nomeRubrica(x) || x)}${nRub(x) ? '' : ' (sem despesa)'}</option>`).join('')}</select></label>
    <label class="fld dsp-c dsp-q"><span>Buscar</span><input type="search" id="dsp_q" value="${esc(despFiltro.q)}" placeholder="Nome, solicitação, descrição…" autocomplete="off"></label>
    <p class="dsp-r" id="dsp_r" aria-live="polite">${resumoDesp()}</p></div>` : ''}
- <div id="dsp_l">${listaDespesas()}</div>`;
+ <div id="dsp_l">${listaDespesas()}</div></div>`;
   }
   const finTabela = (F, titulo) => { const c = (r, v) => `<td class="n" data-r="${r}">${v}</td>`;   // no celular vira cartão (class tc)
     return `<table class="tc sem-ac"><thead><tr><th>${titulo}</th><th class="n">Previsto</th><th class="n">Comprometido</th><th class="n">Pago</th><th class="n">Saldo</th></tr></thead><tbody>${F.map(r => `<tr><td data-r="${titulo}">${r.m ? `Meta ${r.m} · ` : ''}${esc(r.nome)}${r.saldo < 0 ? ' <span class="chip bad">acima do previsto</span>' : ''}</td>${c('Previsto', brl(r.prev))}${c('Comprometido', brl(r.comp))}${c('Pago', brl(r.pago))}${c('Saldo', brl(r.saldo))}</tr>`).join('')}<tr class="tot"><td data-r="">Total</td>${c('Previsto', brl(R.soma(F, 'prev')))}${c('Comprometido', brl(R.soma(F, 'comp')))}${c('Pago', brl(R.soma(F, 'pago')))}${c('Saldo', brl(R.soma(F, 'saldo')))}</tr></tbody></table>`; };
@@ -4751,7 +4813,7 @@ var qrcode = function() {
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
     const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo' && String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).length;   // só o realizado, como os participantes
     const sub = { '2.1': uConta.length ? `${uConta.filter(u => R.unidadePronta(u)).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !R.unidadePronta(u)).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
-      '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base`, '3.3': `${db.agricultores.filter(a => !a.kit || String(a.kitdata || '') > iso(hoje())).length} cadastrada(s) ainda sem kit entregue`,
+      '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base${db.agricultores.some(a => 'termo_em' in a) ? ` · ${db.agricultores.filter(a => a.termo_em).length} com termo assinado` : ''}`,   // 24/10/2026: o termo à vista (só quem lê o termo: coordenação e auxiliar) '3.3': `${db.agricultores.filter(a => !a.kit || String(a.kitdata || '') > iso(hoje())).length} cadastrada(s) ainda sem kit entregue`,
       '3.2': `${num(caps.filter(e => String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).reduce((s, e) => s + R.participantes(db, e), 0))} participante(s) · ${dc} dia(s) de campo` };   // só o realizado
     const A = R.alertas(db, hoje()).filter(a => !bolsista() || !['Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1]));   // bolsista: só o que é de campo
     const prazoTxt = p => { const d = R.dias(new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), pd(p)); return d < 0 ? `venceu há ${-d} dia${d === -1 ? '' : 's'}` : d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`; }; const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
@@ -6428,6 +6490,7 @@ ${secs}</div>`;
     $('#dlg').dataset.rede = ['despesas', 'pessoas', 'membros'].includes(m) ? 'conexao' : 'fila';   // aviso sem internet certo para esta janela
     { const d = $('#frm .fm-oque-fixo, #frm .fm-oque-d'), o = $('#frm .fm-obr'); if (d || o) { const w = document.createElement('div'); w.className = 'fm-info'; (d || o).before(w); if (d) w.append(d); if (o) w.append(o); } }   // 21/10/2026: "O que é" e "* obrigatório" numa linha só
     if (id && r._servidor) painelConflito(m, r);
+    avisoTermo();
     $('#frm').className = 'fm'; if (SQC.mascaras) SQC.mascaras.preparar($('#frm'));   // formata CPF e celular ANTES do retrato, senão abrir já contaria como alteração
     if (memNovo && $('#f_funcao')) $('#f_funcao').closest('.fm-g').hidden = true;
     // "Adicionar pessoa" no Acompanhamento externo: o perfil é sempre Acompanhamento (só consulta); órgão e cargo são opcionais
@@ -6815,7 +6878,7 @@ ${secs}</div>`;
     const l = by('lotes', decodeURIComponent(mh[1]));
     if (!l) return toast('Este lote não está no sistema (pode ter sido excluído).');
     if (!abas().some(t => t[0] === 'lotes')) return toast('O seu perfil não vê os lotes.');
-    tab = 'lotes'; render();
+    tab = 'lotes'; revelar('lotes', l.id); render();
     // quem só consulta o lote (SEAB/MDA) não ganha um formulário de edição: vê o lote na lista
     if (!R.podeGravar(eu, 'lotes')) { const lin = document.querySelector(`#view tr[data-id="${CSS.escape(l.id)}"]`);
       if (lin) { lin.scrollIntoView({ block: 'center' }); lin.classList.add('realce'); setTimeout(() => lin.classList.remove('realce'), 4000); }
@@ -7199,7 +7262,8 @@ ${secs}</div>`;
         else if (de.impEt !== undefined) imp.escolhas.etapa[de.impEt] = e.value; else imp.escolhas.rubrica[de.impRb] = e.value;
         const foco = Object.keys(de).find(k => /^imp/.test(k)), val = de[foco]; desenharImportacao();
         const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
-      } if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
+      } if (ev.target.id === 'f_agricultor') avisoTermo();
+      if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
     $('#dlg').addEventListener('cancel', ev => { if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
     /* 22/10/2026 (auditoria de campo): o "voltar" do Android em navegador sem CloseWatcher saía da página e perdia o formulário.
        Janela aberta = uma entrada a mais no histórico do navegador; o voltar fecha só a janela (e, com algo digitado, avisa como o ×). */
@@ -7228,6 +7292,11 @@ ${secs}</div>`;
     document.addEventListener('change', ev => { const t = ev.target, f = t.closest && t.closest('#frm, #fpub'); if (f && /^f_(funcao|arlo|socio)$/.test(t.id)) ajustarFormMembro(f); });
     document.addEventListener('change', ev => { if (ev.target.id === 'f_anx') anxEscolheu(ev.target); });   // 42: vários documentos
     // despesas: filtros redesenham só a lista (o campo de busca não perde o foco); abrir/fechar o mês fica lembrado
+    const agRedesenha = m => { const l = document.querySelector(`[data-agl="${m}"]`), r = document.querySelector(`[data-agr="${m}"]`); if (l) l.innerHTML = agLista(m); if (r) r.textContent = agResumo(m); };
+    let agT = 0; document.addEventListener('input', ev => { const m = ev.target.dataset && ev.target.dataset.agq; if (!m) return; (agF[m] = agF[m] || {}).q = ev.target.value; clearTimeout(agT); agT = setTimeout(() => agRedesenha(m), 180); });
+    document.addEventListener('change', ev => { const d = ev.target.dataset && ev.target.dataset.agfil; if (!d) return; const [m, k] = d.split(':'); (agF[m] = agF[m] || {})[k] = ev.target.value; agAb[m] = {}; agRedesenha(m); });
+    document.addEventListener('toggle', ev => { const g = ev.target; if (!g.matches || !g.matches('details.ag-g')) return; const m = g.dataset.agm, k = g.dataset.agk; (agAb[m] = agAb[m] || {})[k] = g.open;
+      const c = g.querySelector('.ag-c'); if (g.open && c && !c.firstChild && agCtx[m]) { const grp = AGR[m].grupos(agFiltradas(m)).find(x => x.k === k); if (grp) c.innerHTML = agLinhas(m, agCtx[m].M, grp.ls.sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1), agCtx[m].acoes); } }, true);
     const despRedesenha = () => { const l = $('#dsp_l'), r = $('#dsp_r'); if (l) l.innerHTML = listaDespesas(); if (r) r.textContent = resumoDesp(); };
     let despT = 0; document.addEventListener('input', ev => { if (ev.target.id !== 'dsp_q') return; despFiltro.q = ev.target.value; clearTimeout(despT); despT = setTimeout(despRedesenha, 180); });
     document.addEventListener('change', ev => { const t = ev.target; if (t.id === 'dsp_st') despFiltro.st = t.value; else if (t.id === 'dsp_rub') despFiltro.rub = t.value; else return; despRedesenha(); });
@@ -7295,7 +7364,7 @@ ${secs}</div>`;
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, abas, _estado: () => ({ eu, db, pend, tab }) };
+  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, abas, _estado: () => ({ eu, db, pend, tab }), _revelar: revelar };
   /* depois de recarregar por causa da troca de aparência (Safari): a janela de aparência volta aberta, como a pessoa deixou */
   async function partir() {
     await iniciar();

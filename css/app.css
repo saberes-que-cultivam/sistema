@@ -2397,3 +2397,12 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 .pr-cf .pr-m:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
 .pr-cf .pr-m:hover{border-color:var(--accent)}
 @media (pointer:coarse){.pr-cf .pr-m{min-height:44px} .pr-x.pr-xs{width:36px;height:36px}}
+/* 24/10/2026 (protótipo): filtros dentro do quadro único (Despesas, Lotes, Distribuição, Monitoramento) */
+.dsp-p>.dsp-f{margin:0;padding:16px 18px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+.dsp-p>#dsp_l>.dsp-m:first-child,.ag-l>.dsp-m:first-child{border-top:0}
+.dsp-p .empty{padding:18px}
+@media (max-width:640px){.dsp-p>.dsp-f{padding:12px 14px}}
+/* 24/10/2026: aviso do termo na visita e na entrega (pede ação: amarelo) */
+.termo-av{grid-column:1/-1;margin:2px 0 6px;padding:10px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--ferment) 40%,var(--line));background:var(--ferment-soft);font-size:var(--t-sm);line-height:1.5;color:var(--txt-1)}
+/* 24/10/2026: no celular, o total do grupo sempre na própria linha, embaixo e alinhado à esquerda */
+@media (max-width:640px){.dsp-m>summary .dsp-v{flex-basis:100%;margin-left:17px;order:9}}
