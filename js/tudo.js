@@ -649,7 +649,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     return '';
   }
   const DATA_MIN = '2026-01-01', DATA_MAX = '2028-12-31';
-  const DATAS_PROJETO = { agricultores: ['diag', 'kitdata'], despesas: ['data'], distribuicoes: ['data'], entregas: ['data'], eventos: ['data'], itens: ['data'], lotes: ['inicio'], unidades: ['funcionando_em'], visitas: ['data'] };
+  const DATAS_PROJETO = { agricultores: ['diag', 'kitdata', 'termo_em'], despesas: ['data'], distribuicoes: ['data'], entregas: ['data'], eventos: ['data'], itens: ['data'], lotes: ['inicio'], unidades: ['funcionando_em'], visitas: ['data'] };
 
   /* ---------- exclusão: onde o registro está em uso ---------- */
   const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade'], ['fotos', 'registro']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']], eventos: [['presencas', 'evento'], ['fotos', 'registro']], visitas: [['fotos', 'registro']] };
@@ -1594,6 +1594,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         if (tabela === 'unidades' && (o.code === 'PGRST204' || o.code === '42703') && /['"](lat|lng|precisao)['"]/.test(String(o.message)) && COLUNAS.unidades.includes('lat')) {
           if (reg.lat != null) throw erro({ code: 'P0001', message: 'Para guardar a localização da biofábrica, a coordenação precisa rodar antes o script 31_local_e_fotos_da_biofabrica.sql no Supabase. Enquanto isso, apague a localização e salve.' });
           COLUNAS.unidades = COLUNAS.unidades.filter(k => !['lat', 'lng', 'precisao'].includes(k)); return await this.salvar(tabela, reg, op); }
+        // banco sem o 44 (termo do agricultor): grava o resto; com termo preenchido, avisa (24/10/2026, auditoria)
+        if (tabela === 'agricultores' && (o.code === 'PGRST204' || o.code === '42703') && /termo_em|imagem/.test(String(o.message)) && COLUNAS.agricultores.includes('termo_em')) {
+          if (reg.termo_em || reg.imagem) throw erro({ code: 'P0001', message: 'Para guardar o termo do agricultor, a coordenação precisa rodar antes o script 44_termo_agricultor.sql no Supabase. Enquanto isso, deixe a data do termo e a autorização em branco.' });
+          COLUNAS.agricultores = COLUNAS.agricultores.filter(k => !['termo_em', 'imagem'].includes(k)); return await this.salvar(tabela, reg, op); }
         // banco sem o 28 (coluna cargo em pessoas): grava o resto; o cargo fica para depois de rodar o script
         if (tabela === 'pessoas' && (o.code === 'PGRST204' || o.code === '42703') && /cargo/.test(String(o.message)) && COLUNAS.pessoas.includes('cargo')) { COLUNAS.pessoas = COLUNAS.pessoas.filter(k => k !== 'cargo'); return await this.salvar(tabela, reg, op); }
         // banco sem o 27 (coluna substitui): grava o resto; a ligação com quem saiu fica de fora
@@ -5651,18 +5655,28 @@ ${secs}</div>`;
     if (api.guardarCopia) api.guardarCopia(db);
   }
   let relatos;
-  function quadroRelatos() {
-    if (relatos === null) return '<div class="banner"><span>Para guardar os relatos no sistema, a coordenação precisa rodar o script <b>43_problemas_relatados.sql</b> no Supabase.</span></div>';
-    if (!relatos.length) return '<div class="panel empty rl-vazio">Nenhum problema relatado ainda.</div>';
-    const quem = id => (db.pessoas.find(p => p.id === id) || {}).nome || 'Pessoa removida', abertos = relatos.filter(r => r.situacao !== 'Resolvido').length;
-    return `<p class="hs-r"><b>${abertos}</b> em aberto · ${relatos.length - abertos} resolvido(s)</p><ul class="rl-l">${relatos.map(r => `<li class="rl-i panel${r.situacao === 'Resolvido' ? ' ok' : ''}">
+  /* 24/10/2026 (pedido da coordenação: "se chegar muitos problemas"): os em aberto no topo, com a resposta à vista; os resolvidos
+     agrupados e fechados ("Ver os N resolvidos"), cada um numa linha que abre ao tocar, de 20 em 20 ("Mostrar mais") */
+  let relResAberto = false, relResN = 20;
+  const quemRel = id => (db.pessoas.find(p => p.id === id) || {}).nome || 'Pessoa removida';
+  function itemRelato(r) { const quem = quemRel; return `<li class="rl-i panel${r.situacao === 'Resolvido' ? ' ok' : ''}">
       <div class="rl-c"><span class="chip ${r.situacao === 'Resolvido' ? 'ok' : 'f'}">${r.situacao === 'Resolvido' ? 'resolvido' + (r.resolvido_em ? ' em ' + new Date(r.resolvido_em).toLocaleDateString('pt-BR') : '') : 'em aberto'}</span>
         <span class="small">${new Date(r.em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · <b>${esc(quem(r.por))}</b>${r.aba ? ' · aba ' + esc(((TABS.find(t => t[0] === r.aba) || [])[1]) || r.aba) : ''}${r.versao ? ' · ' + esc(r.versao) : ''}</span></div>
       <p class="rl-t">${esc(r.texto)}</p>
       ${r.tecnico ? `<details class="rl-d"><summary>Informações técnicas</summary><pre>${esc(r.tecnico.trim())}</pre></details>` : ''}
       ${r.resposta ? `<div class="rl-resp"><span class="rl-resp-r">Sua resposta${r.respondido_em ? ' · ' + new Date(r.respondido_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''} · ${r.visto_em ? 'lida por quem relatou em ' + new Date(r.visto_em).toLocaleDateString('pt-BR') : 'ainda não lida'}</span><p>${esc(r.resposta)}</p></div>` : ''}
-      ${r.situacao === 'Resolvido' && r.resposta ? '' : `<div class="rl-rf"><label for="rr_${esc(r.id)}">${r.resposta ? 'Mudar a resposta' : 'Resposta para quem relatou'}</label><textarea id="rr_${esc(r.id)}" rows="2" maxlength="2000" placeholder="Ex.: Corrigido na versão 150. Feche e abra o sistema de novo.">${esc(r.resposta || '')}</textarea><span class="fm-dica">Quem relatou vê a resposta assim que entrar no sistema.</span></div>`}
-      <div class="rl-a">${btnIc(r.situacao === 'Resolvido' ? IC_GERAR : IC_CHECK_R, r.situacao === 'Resolvido' ? 'Reabrir' : 'Marcar como resolvido', `data-relsit="${esc(r.id)}:${r.situacao === 'Resolvido' ? 'Aberto' : 'Resolvido'}"`, r.situacao === 'Resolvido' ? '' : 'p')}${api.responderRelato && !(r.situacao === 'Resolvido' && r.resposta) ? `<button type="button" class="b" data-relresp="${esc(r.id)}">${r.resposta ? 'Enviar a resposta nova' : 'Enviar resposta'}</button>` : ''}</div></li>`).join('')}</ul>`;
+      ${(r.situacao === 'Resolvido' && r.resposta) || db._avisos === null ? '' : `<div class="rl-rf"><label for="rr_${esc(r.id)}">${r.resposta ? 'Mudar a resposta' : 'Resposta para quem relatou'}</label><textarea id="rr_${esc(r.id)}" rows="2" maxlength="2000" placeholder="Ex.: Corrigido na versão 150. Feche e abra o sistema de novo.">${esc(r.resposta || '')}</textarea><span class="fm-dica">Quem relatou vê a resposta assim que entrar no sistema.</span></div>`}
+      <div class="rl-a">${btnIc(r.situacao === 'Resolvido' ? IC_GERAR : IC_CHECK_R, r.situacao === 'Resolvido' ? 'Reabrir' : 'Marcar como resolvido', `data-relsit="${esc(r.id)}:${r.situacao === 'Resolvido' ? 'Aberto' : 'Resolvido'}"`, r.situacao === 'Resolvido' ? '' : 'p')}${api.responderRelato && db._avisos !== null && !(r.situacao === 'Resolvido' && r.resposta) ? `<button type="button" class="b" data-relresp="${esc(r.id)}">${r.resposta ? 'Enviar a resposta nova' : 'Enviar resposta'}</button>` : ''}</div></li>`; }
+  function quadroRelatos() {
+    if (relatos === null) return '<div class="banner"><span>Para guardar os relatos no sistema, a coordenação precisa rodar o script <b>43_problemas_relatados.sql</b> no Supabase.</span></div>';
+    if (!relatos.length) return '<div class="panel empty rl-vazio">Nenhum problema relatado ainda.</div>';
+    const abertos = relatos.filter(r => r.situacao !== 'Resolvido'), res = relatos.filter(r => r.situacao === 'Resolvido'), quando = x => new Date(x).toLocaleDateString('pt-BR');
+    const linha = r => `<li class="rl-ri"><details class="rl-rd"><summary><span class="chip ok">resolvido${r.resolvido_em ? ' em ' + quando(r.resolvido_em) : ''}</span><span class="rl-rq">${esc(quemRel(r.por))} · ${quando(r.em)}</span><span class="rl-rt">${esc(String(r.texto).replace(/\s+/g, ' '))}</span></summary>
+      <ul class="rl-l">${itemRelato(r)}</ul></details></li>`;
+    return `<p class="hs-r"><b>${abertos.length}</b> em aberto · ${res.length} resolvido(s)</p>
+      ${abertos.length ? `<ul class="rl-l">${abertos.map(itemRelato).join('')}</ul>` : '<p class="rl-ok">Nenhum relato em aberto.</p>'}
+      ${res.length ? `<details class="rl-res" data-relres${relResAberto ? ' open' : ''}><summary>Ver ${res.length === 1 ? 'o relato resolvido' : `os ${res.length} resolvidos`}</summary>
+        <ul class="rl-rl">${res.slice(0, relResN).map(linha).join('')}</ul>${res.length > relResN ? `<button type="button" class="b" data-relmais>Mostrar mais ${Math.min(20, res.length - relResN)} de ${res.length - relResN}</button>` : ''}</details>` : ''}`;
   }
   const IC_CHECK_R = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
   function historico() {
@@ -6509,7 +6523,7 @@ ${secs}</div>`;
     if (m === 'pessoas') r.email = r.email.toLowerCase();
     if (m === 'membros') R.normalizarMembro(r);
     if (m === 'membros' && !id && ed.substitui) r.substitui = ed.substitui;
-    if (m === 'eventos' && id && (db.presencas || []).some(x => x.evento === id)) { r.part = ''; r.mulheres = ''; }   // segue a lista (R.participantes)
+    if (m === 'eventos' && id && (db.presencas || []).some(x => x.evento === id)) { r.part = ant.part; r.mulheres = ant.mulheres; }   // com lista, conta a lista (R.participantes); o número digitado antes fica guardado como estava (24/10/2026, auditoria: apagá-lo zerava a atividade se a lista fosse esvaziada)
     const conviteAberto = ed.convite;
     const msg = R.validar(db, m, r, ant); if (msg) return er(msg);
     const doc = DOC_TAB.includes(m) && $('#f_arquivo') && $('#f_arquivo').files[0], tiraDoc = DOC_TAB.includes(m) && $('#f_tirardoc') && $('#f_tirardoc').checked;
@@ -6875,7 +6889,9 @@ ${secs}</div>`;
     try { await api.sair(); } catch (e) { /* segue */ }
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
-    eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
+    // 24/10/2026 (auditoria): os nomes colados na Lista e a folha impressa (o termo leva o nome do agricultor) não ficam para a próxima pessoa
+    prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; } document.body.classList.remove('imprimindo');
+    eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; relResAberto = false; relResN = 20; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
   let sincronizando = false, espera = null;
@@ -7081,7 +7097,7 @@ ${secs}</div>`;
       try { await api.excluirFoto(f); db.fotos = db.fotos.filter(x => x.id !== f.id); if (urlsFoto[f.id]) { URL.revokeObjectURL(urlsFoto[f.id]); delete urlsFoto[f.id]; } if (api.guardarCopia) api.guardarCopia(db); render(); abrirFotos(f.tabela, f.registro, 'Foto excluída.'); } catch (e) { $('#ferr').textContent = e.semRede ? 'Sem internet: tente depois.' : e.message; } }
     else if (d.sinc !== undefined) sincronizar(true);
     else if (d.hsfechar) { const k = d.hsfechar, atr = { ac: 'data-acessos', rl: 'data-relatos', hs: 'data-hist' }[k];   // "Ocultar": volta ao quadro com o "Carregar…"
-      if (k === 'ac') acessos = undefined; else if (k === 'rl') relatos = undefined; else { hist = null; histFim = false; }
+      if (k === 'ac') acessos = undefined; else if (k === 'rl') { relatos = undefined; relResAberto = false; relResN = 20; } else { hist = null; histFim = false; }
       render(); const b = document.querySelector(`[${atr}]`); if (b) b.focus(); }
     else if (d.mais) { const y = window.scrollY; mostrando[d.mais] = (mostrando[d.mais] || PAGINA) + PAGINA; render(); window.scrollTo(0, y); }
     else if (d.rub) { const el = document.getElementById('rb-' + d.rub); if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
@@ -7114,6 +7130,7 @@ ${secs}</div>`;
         if (r && r.conflito) { t.disabled = false; t.dataset.ok = 'forcar'; t.textContent = 'Restaurar mesmo assim'; toast('Este registro mudou de novo depois desta versão. Restaurar desfaz também as mudanças mais novas. Toque em "Restaurar mesmo assim" para seguir.'); return; }
         await recarregarDb(); hist = await api.auditoria(Math.max(200, hist.length)); histFim = hist.length < 200; render(); toast('Restaurado. A restauração ficou registrada no histórico.');
       } catch (e) { t.disabled = false; delete t.dataset.ok; t.textContent = h.acao === 'DELETE' ? 'Desfazer a exclusão' : 'Restaurar como estava antes'; t.classList.remove('p'); toast(e.message || 'Não deu para restaurar.'); } }
+    else if (d.relmais !== undefined) { relResN += 20; relResAberto = true; render(); const b = $('[data-relmais]') || $('.rl-rl li:last-child summary'); if (b) b.focus(); }
     else if (d.verresp !== undefined) await verRespostas();
     else if (d.relresp) { const rid = d.relresp, tx = (($('#rr_' + CSS.escape(rid)) || {}).value || '').trim();
       if (!tx) { toast('Escreva a resposta antes de enviar.'); const c = $('#rr_' + CSS.escape(rid)); if (c) c.focus(); return; }
@@ -7183,6 +7200,7 @@ ${secs}</div>`;
     document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-relanexo]')) { relAnexo = ev.target.checked; render(); const c = document.querySelector('[data-relanexo]'); if (c) c.focus(); } });
     document.addEventListener('input', ev => { if (!ev.target.matches || !ev.target.matches('[data-histbusca]')) return; clearTimeout(tBusca);
       tBusca = setTimeout(() => { histBusca = ev.target.value.trim(); render(); const b = $('#hbusca'); if (b) { b.focus({ preventScroll: true }); b.setSelectionRange(b.value.length, b.value.length); } }, 250); });
+    document.addEventListener('toggle', ev => { if (ev.target.matches && ev.target.matches('[data-relres]')) relResAberto = ev.target.open; }, true);
     document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-prm]')) { const x = prLote.nomes[+ev.target.dataset.prm]; if (x) x.mulher = ev.target.checked; } });
     document.addEventListener('change', ev => { if (ev.target.matches && ev.target.matches('[data-histfiltro]')) { histFiltro = ev.target.value; render(); } });
     document.addEventListener('change', ev => {

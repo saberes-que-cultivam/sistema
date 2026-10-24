@@ -2364,3 +2364,20 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
 }
 @media print{#impresso .pf-termo .pf-cx{display:flex;align-items:center;padding:0 3mm;font-size:var(--t-md)}}
 @media print{#impresso .pf-lista .pf-lp td:first-child,#impresso .pf-lista .pf-lp th:first-child{padding:0 1mm;text-align:center;white-space:nowrap}}
+/* 24/10/2026: relatos em aberto no topo; resolvidos agrupados e fechados, uma linha cada */
+.rl-ok{margin:8px 0 0;color:var(--txt-2)}
+.rl-res{margin:16px 0 0;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.rl-res>summary{display:flex;align-items:center;min-height:48px;padding:0 16px;cursor:pointer;font-weight:600;color:var(--accent)}
+.rl-res[open]>summary{border-bottom:1px solid var(--line)}
+.rl-rl{list-style:none;margin:0;padding:0}
+.rl-ri+.rl-ri{border-top:1px solid var(--line)}
+.rl-rd>summary{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:6px 12px;min-height:48px;padding:6px 16px;cursor:pointer;list-style:none}
+.rl-rd>summary::-webkit-details-marker{display:none}
+.rl-rd>summary:hover{background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.rl-rq{font-size:var(--t-sm);color:var(--txt-2);white-space:nowrap}
+.rl-rt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt-1)}
+.rl-rd[open]>summary .rl-rt{white-space:normal}
+.rl-rd>.rl-l{padding:0 12px 12px}
+.rl-res>.b{margin:12px 16px 16px}
+@media (max-width:640px){.rl-rd>summary{grid-template-columns:auto minmax(0,1fr)} .rl-rd>summary .rl-rt{grid-column:1/-1}}
+@media (max-width:640px){.rl-a>.b{flex:1 1 100%;justify-content:center}}
