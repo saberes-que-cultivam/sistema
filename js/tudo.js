@@ -4698,8 +4698,8 @@ var qrcode = function() {
   /* 24/10/2026 (pedido da coordenação, protótipo): Lotes, Distribuição e Monitoramento num quadro só, em grupos que abrem e fecham,
      com filtros em cima (como Despesas). Grupo fechado só desenha a tabela ao abrir (lista longa no fim do projeto). */
   const agF = {}, agAb = {};
-  const temDif = v => { const t = String(v.problemas || '').trim(); return !!t && !/^(nenhum|nenhuma|sem|não|nao|nada)\b/i.test(t); };   // "Nenhum problema relatado" não é dificuldade
-  const medSoma = ls => { const t = {}; ls.forEach(([q, md]) => { if (+q) t[md || ''] = (t[md || ''] || 0) + +q; }); return Object.keys(t).sort().map(md => `${qt(Math.round(t[md] * 100) / 100)} ${esc(md)}`).join(' e '); };   // sempre kg antes de L
+  const temDif = v => { const t = String(v.problemas || '').trim(); return !!t && !/^(nenhum|nenhuma|nada|sem (problema|dificuldade|ocorr)|n[ãa]o (houve|teve|h[áa]|relatou|relatado)|n[ãa]o$|-+$)/i.test(t); };   // "Nenhum problema relatado" não é dificuldade
+  const medSoma = ls => { const t = {}; ls.forEach(([q, md]) => { if (+q) t[md || ''] = (t[md || ''] || 0) + +q; }); return Object.keys(t).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1).map(md => `${qt(Math.round(t[md] * 100) / 100)} ${esc(md)}${md === 'kg' ? ' <small>de sólidos</small>' : md === 'L' ? ' <small>de líquidos</small>' : ''}`); };   // kg antes de L; cada medida vira um destaque e diz o que é (kg = sólidos, L = líquidos)
   const porMes = (L, dataDe) => { const G = {}; L.forEach(r => { const ym = String(dataDe(r) || '').slice(0, 7) || 'sem data'; (G[ym] = G[ym] || []).push(r); }); return Object.keys(G).sort().reverse().map((ym, i) => ({ k: ym, t: ym === 'sem data' ? 'Sem data' : mesTitulo(ym), ls: G[ym], ab: i === 0 })); };
   const AGR = {
     lotes: { ph: 'Código, tipo, responsável…', busca: l => [l.codigo, l.tipo, (by('unidades', l.unidade) || {}).nome, l.responsavel],
@@ -4707,32 +4707,33 @@ var qrcode = function() {
       grupos: L => [['prod', 'Em produção', l => l.status === 'Em preparo' || l.status === 'Maturando', 1], ['pronto', 'Prontos para entregar', l => l.status === 'Pronto' && saldo(l) > 0.004, 1],
         ['fim', 'Entregues por completo', l => l.status === 'Pronto' && saldo(l) <= 0.004, 0], ['desc', 'Descartados', l => l.status === 'Descartado', 0]].map(([k, t, f, ab]) => ({ k, t, ls: L.filter(f), ab: !!ab })).filter(g => g.ls.length),
       resumo: (g) => { const n = pl(g.ls.length, 'lote', 'lotes');
-        if (g.k === 'prod') { const pr = g.ls.map(l => R.pronto(l)).filter(Boolean).sort((a, b) => a - b)[0]; return [n, pr ? `o próximo fica pronto em ${dt(iso(pr))}` : '', '', 'f', 'em produção']; }
-        if (g.k === 'pronto') return [n, '', 'saldo ' + medSoma(g.ls.map(l => [saldo(l), l.med])), 'ok', 'para entregar'];
-        if (g.k === 'fim') return [n, '', medSoma(g.ls.map(l => [l.qtd, l.med])) + ' produzidos', '', ''];
+        if (g.k === 'prod') { const hj = iso(hoje()), ds = g.ls.map(l => R.pronto(l)).filter(Boolean).map(d => iso(d)).sort(), venc = ds.filter(d => d < hj).length, pr = ds.find(d => d >= hj);
+          return [n, venc ? `${venc === 1 ? '1 já passou' : venc + ' já passaram'} do dia previsto: confira e marque “Pronto”` : pr ? `o próximo fica pronto em ${dt(pr)}` : '', '', 'f', 'em produção']; }
+        if (g.k === 'pronto') return [n, '', { rot: 'Saldo', v: medSoma(g.ls.map(l => [saldo(l), l.med])) }, 'ok', 'para entregar'];
+        if (g.k === 'fim') return [n, '', { rot: 'Produzido', v: medSoma(g.ls.map(l => [l.qtd, l.med])) }, '', ''];
         return [n, '', '', 'bad', 'descartados']; } },
     distribuicoes: { ph: 'Unidade produtiva, lote, cultura…', busca: d => { const l = by('lotes', d.lote) || {}; return [(by('agricultores', d.agricultor) || {}).nome, l.codigo, l.tipo, d.cultura]; },
       filtros: [['_bio', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome]), d => (by('lotes', d.lote) || {}).unidade], ['_tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t]), d => (by('lotes', d.lote) || {}).tipo]],
       grupos: L => porMes(L, d => d.data),
-      resumo: g => [pl(g.ls.length, 'entrega', 'entregas'), pl(new Set(g.ls.map(d => d.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), medSoma(g.ls.map(d => [d.qtd, (by('lotes', d.lote) || {}).med])), '', ''] },
+      resumo: g => [pl(g.ls.length, 'entrega', 'entregas'), pl(new Set(g.ls.map(d => d.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), { rot: 'Entregue', v: medSoma(g.ls.map(d => [d.qtd, (by('lotes', d.lote) || {}).med])) }, '', ''] },
     visitas: { ph: 'Unidade produtiva, quem visitou…', busca: v => [(by('agricultores', v.agricultor) || {}).nome, v.tecnico, v.obs, v.problemas],
       filtros: [['usou', 'Aplicou o bioinsumo?', () => [['Sim', 'Sim'], ['Parcial', 'Parcial'], ['Não', 'Não']]], ['_dif', 'Dificuldade', () => [['sim', 'Com dificuldade relatada']], v => temDif(v) ? 'sim' : '']],
       grupos: L => porMes(L, v => v.data),
       resumo: g => { const ap = g.ls.filter(v => v.usou === 'Sim').length, dif = g.ls.filter(temDif).length;
-        return [pl(g.ls.length, 'visita', 'visitas'), pl(new Set(g.ls.map(v => v.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), `aplicaram: ${ap} de ${g.ls.length}`, dif ? 'f' : '', dif ? (dif === 1 ? '1 com dificuldade' : dif + ' com dificuldade') : '']; } }
+        return [pl(g.ls.length, 'visita', 'visitas'), pl(new Set(g.ls.map(v => v.agricultor)).size, 'unidade produtiva', 'unidades produtivas'), { rot: 'Aplicaram o bioinsumo', v: [`${ap} de ${g.ls.length} <small>visitas</small>`] }, dif ? 'f' : '', dif ? (dif === 1 ? '1 com dificuldade' : dif + ' com dificuldade') : '']; } }
   };
   function agFiltradas(m) {
     const A = AGR[m], F = agF[m] = agF[m] || { q: '' }, q = semAcento(F.q || '').trim();
     return db[m].filter(r => A.filtros.every(([k, , , val]) => !F[k] || String(val ? val(r) : r[k]) === F[k]) && (!q || semAcento(A.busca(r).filter(Boolean).join(' ')).includes(q)));
   }
-  function agLinhas(m, M, rs, acoes) { return `<div class="scroll"><table class="tc tb-${m}${fora() ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rs.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table></div>`; }
+  function agLinhas(m, M, rs, acoes) { const semAc = fora() || !rs.some(r => /<button/.test(acoes(r))); return `<div class="scroll"><table class="tc tb-${m}${semAc ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${semAc ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rs.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${semAc ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table></div>`; }
   let agCtx = {};
   function agLista(m) {
     const A = AGR[m], { M, acoes } = agCtx[m], F = agF[m] || {}, L = agFiltradas(m), filtro = A.filtros.some(([k]) => F[k]) || !!String(F.q || '').trim(), ab = agAb[m] = agAb[m] || {};
     if (!L.length) return '<div class="empty">Nenhum registro com esse filtro.</div>';
     const ord = (a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1;
     return A.grupos(L).map(g => { const aberto = g.k in ab ? ab[g.k] : filtro || g.ab, [n, s2, dir, chipC, chipT] = A.resumo(g);
-      return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir ? `<b class="dsp-v">${dir}</b>` : ''}</summary>
+      return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir && dir.v && dir.v.length ? `<span class="dsp-v ag-tot"><span class="ag-rot">${esc(dir.rot)}</span>${dir.v.map(x => `<b class="ag-q">${x}</b>`).join('')}</span>` : ''}</summary>
         <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes) : ''}</div></details>`; }).join('');
   }
   /* abre o grupo onde está o registro (QR do lote, testes): limpa o filtro se ele esconde o registro */
@@ -6941,7 +6942,8 @@ ${secs}</div>`;
     if (SQC.sessao) { SQC.sessao.parar(); SQC.sessao.esquecer(); }
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
     // 24/10/2026 (auditoria): os nomes colados na Lista e a folha impressa (o termo leva o nome do agricultor) não ficam para a próxima pessoa
-    prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; } document.body.classList.remove('imprimindo');
+    prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; Object.keys(agF).forEach(k => delete agF[k]); Object.keys(agAb).forEach(k => delete agAb[k]); agCtx = {}; Object.assign(despFiltro, { st: '', rub: '', q: '' }); Object.keys(despAberto).forEach(k => delete despAberto[k]);   // 24/10/2026: a busca pode ter nome de agricultor: não passa para quem entrar depois
+    { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; } document.body.classList.remove('imprimindo');
     eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; relResAberto = false; relResN = 20; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
