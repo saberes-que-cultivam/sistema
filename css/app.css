@@ -1158,7 +1158,7 @@ html.sem-rede #dlg[data-rede] .fm-pe::before{content:"Sem internet: o que você 
 /* F3 · marca no celular estreito */
 @media (max-width:380px){header.top .marca-nome{font-size:var(--t-lg)}}
 /* F4 · impressão do painel sem botões nem avisos */
-@media print{.at-acao,.banner,.fe,button,.imp-barra{display:none !important}}
+@media print{.at-acao,.banner,.fe,button,.imp-barra,.toast,.toast-ac,.rede,#net{display:none !important}}
 /* H1 · sessão vencida: a tela com dados fica coberta enquanto o sistema confere a conexão */
 html.bloq #view,html.bloq dialog{visibility:hidden}
 
@@ -2338,7 +2338,7 @@ nav .rede-b:hover{background:#fff3e6} nav .rede-b:focus-visible{outline:3px soli
    A4 de altura fixa, cabeçalho em cima, rodapé embaixo com "Folha N de T"; a página continua sem margem (o navegador não imprime endereço e data). */
 @media print{
   #impresso .pf.pf-ficha{padding:0}
-  #impresso .pf-pag{box-sizing:border-box;height:296.5mm;padding:9mm 12mm 7mm;display:flex;flex-direction:column;overflow:hidden;break-after:page;page-break-after:always}
+  #impresso .pf-pag{box-sizing:border-box;height:296mm;padding:9mm 12mm 7mm;display:flex;flex-direction:column;overflow:hidden;break-after:page;page-break-after:always}   /* 25/10/2026: 296 (era 296.5) dá 1 mm de folga contra arredondamento de subpixel, que no Safari empurrava a folha para a seguinte */
   #impresso .pf-pag:last-child{break-after:auto;page-break-after:auto}
   #impresso .pf-pag>.pf-cab{flex:none;margin:0 0 4mm}
   #impresso .pf-corpo{flex:1 1 auto;min-height:0}

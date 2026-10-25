@@ -6416,8 +6416,12 @@ ${secs}</div>`;
   function imprimir(html, titulo) {
     let el = document.getElementById('impresso'); if (!el) { el = document.createElement('div'); el.id = 'impresso'; document.body.appendChild(el); }
     el.innerHTML = html; document.body.classList.add('imprimindo'); if (titulo) comTitulo(titulo);
+    // 25/10/2026: a ficha (.pf-pag é uma folha inteira) precisa de margem de página zero. A página nomeada @page ficha{margin:0} não
+    // é respeitada pelo Safari, que então aplicava a margem padrão (12/9 mm) e cada folha transbordava para a seguinte (termo saía
+    // em 2, visita em 4). Zeramos a margem com um @page comum só durante a impressão da ficha (o relatório imprime por outro caminho).
+    let stm = document.getElementById('pf-page-margem'); if (!stm) { stm = document.createElement('style'); stm.id = 'pf-page-margem'; stm.textContent = '@page{size:A4;margin:0}'; document.head.appendChild(stm); }
     // sem prazo para limpar: no iPhone o print() não espera a impressão e a folha saía em branco. Fora da impressão o #impresso já fica escondido.
-    const fim = () => { document.body.classList.remove('imprimindo'); window.removeEventListener('afterprint', fim); };
+    const fim = () => { document.body.classList.remove('imprimindo'); const s = document.getElementById('pf-page-margem'); if (s) s.remove(); window.removeEventListener('afterprint', fim); };
     window.addEventListener('afterprint', fim);
     const img = el.querySelector('img'); Promise.race([img && img.decode ? img.decode().catch(() => {}) : null, new Promise(r => setTimeout(r, 800))]).then(() => window.print());
   }
@@ -7032,7 +7036,7 @@ ${secs}</div>`;
     // 24/10/2026 (auditoria): os nomes colados na Lista e a folha impressa (o termo leva o nome do agricultor) não ficam para a próxima pessoa
     document.title = 'Saberes que Cultivam';   /* a tela de entrada não fica com o nome da última seção */
     prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; Object.keys(agF).forEach(k => delete agF[k]); Object.keys(agAb).forEach(k => delete agAb[k]); agCtx = {}; Object.assign(despFiltro, { st: '', rub: '', q: '' }); Object.keys(despAberto).forEach(k => delete despAberto[k]);   // 24/10/2026: a busca pode ter nome de agricultor: não passa para quem entrar depois
-    { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; } document.body.classList.remove('imprimindo');
+    { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; const sm = document.getElementById('pf-page-margem'); if (sm) sm.remove(); } document.body.classList.remove('imprimindo');
     eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; relResAberto = false; relResN = 20; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
   /* envia o que ficou guardado no aparelho e busca o que os outros lançaram */
