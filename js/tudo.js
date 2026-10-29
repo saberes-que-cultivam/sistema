@@ -309,14 +309,16 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const mulheresDe = (db, x) => { const L = daLista(db, x); if (L.length) return L.filter(p => p.mulher).length; if (n(x.presentes) > 0) return n(x.mulheres_lista); return vazio(x.mulheres) ? 0 : n(x.mulheres); };
   const participantes = (db, x) => naLista(db, x) || n(x.part);
   const realizada = (db, x) => n(x.part) > 0 || n(x.presentes) > 0 || (db.presencas || []).some(p => p.evento === x.id);   // presentes: só a contagem, para quem não recebe a lista (SEAB/MDA e auxiliar, script 32)
+  const naVig = d => !d || !D.VIGENCIA || String(d) >= D.VIGENCIA.ini;
   function feito(db, e, ate) {
     ate = ateDia(ate);
     switch (e.id) {
       case '2.1': return db.unidades.filter(u => unidadePronta(u, ate)).length;
-      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && ateh(x.data, ate) && realizada(db, x)).length;
+      /* 29/10/2026 (ataque ao perfil Formador): atividade antes do início da vigência não conta na meta */
+      case '3.2': return db.eventos.filter(x => x.tipo === 'Capacitação' && naVig(x.data) && ateh(x.data, ate) && realizada(db, x)).length;
       case '3.3': return db.agricultores.filter(a => a.kit && ateh(a.kitdata, ate)).length;
       case '4.1': return db.agricultores.filter(a => acompanhada(db, a, ate)).length;
-      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && ateh(x.data, ate) && realizada(db, x)).length;
+      case '5.1': return db.eventos.filter(x => x.tipo === 'Dia de campo' && naVig(x.data) && ateh(x.data, ate) && realizada(db, x)).length;
       default: return db.entregas.filter(g => g.etapa === e.id && ateh(g.data, ate)).length;
     }
   }
@@ -390,9 +392,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const DOC_SOL = 'Solicitação FUNCERN ';
   const numSol = d => { const m = /^Solicitação FUNCERN (\S+)$/.exec(String((d && d.doc) || '')); return m ? m[1] : ''; };
   function valorPlanilha(x) {
-    if (typeof x === 'number') return x; let t = String(x == null ? '' : x).replace(/[R$\s]/g, '');
+    if (typeof x === 'number') return isFinite(x) ? Math.round(x * 100) / 100 : NaN; let t = String(x == null ? '' : x).replace(/[R$\s]/g, '');
     if (/,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
     else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');   // "1.500" é mil e quinhentos, não 1,5
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return NaN;   /* 29/10/2026: "0x10" e "1e3" não são valor */
     const n = Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
   }
   /* data que não existe (31/02, mês 22) volta vazia: a linha é apontada como erro em vez de parar a gravação no meio */
@@ -406,15 +409,23 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   }
   /* das abas lidas (SQC.planilha.ler) para solicitações; a linha de títulos é a que tem "ID Solicitação" */
   function lerSolicitacoes(abas) {
-    const sols = [], erros = [];
+    const sols = [], erros = [], vistosSol = new Set();
     (abas || []).forEach(aba => {
       const ic = aba.linhas.findIndex(l => l.some(c => nrm(c) === 'id solicitacao')); if (ic < 0) return;
       const col = {}; aba.linhas[ic].forEach((c, i) => { col[nrm(c)] = i; });
       const g = (l, nome) => col[nome] === undefined ? '' : limpo(l[col[nome]]);
+      /* 29/10/2026: célula numérica do .xlsx chega como número e assim vai ao valor e à data (o String() desfazia: "124.125" virava R$ 124.125) */
+      const bruto = (l, nome) => { if (col[nome] === undefined) return ''; const v = l[col[nome]]; return typeof v === 'number' ? v : limpo(v); };
       aba.linhas.slice(ic + 1).forEach((l, k) => {
-        const sol = g(l, 'id solicitacao'); if (!sol) return;
-        const valor = valorPlanilha(g(l, 'valor')), data = dataPlanilha(g(l, 'data solicitacao'));
-        if (!(valor > 0) || !data) { erros.push(`Aba “${aba.nome}”, linha ${ic + k + 2} (solicitação ${sol}): ${!(valor > 0) ? 'valor' : 'data'} não reconhecido.`); return; }
+        const lin = `Aba “${aba.nome}”, linha ${ic + k + 2}`;
+        const sol = g(l, 'id solicitacao'), valor = valorPlanilha(bruto(l, 'valor')), data = dataPlanilha(bruto(l, 'data solicitacao'));
+        if (!sol) { if (valor > 0 && data) erros.push(`${lin}: linha com valor e data, mas sem o ID da solicitação (ficou de fora).`); return; }
+        if (vistosSol.has(sol)) { erros.push(`${lin}: a solicitação ${sol} aparece de novo (vale a primeira; esta ficou de fora).`); return; }
+        vistosSol.add(sol);
+        if (!(valor > 0) || !data) { erros.push(`${lin} (solicitação ${sol}): ${!(valor > 0) ? 'valor' : 'data'} não reconhecido.`); return; }
+        /* 29/10/2026: linha que o banco recusaria (data fora de 2026 a 2028, valor acima do projeto) vira erro aqui, em vez de parar a gravação no meio */
+        if (data < '2026-01-01' || data > '2028-12-31') { erros.push(`${lin} (solicitação ${sol}): data ${data.split('-').reverse().join('/')} fora do projeto (2026 a 2028).`); return; }
+        if (valor > 400000) { erros.push(`${lin} (solicitação ${sol}): valor acima do total do projeto.`); return; }
         sols.push({ sol, aba: aba.nome, tipo: g(l, 'tipo solicitacao'), beneficiario: g(l, 'beneficiario nome'), valor, rubricaTxt: g(l, 'rubrica financeira'), sub: g(l, 'subrubrica financeira'), detalhe: g(l, 'detalhe rubrica'), statusTxt: g(l, 'status') || '(sem status)', data });
       });
     });
@@ -433,16 +444,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* como cada status da fundação entra na conta, quando a coordenação ainda não escolheu */
   function destinoStatus(txt) {
     const s = nrm(txt);
-    if (/\b(nao|sem|aguardando|pendente|a) (pago|paga|pagamento|pagar)\b|devolv/.test(s)) return 'Comprometido';
-    if (/pendente|aguardando|\bem (liquid|conclu|finaliz|andamento|analise)|\bnao (finaliz|conclu|liquid|pag)/.test(s)) return 'Comprometido';   // 21/10/2026: "Não finalizada", "Liquidação pendente", "Em liquidação" viravam Pago   // "Não pago", "Devolvida para correção": ainda vale como comprometido
-    return /cancel|recus|reprov|indefer|estorn/.test(s) ? 'Ignorar' : /\bpago\b|\bpaga\b|finaliz|conclu|liquid|quitad/.test(s) ? 'Pago' : 'Comprometido';
+    /* 29/10/2026 (ataque à aba Financeiro): "A liquidar", "Não quitada", "Sem liquidação", "Inconclusa", "Pago parcialmente" viravam Pago,
+       "Cancelamento negado" virava Ignorar e "Pagamento efetuado", Comprometido. Na dúvida, Comprometido (a coordenação pode trocar). */
+    if (/\b(cancel|estorn)\w* (negad|recusad|indeferid|nao)/.test(s)) return 'Comprometido';
+    if (/\b(nao|sem|aguardando|pendente|a|falta|para) (\w+ )?(pag|liquid|quit|finaliz|conclu)|inconclu|parcial|devolv|pendente|aguardando|\bem (liquid|conclu|finaliz|andamento|analise|aberto)/.test(s)) return 'Comprometido';
+    if (/cancel|recus|reprov|indefer|estorn/.test(s)) return 'Ignorar';
+    return /\bpago\b|\bpaga\b|pagamento (efetuad|realizad|confirmad|concluid)|finalizad|concluid|liquidad|quitad/.test(s) ? 'Pago' : 'Comprometido';
   }
   /* escolhas = { status: { texto: 'Pago' | 'Comprometido' | 'Ignorar' }, etapa: { grupo: id }, rubrica: { grupo: id } }
      Devolve o que seria feito, sem gravar nada: a tela mostra, a coordenação confirma. */
   function planoImportacao(db, sols, escolhas) {
-    escolhas = escolhas || {}; const es = escolhas.status || {}, ee = escolhas.etapa || {}, er = escolhas.rubrica || {};
-    const porSol = {}; db.despesas.forEach(d => { const n = numSol(d); if (n) porSol[n] = d; });
-    const grupos = {}, status = {}, linhas = [], vistos = new Set();
+    escolhas = escolhas || {}; const sp = o => Object.assign(Object.create(null), o || {}); const es = sp(escolhas.status), ee = sp(escolhas.etapa), er = sp(escolhas.rubrica);
+    const porSol = Object.create(null); db.despesas.forEach(d => { const n = numSol(d); if (n) porSol[n] = d; });
+    const grupos = Object.create(null), status = Object.create(null), linhas = [], vistos = new Set();   /* sem protótipo: status "__proto__" não estraga nada */
     sols.forEach(s => {
       if (vistos.has(s.sol)) return; vistos.add(s.sol);
       const dest = es[s.statusTxt] || destinoStatus(s.statusTxt), ant = porSol[s.sol] || null;
@@ -518,7 +532,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const brl = v => 'R$ ' + FMT_BRL.format(n(v));
   // só dígitos e traço passam: a data vai direto para o HTML, então nada que não seja data chega à tela
   const dt = s => s ? String(s).slice(0, 10).replace(/[^0-9-]/g, '').split('-').reverse().join('/') : '—';
-  const venceu = (e, hoje) => iso(fimMes(e.fim)) < iso(hoje || new Date());   // a etapa só vence depois do último dia do mês final (em 30/07/2027 a etapa de 07/2027 ainda não venceu: o aviso diria "venceu" com prazo no dia seguinte)   // a etapa só vence depois do último dia do mês final
+  const venceu = (e, hoje) => { const f = iso(fimMes(e.fim)), v = D.VIGENCIA && D.VIGENCIA.fim; return (v && v < f ? v : f) < iso(hoje || new Date()); };   /* 29/10/2026: a etapa de 07/2027 vence com a vigência (30/07), não no dia 31 */   // a etapa só vence depois do último dia do mês final (em 30/07/2027 a etapa de 07/2027 ainda não venceu: o aviso diria "venceu" com prazo no dia seguinte)   // a etapa só vence depois do último dia do mês final
   /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
   function alertas(db, hoje) {
     hoje = hoje || new Date(); const A = [];
@@ -546,6 +560,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     // 44: termo de uso de dados e imagem. Só quem lê a unidade produtiva inteira tem o campo (SEAB/MDA e bolsista recebem a versão anônima, sem ele)
     const semTermo = db.agricultores.filter(a => 'termo_em' in a && !a.termo_em);
     if (semTermo.length) add('f', 'Termo', `${semTermo.length} unidade(s) produtiva(s) sem termo de uso de dados assinado.`, 'Imprima o termo no cadastro da unidade produtiva, colha a assinatura na visita e anexe a foto do termo assinado.', '', 'agricultores');
+    /* 29/10/2026 (ataque à aba Equipe): desligamento com data futura não tira o acesso; passada a data, avisa a coordenação */
+    { const hjE = iso(hoje), ativoM = x => !x.fim || x.fim >= hjE, nCoord = (db.pessoas || []).filter(p => p.ativo !== false && p.perfil === 'Coordenação').length;
+      (db.membros || []).filter(m => m.fim && m.fim < hjE && m.email && !(db.membros || []).some(x => x !== m && ativoM(x) && nrm(x.email) === nrm(m.email))).forEach(m => {   /* recontratada com o mesmo e-mail: não avisa */
+      if ((db.pessoas || []).some(p => p.ativo !== false && (p.perfil !== 'Coordenação' || nCoord > 1) && nrm(p.email) === nrm(m.email))) add('f', 'Acesso', `${m.nome}: saiu da equipe em ${dt(m.fim)} e continua com acesso ao sistema.`, 'Na aba Equipe, abra a ficha e tire o acesso.', '', 'equipe'); }); }
     db.agricultores.forEach(a => {
       const r = recebeu(db, a.id).sort((x, y) => x.data < y.data ? 1 : -1)[0]; if (!r) return; const v = visitasDe(db, a.id)[0];
       if ((!v || v.data < r.data) && dias(pd(r.data), hoje) > 30) add('f', 'Monitoramento', `${a.nome}: recebeu bioinsumo em ${dt(r.data)} e não teve visita depois.`, 'Registre a visita de monitoramento.', '', 'visitas');
@@ -568,9 +586,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function indicadores(db, ate) {
     ate = ateDia(ate); const vs = db.visitas.filter(v => ateh(v.data, ate));
     // só entra quem tem as duas pontas: linha de base com gasto informado E visita com gasto (campo vazio não é zero)
-    const comp = db.agricultores.map(a => { const v = visitasDe(db, a.id).find(x => !vazio(x.gasto) && ateh(x.data, ate)); return a.diag && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
+    /* 29/10/2026 (ataque às Unidades produtivas): a visita que compara tem de ser no dia da linha de base ou depois, e a linha de base tem de estar dentro do período */
+    const comp = db.agricultores.map(a => { const ok = a.diag && ateh(a.diag, ate), v = ok && visitasDe(db, a.id).find(x => !vazio(x.gasto) && ateh(x.data, ate) && String(x.data) >= String(a.diag)); return ok && !vazio(a.gasto0) && v ? [n(a.gasto0), n(v.gasto)] : null; }).filter(Boolean);
     const m0 = comp.reduce((s, c) => s + c[0], 0) / (comp.length || 1), m1 = comp.reduce((s, c) => s + c[1], 0) / (comp.length || 1);
-    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && ateh(e.data, ate) && realizada(db, e));   // atividade planejada não soma participantes
+    const ev = db.eventos.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && naVig(e.data) && ateh(e.data, ate) && realizada(db, e));   // atividade planejada não soma participantes
     return { pares: comp.length, base: m0, atual: m1, variacao: comp.length && m0 ? (m1 - m0) / m0 * 100 : null,
       visitas: vs.length, usou: vs.filter(v => v.usou === 'Sim').length,
       participantes: ev.reduce((s, e) => s + participantes(db, e), 0), mulheres: ev.reduce((s, e) => s + mulheresDe(db, e), 0),
@@ -622,9 +641,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (r.data < l.inicio) return 'A data da entrega é anterior ao início do preparo do lote.';
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
+    if (tabela === 'agricultores' && r.diag) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.diag > iso(lim)) return 'A data da linha de base está no futuro. Registre o diagnóstico depois de feito.'; }   /* 29/10/2026 */
+    if (tabela === 'agricultores' && (n(r.gasto0) > 1000000 || n(r.area) > 100000)) return 'Gasto ou área grande demais. Confira o número.';
     if (tabela === 'agricultores' && r.termo_em) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.termo_em > iso(lim)) return 'A data do termo está no futuro. Registre a data em que o termo foi assinado.'; }
     if (tabela === 'visitas' && r.data) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da visita está no futuro. Registre a visita depois de feita.'; }
+    /* 29/10/2026 (ataque às Biofábricas): a sigla dá o código dos lotes; com lote feito, não muda. Entrega não troca para lote de outra medida */
+    if (tabela === 'unidades' && anterior && anterior.sigla && String(r.sigla || '').toUpperCase() !== String(anterior.sigla).toUpperCase() && (db.lotes || []).some(l => l.unidade === r.id))
+      return 'Esta biofábrica já tem lotes com o código da sigla ' + String(anterior.sigla).toUpperCase() + '. A sigla não muda mais.';
+    if (tabela === 'distribuicoes' && anterior && anterior.lote && r.lote !== anterior.lote) { const a = (db.lotes || []).find(l => l.id === anterior.lote), b = (db.lotes || []).find(l => l.id === r.lote);
+      if (a && b && (a.med || 'kg') !== (b.med || 'kg')) return `O lote novo é medido em ${b.med || 'kg'} e esta entrega foi registrada em ${a.med || 'kg'}. Exclua e registre a entrega de novo.`; }
+    if (tabela === 'itens' && n(r.valor) > 400000) return 'Valor do item acima do total do projeto (R$ 400.000,00). Confira o número.';   /* 29/10/2026 */
+    if (tabela === 'entregas' && (String(r.titulo || '').length > 300 || String(r.obs || '').length > 4000)) return 'Título até 300 caracteres e observações até 4.000. Encurte o texto.';   /* 29/10/2026 */
     if (tabela === 'presencas') {
+      if (String(r.nome || '').trim().length > 200) return 'Nome com mais de 200 letras. Confira.';
       if (!(db.eventos || []).some(e => e.id === r.evento)) return 'Escolha a atividade.';
       if (String(r.nome || '').trim().length < 3) return 'Informe o nome de quem participou.';
     }
@@ -675,7 +704,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const DATAS_PROJETO = { agricultores: ['diag', 'kitdata', 'termo_em'], despesas: ['data'], distribuicoes: ['data'], entregas: ['data'], eventos: ['data'], itens: ['data'], lotes: ['inicio'], unidades: ['funcionando_em'], visitas: ['data'] };
 
   /* ---------- exclusão: onde o registro está em uso ---------- */
-  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade'], ['fotos', 'registro']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor']], eventos: [['presencas', 'evento'], ['fotos', 'registro']], visitas: [['fotos', 'registro']] };
+  const REFS = { unidades: [['itens', 'unidade'], ['lotes', 'unidade'], ['agricultores', 'unidade'], ['fotos', 'registro'], ['anexos', 'registro']], lotes: [['distribuicoes', 'lote']], agricultores: [['distribuicoes', 'agricultor'], ['visitas', 'agricultor'], ['anexos', 'registro']], eventos: [['presencas', 'evento'], ['fotos', 'registro'], ['anexos', 'registro']], visitas: [['fotos', 'registro']] };
+  /* 29/10/2026 (ataque à Coordenação e ao Formador): registro com documento anexado não se exclui (os arquivos eram apagados e o "Desfazer" não os trazia de volta); remova os documentos antes, no Editar */
   const emUso = (db, tabela, id) => (REFS[tabela] || []).filter(([c, k]) => (db[c] || []).some(x => x[k] === id)).map(([c]) => c);
 
   /* ---------- quem pode o quê (a tela esconde; o banco recusa) ---------- */
@@ -694,10 +724,14 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function mexerRegistro(db, eu, tabela, ant, novo) {
     if (!eu) return 'Entre no sistema.';
     if (eu.perfil === 'Formador') {
-      if (tabela === 'eventos' && ant && ant.criado_por && ant.criado_por !== eu.id) return 'Você altera só as atividades que registrou. Peça à coordenação.';
-      if (tabela === 'presencas') { const ev = (db.eventos || []).find(e => e.id === ((novo || ant || {}).evento)); if (ev && ev.criado_por && ev.criado_por !== eu.id) return 'Você mexe só na lista das atividades que registrou. Peça à coordenação.'; }
+      /* 29/10/2026: atividade sem autor conhecido conta como alheia (o banco recusa) */
+      const meu = x => !!x && (x.criado_por === eu.id || (!x.criado_por && !!x._pendente));   /* lançado neste aparelho e ainda na fila: é da própria pessoa */
+      if (tabela === 'eventos' && ant && !meu(ant)) return 'Você altera só as atividades que registrou. Peça à coordenação.';
+      if (tabela === 'fotos' && (novo || ant) && (novo || ant).tabela === 'eventos') { const ev = (db.eventos || []).find(e => e.id === (novo || ant).registro); if (!meu(ev) || (ant && !meu(ant))) return 'Você põe e muda foto só nas atividades que registrou. Peça à coordenação.'; }
+      if (tabela === 'presencas') { const ev = (db.eventos || []).find(e => e.id === ((novo || ant || {}).evento)); if (!meu(ev)) return 'Você mexe só na lista das atividades que registrou. Peça à coordenação.'; }
     }
-    if (tabela === 'entregas' && ant && ant.arquivo && novo && 'arquivo' in novo && novo.arquivo !== ant.arquivo && eu.perfil !== 'Coordenação' && ant.criado_por && ant.criado_por !== eu.id) return 'Só a coordenação ou quem registrou a entrega troca ou retira o documento dela.';
+    /* 29/10/2026 (ataque ao bolsista): entrega do plano só a coordenação ou quem a registrou altera (o bolsista jogava a data das entregas de todos para 2028) */
+    if (tabela === 'entregas' && ant && eu.perfil !== 'Coordenação' && ant.criado_por !== eu.id && !(ant._pendente && !ant.criado_por)) return 'Só a coordenação ou quem registrou a entrega altera ou troca o documento dela.';
     if (tabela === 'unidades' && ant && ant.funcionando_em && novo && 'funcionando_em' in novo && (novo.funcionando_em || null) !== ant.funcionando_em && eu.perfil !== 'Coordenação') return 'Depois de informada, a data em que a biofábrica começou a funcionar só a coordenação muda.';
     return '';
   }
@@ -776,6 +810,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (c === 'P0001') return m;   // mensagem escrita por nós no banco
     if (c === '23503') return /insert|update/i.test(m) ? 'Este registro aponta para um cadastro que não existe mais (lote, biofábrica ou unidade produtiva excluída). Confira e escolha de novo.' : 'Este registro está em uso em outro cadastro e não pode ser excluído.';
     if (c === '23505') return 'Já existe um registro igual a este.';
+    if (c === '22003') return 'Algum número ficou grande demais. Confira e tente de novo.';   /* 29/10/2026 */
     if (c === '22P02') return 'Algum número foi digitado com vírgula ou letra onde só cabe número inteiro. Confira e tente de novo.';
     if (c === '23514' || c === '23502') return 'Algum campo ficou em branco ou com valor fora do permitido. Confira e tente de novo.';
     if (c === '42501' || /row-level security|permission denied/i.test(m)) return 'O seu perfil não tem permissão para fazer isso.';
@@ -952,7 +987,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const G = typeof window !== 'undefined' ? window : globalThis;
   const SQC = (G.SQC = G.SQC || {});
   const R = SQC.regras, D = SQC.dados;
-  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v4-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
+  const SIM = SQC.SIMULACAO, CHAVE = SIM ? 'sqc-sim-v5-' + SIM.dia : 'sqc-demo-v1';   // simulação (js/simulacao.js): guarda à parte, uma por data
   const mem = {};   // usado quando o navegador bloqueia o armazenamento (e nos testes)
   const ler = k => { try { const v = G.localStorage.getItem(k); return v == null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } };
   const gravar = (k, v) => { mem[k] = v; try { G.localStorage.setItem(k, v); } catch (e) { /* fica só na memória */ } };
@@ -1134,11 +1169,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const c = JSON.parse(JSON.stringify(carregarLocal()));
       const pf = eu ? eu.perfil : '', nPres = {}, nMu = {}; c.presencas.forEach(x => { nPres[x.evento] = (nPres[x.evento] || 0) + 1; if (x.mulher) nMu[x.evento] = (nMu[x.evento] || 0) + 1; });
       if (pf === 'Formador') {   // como no banco (23): unidades produtivas numeradas, visitas sem texto; cada um só o que é seu (o auxiliar lê o campo inteiro desde o 36)
-        c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), criado_em: a.criado_em, ex: a.ex }));   /* 48: ao formador, só o número (cruzar com a lista de presença identificava a pessoa) */
+        c.agricultores = []; c.entregas = []; c.lotes = []; c.itens = []; c.presencas = c.presencas.map(x => { const y = Object.assign({}, x); delete y.agricultor; return y; });   /* 50 (ataque ao perfil Formador, 29/10/2026): nem o número das unidades produtivas (ligado ao nome da lista, desfazia o anonimato), nem entregas, lotes e itens */
         c.visitas = [];   /* 48 */
+        c.distribuicoes = [];   /* 49: entrega de bioinsumo ligada ao nome da lista identificava quem recebeu */
         c.pessoas = c.pessoas.filter(p => p.id === eu.id);
         c.despesas = []; c.membros = []; c.fotos = c.fotos.filter(f => f.tabela === 'eventos'); c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });
       }
+      if (pf === 'Acompanhamento') c.entregas = c.entregas.map(g => ({ id: g.id, etapa: g.etapa, titulo: g.titulo, data: g.data, criado_em: g.criado_em, atualizado_em: g.atualizado_em, ex: g.ex }));   /* 50: como entregas_acompanhamento() */
       if (['Acompanhamento', 'Formador', 'Equipe'].includes(pf)) c.anexos = [];   // como no banco (42): a lista de documentos é de quem registra o campo
       if (pf === 'Equipe') {   // como no banco (40 e 41): o bolsista recebe o campo numerado, sem presença, fotos, valor dos itens, acessos dos outros
         c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; delete x.resumo; delete x.arquivo; delete x.arquivo_nome; return x; });   // e a atividade como o SEAB/MDA
@@ -1614,8 +1651,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         //   despesas e equipe: coordenação, equipe e auxiliar; listas de presença e fotos: coordenação, equipe, auxiliar (36) e formador(a)
         //   40: o bolsista (perfil Equipe) recebe o campo como o SEAB/MDA (numerado, sem presença, fotos nem valor dos itens)
         const p = (euCache && euCache.perfil) || '', campoAnon = ['Acompanhamento', 'Formador', 'Equipe'].includes(p);   // 36: o auxiliar lê o campo inteiro
-        const vazio = { anexos: ['Acompanhamento', 'Formador', 'Equipe'], membros: ['Acompanhamento', 'Formador'], despesas: ['Acompanhamento', 'Formador', 'Equipe'], presencas: ['Acompanhamento', 'Equipe'], fotos: ['Acompanhamento', 'Equipe'] };
-        const pedir = t => (vazio[t] || []).includes(p) ? [] : t === 'eventos' && ['Acompanhamento', 'Equipe'].includes(p) ? evFora() : t === 'itens' && ['Acompanhamento', 'Formador', 'Equipe'].includes(p) ? itFora()
+        const vazio = { anexos: ['Acompanhamento', 'Formador', 'Equipe'], membros: ['Acompanhamento', 'Formador'], despesas: ['Acompanhamento', 'Formador', 'Equipe'], presencas: ['Acompanhamento', 'Equipe'], fotos: ['Acompanhamento', 'Equipe'],
+          agricultores: ['Formador'], visitas: ['Formador'], distribuicoes: ['Formador'], entregas: ['Formador'], lotes: ['Formador'], itens: ['Formador'] };   /* 49 e 50 (29/10/2026): o formador(a) fica só com a Formação */
+        /* 50: o SEAB/MDA recebe as entregas do plano só com etapa, título e data (sem link, observação nem nome do arquivo); banco sem o 50: tira na chegada */
+        const enFora = async () => { const { data, error } = await sb.rpc('entregas_acompanhamento'); if (error && (error.code === 'PGRST202' || error.code === '42883')) return (await todas('entregas')).map(g => ({ id: g.id, etapa: g.etapa, titulo: g.titulo, data: g.data, criado_em: g.criado_em, atualizado_em: g.atualizado_em })); if (error) throw erro(error); return data || []; };
+        const pedir = t => (vazio[t] || []).includes(p) ? [] : t === 'entregas' && p === 'Acompanhamento' ? enFora() : t === 'eventos' && ['Acompanhamento', 'Equipe'].includes(p) ? evFora() : t === 'itens' && ['Acompanhamento', 'Formador', 'Equipe'].includes(p) ? itFora()
           : campoAnon && t === 'agricultores' ? anon('agricultores_anonimos') : campoAnon && t === 'visitas' ? anon('visitas_anonimas') : todas(t);
         // 23/10/2026 (desempenho): as contagens e os dados reservados saem junto com as tabelas (antes, só depois: uma ida e volta a mais)
         const rpc = f => sb.rpc(f).then(x => x, e => ({ error: e }));
@@ -4526,10 +4566,10 @@ var qrcode = function() {
      que o banco faz para esse perfil (unidade produtiva numerada, visita sem texto, sem equipe). Nada é gravado nesse modo. */
   let real = null;
   function semPessoal(d) {
-    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = []; c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; delete x.resumo; return x; });
+    const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = []; c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; delete x.resumo; const L = (d.presencas || []).filter(p => p.evento === e.id); if (L.length) { x.presentes = L.length; x.mulheres_lista = L.filter(p => p.mulher).length; } return x; });   /* 29/10/2026: como o banco entrega ao SEAB/MDA (presencas_por_evento, mulheres_por_evento) */
     c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
     c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
-    c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; return c;
+    c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; c.anexos = []; c.entregas = (c.entregas || []).map(g => ({ id: g.id, etapa: g.etapa, titulo: g.titulo, data: g.data })); c.eventos.forEach(e => { delete e.arquivo; delete e.arquivo_nome; delete e.criado_por; }); return c;   /* 29/10/2026 (ataque ao SEAB/MDA): a pré-visualização igual ao que o banco entrega */
   }
   const trocarDb = d => { if (real) { real.db = d; db = semPessoal(d); } else db = d; };   // na pré-visualização "Ver como SEAB/MDA", o que chega passa pelo mesmo corte
   /* períodos prontos do relatório: 'de|até' (a tela marca o botão do período em uso) */
@@ -4584,7 +4624,7 @@ var qrcode = function() {
   const docMini = r => !r || !r.arquivo ? '' : podeDoc() ? `<div class="doc-mini"><button type="button" class="lk-in" data-doc="${esc(r.id)}" title="${esc(r.arquivo_nome || 'documento')}">${IC_ANEXO}<span>${esc(String(r.arquivo_nome || 'documento anexado').replace(/_+/g, ' '))}</span></button></div>` : '<div class="small">documento guardado com a equipe</div>';
   const linkFicticio = u => /\/\/exemplo\.(br|invalid)\//.test(String(u || ''));   // dados de exemplo e da simulação usam endereços inventados (exemplo.br), que não abrem nada
   const docLinks = g => [g.arquivo ? (podeDoc() ? `<button type="button" class="lk-in" data-doc="${esc(g.id)}" title="${esc(g.arquivo_nome || 'documento')}">abrir o documento</button>` : '<span class="small">documento guardado com a equipe</span>') : '',
-    linkFicticio(g.link) ? '<span class="small">link fictício (dado de exemplo)</span>' : /^https?:\/\//i.test(String(g.link || '')) ? `<a href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">abrir o link</a>` : ''].filter(Boolean).join(' · ');
+    fora() ? '' : linkFicticio(g.link) ? '<span class="small">link fictício (dado de exemplo)</span>' : /^https?:\/\//i.test(String(g.link || '')) ? `<a href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">abrir o link</a>` : ''].filter(Boolean).join(' · ');
   const IC_ANEXO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>';
   const IC_GERAR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>';
   const IC_IMPRIMIR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/><path d="M17.5 12h.01"/></svg>';
@@ -4910,12 +4950,12 @@ var qrcode = function() {
     const lab = { '2.1': 'biofábricas em funcionamento', '4.1': 'unidades produtivas acompanhadas', '3.3': 'kits de apoio entregues', '3.2': 'capacitações realizadas' };
     const X = R.execucaoGeral(db, hoje());
     const ST = { concluida: ['ok', 'Concluída'], andamento: ['ok', 'No ritmo'], atencao: ['f', 'Pouco abaixo do previsto'], atrasada: ['bad', 'Abaixo do previsto'] };
-    const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação'), dc = db.eventos.filter(e => e.tipo === 'Dia de campo' && String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).length;   // só o realizado, como os participantes
+    const uConta = db.unidades.filter(u => u.conta === 'Sim'), comBase = db.agricultores.filter(a => a.diag).length, caps = db.eventos.filter(e => e.tipo === 'Capacitação' && String(e.data || '9') >= D.VIGENCIA.ini), dc = db.eventos.filter(e => e.tipo === 'Dia de campo' && String(e.data || '9') >= D.VIGENCIA.ini && String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).length;   // só o realizado, como os participantes
     const sub = { '2.1': uConta.length ? `${uConta.filter(u => R.unidadePronta(u)).length === uConta.length ? uConta.length + ' em funcionamento' : uConta.filter(u => !R.unidadePronta(u)).length + ' em implantação'} · ${uConta.reduce((s, u) => s + nCheck(u), 0)} de ${uConta.length * D.CHECK.length} passos` : 'nenhuma unidade cadastrada',
       '4.1': `${db.agricultores.length} cadastrada(s) · ${comBase} com linha de base${db.agricultores.some(a => 'termo_em' in a) ? ` · ${db.agricultores.filter(a => a.termo_em).length} com termo assinado` : ''}`,
       '3.3': `${db.agricultores.filter(a => !a.kit || String(a.kitdata || '') > iso(hoje())).length} cadastrada(s) ainda sem kit entregue`,   // 24/10/2026: no 4.1, o termo à vista só para quem lê o termo (coordenação e auxiliar)
       '3.2': `${num(caps.filter(e => String(e.data || '') <= iso(hoje()) && R.realizada(db, e)).reduce((s, e) => s + R.participantes(db, e), 0))} participante(s) · ${dc} dia(s) de campo` };   // só o realizado
-    const A = R.alertas(db, hoje()).filter(a => !bolsista() || !['Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1]));   // bolsista: só o que é de campo
+    const A = R.alertas(db, hoje()).filter(a => (!bolsista() || !['Financeiro', 'Rubrica', 'Patrimônio'].includes(a[1])) && (a[1] !== 'Acesso' || eu.perfil === 'Coordenação'));   // bolsista: só o que é de campo
     const prazoTxt = p => { const d = R.dias(new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), pd(p)); return d < 0 ? `venceu há ${-d} dia${d === -1 ? '' : 's'}` : d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`; }; const G0 = pd(D.G0), G1 = pd(D.G1), span = G1 - G0; const pos = d => Math.max(0, Math.min(100, (d - G0) / span * 100));
     const meses = []; for (let i = 0; i < 13; i++) { const d = new Date(G0.getFullYear(), G0.getMonth() + i, 1); meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2)); }
     let g = '', mm = 0; D.ETAPAS.forEach(e => {
@@ -4927,7 +4967,7 @@ var qrcode = function() {
     const mesCurto = d => d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') + '/' + String(d.getFullYear()).slice(2);
     /* etapa que não é contada sozinha pelo sistema: as entregas (relatório, material, produto) são registradas e listadas aqui mesmo */
     const entregasDe = e => { const gs = db.entregas.filter(g => g.etapa === e.id).sort((a, b) => a.data < b.data ? 1 : -1), pode = R.podeGravar(eu, 'entregas');
-      return `<div class="mt-g">${gs.map(g => `<div class="mt-gi"><span>${esc(g.titulo)}${g._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${dt(g.data)}${docLinks(g) ? ' · ' + docLinks(g) : ' · <span class="chip f">sem documento</span>'}</small></span><span class="acts mt-ac">${pode ? `<button type="button" class="ab" title="Editar" data-edit="entregas:${esc(g.id)}">${IC_LAPIS}<span class="so">Editar ${esc(g.titulo)}</span></button>` : ''}${R.podeExcluir(eu, 'entregas', g) && !g._pendente ? `<button type="button" class="ab d" title="Excluir" data-del="entregas:${esc(g.id)}">${IC_LIXO}<span class="so">Excluir ${esc(g.titulo)}</span></button>` : ''}</span></div>`).join('')}
+      return `<div class="mt-g">${gs.map(g => `<div class="mt-gi"><span>${esc(g.titulo)}${g._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${dt(g.data)}${docLinks(g) ? ' · ' + docLinks(g) : ' · <span class="chip f">sem documento</span>'}</small></span><span class="acts mt-ac">${pode && !R.mexerRegistro(db, eu, 'entregas', g, {}) ? `<button type="button" class="ab" title="Editar" data-edit="entregas:${esc(g.id)}">${IC_LAPIS}<span class="so">Editar ${esc(g.titulo)}</span></button>` : ''}${R.podeExcluir(eu, 'entregas', g) && !g._pendente ? `<button type="button" class="ab d" title="Excluir" data-del="entregas:${esc(g.id)}">${IC_LIXO}<span class="so">Excluir ${esc(g.titulo)}</span></button>` : ''}</span></div>`).join('')}
         ${pode ? `<button type="button" class="mt-novo" data-new="entregas" data-pre="${e.id}"><span aria-hidden="true">+</span>Registrar entrega desta etapa</button>` : gs.length ? '' : '<span class="small">Nenhuma entrega registrada.</span>'}</div>`; };
     const metas = X.porMeta.map(pm => {
       // o ritmo segue o cronograma da equipe nas etapas que ele trata; nas outras, o plano de trabalho (TED)
@@ -4937,7 +4977,7 @@ var qrcode = function() {
       return `<li><details class="mt ${stM[0]}"><summary><span class="mt-n" aria-hidden="true">M${pm.m}</span><span class="mt-c"><span class="mt-t"><b>${esc(D.METAS[pm.m])}</b><span class="chip ${stM[0]}">${stM[1]}</span></span>
         <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado; previsto até o mês passado: ${pct(pv)}%${pm.temEq ? ` pelo cronograma da equipe e ${pct(pm.prev)}% pelo plano de trabalho` : ''}"><i style="width:${Math.min(100, pm.feito)}%"></i>${pv > 0 && pv < 100 ? `<b style="left:${pv}%"></b>` : ''}${pm.temEq && pm.prev > 0 && pm.prev < 100 && Math.abs(pm.prev - pv) > 0.5 ? `<b class="ted" style="left:${pm.prev}%"></b>` : ''}</span>
         <span class="mt-p"><span>${conta} · ${pct(pm.feito)}% ${pm.m === 2 && pm.feito > 0 && es.length === 1 && feito(es[0]) < es[0].q ? 'da implantação' : 'realizado'}</span><span class="mt-v">Ver detalhes</span></span></span></summary>
-        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${e.eq ? 'Plano de trabalho: ' : ''}${mesAno(e.ini)} a ${mesAno(e.fim)}${e.eq ? ` · cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}` : ''}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small>${e.vale ? `<small class="mt-vale">${esc(e.vale)}</small>` : ''}${e.ajuste ? `<small class="mt-vale">${esc(e.ajuste)}</small>` : ''}</span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
+        <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${e.eq ? 'Plano de trabalho: ' : ''}${mesAno(e.ini)} a ${mesAno(e.fim)}${e.eq ? ` · cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}` : ''}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small>${e.vale ? `<small class="mt-vale">${esc(e.vale)}</small>` : ''}${e.ajuste && !fora() ? `<small class="mt-vale">${esc(e.ajuste)}</small>` : ''}</span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
     /* próximos marcos: saem do que já está no plano (início e prazo de etapa ainda não concluída, parcela a receber, fim da vigência) */
     const dia0 = new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), marcosT = [];
     D.ETAPAS.forEach(e => { const tag = `Meta ${e.m} · ${D.METAS[e.m]}`; if (pd(e.ini) > dia0) marcosT.push([pd(e.ini), `Começa a etapa ${e.id}: ${e.nome}`, tag]); if (feito(e) < e.q) marcosT.push([R.fimMes(e.fim), `Prazo da etapa ${e.id}: ${e.nome}`, tag]); });
@@ -4947,7 +4987,7 @@ var qrcode = function() {
     const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
     const marcosF = marcosT.filter(m => m[0] >= dia0).sort((a, b) => a[0] - b[0]), nMarcos = 5;
     const marcos = marcosF.slice(0, nMarcos).map((m, i) => { const d = R.dias(dia0, m[0]); return `<li class="${i ? '' : 'prox'}" tabindex="0"><time datetime="${iso(m[0])}"><b>${m[0].getDate()}</b><span>${MESES3[m[0].getMonth()]} ${m[0].getFullYear()}</span></time><div><b>${esc(m[1])}</b>${m[2] ? `<span class="mc-m${m[3] ? ' eq' : ''}">${esc(m[2])}</span>` : ''}<span class="mc-d">${d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`}</span></div></li>`; }).join('');
-    const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { prod[l.tipo] = prod[l.tipo] || [0, 0, l.med]; prod[l.tipo][0] += +l.qtd || 0; prod[l.tipo][1] += (+l.qtd || 0) - saldo(l); });
+    const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { const k = l.tipo + '|' + (l.med || 'kg'); prod[k] = prod[k] || [0, 0, l.med || 'kg', l.tipo]; prod[k][0] += +l.qtd || 0; prod[k][1] += (+l.qtd || 0) - saldo(l); });   /* 29/10/2026: por tipo E medida (kg e L do mesmo tipo não se somam) */
     const I = R.indicadores(db);
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
     return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
@@ -5023,7 +5063,7 @@ var qrcode = function() {
     const L = Object.entries(prod); if (!L.length) return '';   // 19/10/2026: sem lote, a seção não aparece
     const ic = '<span class="i5-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></svg></span>';
     return `<section class="panel mts i5-p" aria-label="Produção e distribuição"><div class="mts-cab"><h2>Produção e distribuição</h2><p>Por tipo de bioinsumo, somando os lotes (menos os descartados)${fora() ? '' : ' · barra: parte já distribuída'}</p></div>
-     ${L.length ? `<ul class="i5-l">${L.map(([k, v]) => { const pc = v[0] ? v[1] / v[0] * 100 : 0, nl = db.lotes.filter(l => l.tipo === k && l.status !== 'Descartado').length;
+     ${L.length ? `<ul class="i5-l">${L.map(([, v]) => { const pc = v[0] ? v[1] / v[0] * 100 : 0, nl = db.lotes.filter(l => l.tipo === v[3] && (l.med || 'kg') === v[2] && l.status !== 'Descartado').length, k = v[3] + (L.filter(([, w]) => w[3] === v[3]).length > 1 ? ` (${v[2]})` : '');
        const [r, x] = explica(esc(k), `Produzido: soma dos lotes de ${esc(k.toLowerCase())} registrados (os descartados ficam de fora). ${fora() ? 'Entregue às famílias: o que saiu desses lotes nas entregas às unidades produtivas.' : 'Distribuído: o que saiu desses lotes nas entregas às unidades produtivas. Saldo: o que ainda está nos lotes. A barra é a parte já distribuída.'}`);
        // 24/10/2026: para o SEAB/MDA, só os números absolutos (sem % distribuído nem saldo): a produção é contínua e a entrega acompanha; o percentual leria como "sobra parada". A equipe vê tudo.
        return `<li class="i5">${ic}<div class="i5-t">${r}<b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b>${fora() ? '' : `<span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>`}
@@ -5531,14 +5571,14 @@ var qrcode = function() {
     const bloco = f => { const x = FI.find(i => i.id === f[1]), E = R.equipePorFuncao(db, f[0], hj), ms = x ? x.meses : [], bolsas = {};
       (x ? x.despesas : []).forEach(d => { const k = R.nrm(d.favorecido); if (!k) return; const g = bolsas[k] = bolsas[k] || { nome: d.favorecido, n: 0, pago: 0, comp: 0 }; g.n++; if (d.status === 'Pago') g.pago += +d.valor || 0; else g.comp += +d.valor || 0; });
       const bolsaDe = m => { const g = bolsas[R.nrm(m.nome)]; if (g) g.visto = 1; return g ? `<span>${g.n} solicitação(ões) de bolsa</span><span>pago ${brl(g.pago)}</span>${g.comp ? `<span>comprometido ${brl(g.comp)}</span>` : ''}` : '<span>nenhuma bolsa na planilha ainda</span>'; };
-      const cartao = m => `<li class="pc">${avatar(m)}<div class="pc-t"><div class="pc-n"><b>${esc(m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${cuidaHab() ? seloHab(m) : ''}${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
+      const cartao = m => `<li class="pc">${avatar(m)}<div class="pc-t"><div class="pc-n"><b>${esc(m.nome_social || m.nome)}</b><span class="chip ok vg-c">${m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe'}</span>${cuidaHab() ? seloHab(m) : ''}${exChip(m)}</div><div class="pc-d">${[m.email, m.telefone, m.municipio, m.vinculo].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('')}<span>desde ${dt(m.inicio)}</span></div><div class="pc-d eq-bo">${bolsaDe(m)}</div></div>
         <button class="b eq-vd" data-fichamembro="${esc(m.id)}">Ver detalhes</button></li>`;
       const ult = E.antigos[0], vaga = `<div class="vg"><div><span class="chip f vg-c">Vaga aberta</span><p>${ult ? `A pessoa anterior, ${esc(ult.nome)}, foi desligada em ${dt(ult.fim)}.` : 'Ninguém foi cadastrado nesta função ainda.'}</p></div>${pode ? `<button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button>` : ''}</div>`;
       const corpo = (E.ativos.length ? `<ul class="eq-l">${E.ativos.map(cartao).join('')}</ul>` : '') + (!E.ativos.length ? vaga : !f[5] && pode ? `<div class="acts"><button class="vg-b" data-cadeq="${f[0]}">${IC_GENTE}<span>Cadastrar ${f[3]}</span></button></div>` : '');
       const cvs = pode && Array.isArray(convites) ? convites.filter(c => c.funcao === f[0]) : [];
       const cvHtml = cvs.length ? `<ul class="cv">${cvs.map(c => c.status === 'preenchido'
         ? `<li class="cv-i ok"><div><b>${esc((c.dados && c.dados.nome) || 'Cadastro recebido')}</b><small>preencheu pelo link em ${dt(String(c.preenchido_em).slice(0, 10))} · falta você conferir e aprovar</small></div><span class="ac"><button class="b p" data-cvaprovar="${esc(c.id)}">Conferir e aprovar</button><button class="b" data-cvfim="${esc(c.id)}:recusado">Recusar</button></span></li>`
-        : `<li class="cv-i"><div><b>Link de cadastro enviado</b><small>gerado em ${dt(String(c.criado_em).slice(0, 10))} · vale até ${dt(String(c.expira_em).slice(0, 10))} · aguardando a pessoa preencher</small></div><span class="ac"><button class="b" data-cvfim="${esc(c.id)}:cancelado">Cancelar o link</button></span></li>`).join('')}</ul>` : '';
+        : `<li class="cv-i"><div><b>Link de cadastro enviado</b><small>gerado em ${dt(diaLocal(c.criado_em))} · vale até ${dt(String(c.expira_em).slice(0, 10))} · aguardando a pessoa preencher</small></div><span class="ac"><button class="b" data-cvfim="${esc(c.id)}:cancelado">Cancelar o link</button></span></li>`).join('')}</ul>` : '';
       const fora_ = Object.values(bolsas).filter(g => !g.visto && !E.antigos.some(m => R.nrm(m.nome) === R.nrm(g.nome)));
       return `<section class="eq" aria-label="${f[2]}"><div class="eq-cab"><div><h2>${f[2]}</h2><p>${f[4]}</p></div></div>
        ${cvHtml}${corpo}
@@ -5636,7 +5676,7 @@ var qrcode = function() {
          <dl class="rdc-meta">
           <div><dt>Instrumento</dt><dd>Termo de Execução Descentralizada (TED)${D.TED_NUM ? ` nº ${esc(D.TED_NUM)}` : ''} com o MDA<span>${esc(D.IDENT.replace(/^TED MDA\/IFRN · /, '').replace(/ · Execução:.*$/, ''))}</span></dd></div>
           <div><dt>Execução</dt><dd>IFRN Campus Apodi, com gestão financeira da FUNCERN</dd></div>
-          ${co.length ? `<div class="rdc-co"><dt>${co.length > 1 ? 'Coordenação' : 'Coordenador do projeto'}</dt>${co.map(m => `<dd><b>${esc(m.nome)}</b>${m.siape ? `<span>SIAPE ${esc(m.siape)}</span>` : m.vinculo ? `<span>${esc(m.vinculo)}</span>` : ''}${m.email ? `<span>${esc(m.email)}</span>` : ''}</dd>`).join('')}</div>` : ''}
+          ${co.length ? `<div class="rdc-co"><dt>${co.length > 1 ? 'Coordenação' : 'Coordenador do projeto'}</dt>${co.map(m => `<dd><b>${esc(m.nome_social || m.nome)}</b>${m.siape ? `<span>SIAPE ${esc(m.siape)}</span>` : m.vinculo ? `<span>${esc(m.vinculo)}</span>` : ''}${m.email ? `<span>${esc(m.email)}</span>` : ''}</dd>`).join('')}</div>` : ''}
          </dl>
          <p class="rdc-ger">Gerado em ${hoje().toLocaleDateString('pt-BR')}${eu && eu.nome ? ` por ${esc(eu.nome)}` : ''}, com base nos registros do sistema.</p></header>`; }
   function relatorioDescritivo({ ev, lo, di, vi, en, fis, fimRel, secs }) {
@@ -5645,7 +5685,7 @@ var qrcode = function() {
     const daMeta = m => fis.filter(x => x.e.m === m), peso = l => l.reduce((t, x) => t + x.e.q * x.e.v, 0) || 1;
     const realMeta = m => { const l = daMeta(m); return l.reduce((t, x) => t + x.e.q * x.e.v * (x.av !== undefined ? x.av : Math.min(1, x.f / x.e.q)), 0) / peso(l) * 100; };
     const prevMeta = m => { const l = daMeta(m); return l.reduce((t, x) => t + x.e.q * x.e.v * R.previstoEtapa(x.e, fim), 0) / peso(l) * 100; };
-    const unidMeta2 = db.unidades.filter(u => u.conta === 'Sim'), unidPer = unidMeta2.filter(u => !u.criado_em || String(u.criado_em).slice(0, 10) <= fimRel), muni = u => [u.municipio, u.uf].filter(Boolean).join('/');
+    const unidMeta2 = db.unidades.filter(u => u.conta === 'Sim'), unidPer = unidMeta2.filter(u => !u.criado_em || diaLocal(u.criado_em) <= fimRel), muni = u => [u.municipio, u.uf].filter(Boolean).join('/');
     const porData = (x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0;
     /* 1. introdução: texto da coordenação (19/10/2026), com o período do relatório escrito por extenso no fim */
     const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -5663,7 +5703,7 @@ var qrcode = function() {
       .concat((D.EQUIPE_VOLUNTARIA || []).filter(v => !(db.membros || []).some(m => (!m.inicio || m.funcao === 'coordenacao' || m.inicio <= rel.ate) && (!m.fim || m.fim >= rel.de) && semAcento(m.nome) === semAcento(v.nome))).map(v => ({ nome: v.nome, funcao: v.funcao })));   // quem colabora sem bolsa (não está no cadastro da equipe)
     const nomeF = f => ({ coordenacao: 'Coordenador do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Apoio técnico (discente)', formador: 'Formador(a)' })[f] || f;   // nomes das funções como no plano de trabalho (quadro 13)
     const perM = m => iniM(m) && iniM(m) > rel.de || m.fim && m.fim < rel.ate ? `${iniM(m) && iniM(m) > rel.de ? dt(iniM(m)) : dt(rel.de)} a ${m.fim && m.fim < rel.ate ? dt(m.fim) : dt(rel.ate)}` : 'Todo o período';
-    const equipeHtml = () => `<div class="rd-vis rd-eq"><div class="vis-g" data-cp=""><table class="tc sem-ac rdm-t"><thead><tr><th>Nome</th><th>Função no projeto</th><th>No período</th></tr></thead><tbody>${equipe.map(m => `<tr data-cp="${esc(`${m.nome} · ${nomeF(m.funcao)} · ${perM(m)}`)}"><td data-r="Nome" class="w"><b>${esc(m.nome)}</b></td><td data-r="Função">${esc(nomeF(m.funcao))}</td><td data-r="No período">${esc(perM(m))}</td></tr>`).join('')}</tbody></table></div></div>`;
+    const equipeHtml = () => `<div class="rd-vis rd-eq"><div class="vis-g" data-cp=""><table class="tc sem-ac rdm-t"><thead><tr><th>Nome</th><th>Função no projeto</th><th>No período</th></tr></thead><tbody>${equipe.map(m => `<tr data-cp="${esc(`${m.nome} · ${nomeF(m.funcao)} · ${perM(m)}`)}"><td data-r="Nome" class="w"><b>${esc(m.nome_social || m.nome)}</b></td><td data-r="Função">${esc(nomeF(m.funcao))}</td><td data-r="No período">${esc(perM(m))}</td></tr>`).join('')}</tbody></table></div></div>`;
     /* 2. o que foi feito: uma frase por atividade, só com o que foi registrado (tema, local, participantes e observações da atividade) */
     const nPart = e => R.participantes(db, e);
     /* resumo da ata e observações: como a equipe escreveu; só fecha com ponto quando falta (sem "decisões:." nem ".”.") */
@@ -5707,7 +5747,7 @@ var qrcode = function() {
     feitos.push({ k: 'producao', t: 'Produção e distribuição de bioinsumos', p: [
       lotes.length ? `${lotes.length === 1 ? 'Foi iniciado 1 lote' : `Foram iniciados ${num(lotes.length)} lotes`} de produção: ${listaE(Object.keys(porTipo).map(k => { const [t, u] = k.split('|'); return `${t.charAt(0).toLowerCase() + t.slice(1)} (${qtdTxt(porTipo[k])} ${u})`.replace(' )', ')'); }))}.` : '',
       dist.length ? `${dist.length === 1 ? 'Foi feita 1 entrega' : `Foram feitas ${num(dist.length)} entregas`} de bioinsumo a ${pl(benef, 'unidade produtiva', 'unidades produtivas')}${munDist.length ? `, em ${listaE(munDist)}` : ''}, somando ${listaE(Object.keys(qtdDist).map(u => `${qtdTxt(qtdDist[u])} ${u}`.trim()))}.` : ''] });
-    const aplic = visitas.filter(v => v.usou === 'Sim').length, vis = new Set(visitas.map(v => v.agricultor)).size, novas = db.agricultores.filter(a => a.criado_em && String(a.criado_em).slice(0, 10) >= rel.de && String(a.criado_em).slice(0, 10) <= fimRel).length;
+    const aplic = visitas.filter(v => v.usou === 'Sim').length, vis = new Set(visitas.map(v => v.agricultor)).size, novas = db.agricultores.filter(a => a.criado_em && diaLocal(a.criado_em) >= rel.de && diaLocal(a.criado_em) <= fimRel).length;
     feitos.push({ k: 'monitoramento', t: 'Acompanhamento das unidades produtivas', p: [
       visitas.length ? `${visitas.length === 1 ? 'Foi feita 1 visita' : `Foram feitas ${num(visitas.length)} visitas`} de monitoramento a ${pl(vis, 'unidade produtiva', 'unidades produtivas')}; em ${num(aplic)} o bioinsumo recebido já tinha sido aplicado.` : '',
       novas ? `${novas === 1 ? '1 unidade produtiva foi cadastrada' : `${num(novas)} unidades produtivas foram cadastradas`} no período.` : ''] });
@@ -5715,7 +5755,9 @@ var qrcode = function() {
     /* 3. andamento das metas */
     /* 19/10/2026: só as metas com alguma etapa prevista no período (cronograma da equipe; sem ele, as datas do TED) */
     const naJanela = e => { const w = e.eq || e; return `${w.ini}-01` <= rel.ate && iso(R.fimMes(w.fim)) >= rel.de; };
-    const metasPer = metas.filter(m => D.ETAPAS.some(e => e.m === m && naJanela(e))), metasFora = metas.filter(m => !metasPer.includes(m));
+    /* 29/10/2026 (ataque aos Relatórios): etapa não concluída cujo prazo do TED já começou também entra (a janela da equipe pode ter passado e o TED não) */
+    const emAberto = e => { const x = fis.find(y => y.e === e); return !!x && x.f < e.q && `${e.ini}-01` <= rel.ate; };
+    const metasPer = metas.filter(m => D.ETAPAS.some(e => e.m === m && (naJanela(e) || emAberto(e)))), metasFora = metas.filter(m => !metasPer.includes(m));
     const metasM = metasPer.map(m => { const r = realMeta(m), pv = prevMeta(m), l = daMeta(m); return { m, r, pv, n: l.length, conc: l.filter(x => x.f >= x.e.q).length, abaixo: r + 0.5 < pv }; });
     const andamento = metasPer.map(m => { const r = realMeta(m), pv = prevMeta(m), l = daMeta(m), conc = l.filter(x => x.f >= x.e.q).length;
       return `Meta ${m} (${D.METAS[m]}): ${pct(r)}% realizado até ${dt(fimRel)}, para ${pct(pv)}% previsto pelo plano de trabalho até o último mês completo; ${conc} de ${l.length} ${l.length === 1 ? 'etapa concluída' : 'etapas concluídas'}${r + 0.5 >= pv ? '' : ' (abaixo do previsto)'}.`; });
@@ -5756,7 +5798,7 @@ var qrcode = function() {
     const presP = (db.presencas || []).filter(p => form.some(e => e.id === p.evento));
     const temMul = e => R.temMulheres(db, e), mulDe = e => R.mulheresDe(db, e);   // a mesma conta da Visão geral e dos quadros
     const totPart = form.reduce((t, e) => t + R.participantes(db, e), 0), baseMul = form.filter(temMul), totMul = baseMul.reduce((t, e) => t + mulDe(e), 0), partMul = baseMul.reduce((t, e) => t + R.participantes(db, e), 0);
-    const agrAte = db.agricultores.filter(a => !a.criado_em || String(a.criado_em).slice(0, 10) <= fimRel);
+    const agrAte = db.agricultores.filter(a => !a.criado_em || diaLocal(a.criado_em) <= fimRel);
     const unicosMun = l => { const v = new Map(); l.filter(Boolean).forEach(x => { const t = String(x).trim(), k = semAcento(t.replace(/\s*(?:\/|,|-|\()\s*[A-Za-z]{2}\)?$/, '')); if (t && (!v.has(k) || (t.length > v.get(k).length))) v.set(k, t); }); return [...v.values()].sort((a, b) => a.localeCompare(b, 'pt-BR')); };   // "Apodi" e "Apodi/RN" são um só
     const municipios = unicosMun([...form.map(e => e.municipio), ...agrAte.map(a => [a.municipio, a.uf].filter(Boolean).join('/')), ...unidPer.map(muni), ...presP.map(p => p.municipio)].map(x => String(x || '').replace(/\s*\/\s*/g, '/')));
     const comunidades = unicos([...agrAte.map(a => a.comunidade), ...presP.map(p => p.comunidade)]);
@@ -5764,8 +5806,10 @@ var qrcode = function() {
     const receberam = new Set(db.distribuicoes.filter(d => ateHoje(d.data) && d.data <= fimRel).map(d => d.agricultor)).size, comKit = agrAte.filter(a => a.kit && (!a.kitdata || a.kitdata <= fimRel)).length;
     const visAte = db.visitas.filter(v => v.data && v.data <= fimRel), comUso = visAte.filter(v => v.usou), usou = comUso.filter(v => v.usou === 'Sim').length, I5 = R.indicadores(db, fimRel);
     const abrang = [
-      form.length ? `${(() => { const c = form.filter(e => e.tipo === 'Capacitação').length, d = form.length - c, nc = c ? pl(c, 'capacitação realizada', 'capacitações realizadas') : '', nd = d ? pl(d, 'dia de campo realizado', 'dias de campo realizados') : '';
-        return (c + d === 1 ? (c ? 'Na capacitação realizada' : 'No dia de campo realizado') : `${c ? 'Nas' : 'Nos'} ${[nc, nd].filter(Boolean).join(' e ')}`); })()} até ${dt(fimRel)}, houve ${pl(totPart, 'participação', 'participações')}${partMul ? `, das quais ${pct(totMul / partMul * 100)}% de mulheres${partMul < totPart ? ' (entre as atividades com essa informação)' : ''}` : ''}.` : '',
+      form.length ? `${(() => { const c = form.filter(e => e.tipo === 'Capacitação').length, d = form.length - c;
+        /* 29/10/2026: cada parte com o seu artigo ("Na capacitação realizada e nos 2 dias de campo…"; antes saía "Nas 1 capacitação") e "no período" (a conta é do período, não acumulada) */
+        const t = [c ? (c === 1 ? 'na capacitação realizada' : `nas ${num(c)} capacitações realizadas`) : '', d ? (d === 1 ? 'no dia de campo realizado' : `nos ${num(d)} dias de campo realizados`) : ''].filter(Boolean).join(' e ');
+        return t.charAt(0).toUpperCase() + t.slice(1); })()} no período, houve ${pl(totPart, 'participação', 'participações')}${partMul ? `, das quais ${pct(totMul / partMul * 100)}% de mulheres${partMul < totPart ? ' (entre as atividades com essa informação)' : ''}` : ''}.` : '',
       municipios.length ? `As ações chegaram a ${pl(municipios.length, 'município', 'municípios')}${ufs.length ? ` em ${pl(ufs.length, 'estado', 'estados')} (${lista(ufs)})` : ''}: ${lista(municipios)}${comunidades.length ? `, alcançando ${pl(comunidades.length, 'comunidade, assentamento ou instituição', 'comunidades, assentamentos e instituições')}` : ''}.` : '',
       agrAte.length ? `Estão cadastradas ${pl(agrAte.length, 'unidade produtiva', 'unidades produtivas')} da agricultura familiar${agrAte.filter(a => a.diag).length ? `, ${num(agrAte.filter(a => a.diag).length)} com diagnóstico inicial (linha de base)` : ''}${receberam ? `; ${num(receberam)} já ${receberam === 1 ? 'recebeu' : 'receberam'} bioinsumo` : ''}${comKit ? ` e ${num(comKit)} ${comKit === 1 ? 'recebeu' : 'receberam'} kit de apoio` : ''}.` : '',
       comUso.length ? (comUso.length === 1 ? `Na visita de monitoramento com essa informação, o bioinsumo ${usou ? 'foi' : 'não foi'} usado.` : `Nas ${num(comUso.length)} visitas de monitoramento com essa informação, o bioinsumo foi usado em ${pct(usou / comUso.length * 100)}% delas.`) : '',
@@ -5789,7 +5833,7 @@ var qrcode = function() {
       if (x.m === 4) { const sem = agrAte.filter(a => !db.distribuicoes.some(d => d.agricultor === a.id && d.data <= fimRel)).length; if (sem) fatos.push(`${pl(sem, 'unidade produtiva cadastrada ainda não recebeu', 'unidades produtivas cadastradas ainda não receberam')} bioinsumo`); }
       return `Meta ${x.m} (${D.METAS[x.m]}): ${pct(x.r)}% realizado até ${dt(fimRel)}, para ${pct(x.pv)}% previsto.${pend.length ? ` Etapas em aberto: ${lista(pend)}.` : ''}${fatos.length ? ` Situação registrada: ${lista(fatos)}.` : ''} Motivo e encaminhamento: [a coordenação descreve aqui o motivo do atraso e o que será feito].`;
     });
-    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Relatos', 'Financeiro', 'Rubrica', 'Patrimônio', 'Prazo próximo'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
+    const atencao = fimRel === iso(hoje()) ? R.alertas(db, fim).filter(a => !['Monitoramento', 'Linha de base', 'Termo', 'Relatos', 'Acesso', 'Financeiro', 'Rubrica', 'Patrimônio', 'Prazo próximo'].includes(a[1])).map(a => a[3]).slice(0, 8) : [];
     const sub = (t, conteudo) => `<section class="rd-s"><h3>${t}</h3>${conteudo}</section>`;
     return `<section class="panel rel-op noprint" aria-label="Opções do relatório descritivo">
       <label class="rel-ck"><input type="checkbox" data-relanexo${relAnexo ? ' checked' : ''}><span><b>Anexar quadros numéricos</b><small>Tabelas de execução física e financeira no fim do relatório.</small></span></label>
@@ -5831,8 +5875,8 @@ var qrcode = function() {
         return `Meta 2: ${m2.filter(fu).length} de ${m2.length} em funcionamento até ${dt(fimRel)} (com os ${D.CHECK.length} passos)${ap ? ` · mais ${pl(ap, 'unidade de apoio', 'unidades de apoio')}, fora do TED` : ''}`; })(), tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true)],
  ['ati', 'Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null; const q = [R.pelaLista(db, e) ? 'pela lista' : '', mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`].filter(Boolean).join(', '); return `${num(p)}${q ? ` (${q})` : ''}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
  ['lot', 'Produção de bioinsumos no período', lo.length ? `${lo.length} lote(s) iniciado(s)` : '', tl(['Lote', 'Tipo', 'Biofábrica', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))],
- ['dis', 'Distribuição no período', '', tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, esc((by('agricultores', d.agricultor) || {}).nome), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; })) + (di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : '')],
- ['mon', 'Monitoramento do uso no período', '', tl(['Data', 'Unidade produtiva', 'Aplicou?', 'Vigor', 'Observações'], vi.map(v => [dt(v.data), esc((by('agricultores', v.agricultor) || {}).nome), esc(v.usou), v.vigor ? esc(v.vigor) + '/5' : '—', esc(v.obs) + (v.problemas ? ' Dificuldade: ' + esc(v.problemas) : '')])) + (vi.length ? `<p>${vi.length} visita(s); em ${aplic} o bioinsumo havia sido aplicado.</p>` : '')],
+ ['dis', 'Distribuição no período', '', tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, upNum(d.agricultor), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; })) + (di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : '')],
+ ['mon', 'Monitoramento do uso no período', '', tl(['Data', 'Unidade produtiva', 'Aplicou?', 'Vigor'], vi.map(v => [dt(v.data), upNum(v.agricultor), esc(v.usou), v.vigor ? esc(v.vigor) + '/5' : '—'])) + (vi.length ? `<p>${vi.length} visita(s); em ${aplic} o bioinsumo havia sido aplicado.</p>` : '')],
  ['ent', 'Entregas e evidências no período', en.length ? `${en.length} entrega(s) do plano` : '', tl(['Etapa', 'Entrega', 'Data'], en.map(g => [`<span class="mono">${esc(g.etapa)}</span>`, esc(g.titulo), dt(g.data)]))],
  ['fin', `Execução financeira acumulada até ${dt(rel.ate)}, por meta`, '', `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)">${finTabela(F, 'Meta')}</div>`],
  ['rub', `Execução financeira acumulada até ${dt(rel.ate)}, por rubrica`, 'Valores lançados no sistema. O registro oficial é o da FUNCERN.', `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)">${finTabela(FR, 'Rubrica')}</div>`],
@@ -6174,7 +6218,7 @@ ${secs}</div>`;
     const dono = ed, aqui = () => ed === dono && b.isConnected;   // a resposta do GPS demora: se o formulário fechou ou mudou, ela é descartada (auditoria 14/10)
     navigator.geolocation.getCurrentPosition(p => {
       if (!aqui()) return; const t = $('#f_geo_t');
-      b.disabled = false; const r = { lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6, precisao: Math.round(p.coords.accuracy) };
+      b.disabled = false; const r = { lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6, precisao: Math.min(100000, Math.round(p.coords.accuracy)) };   /* 29/10/2026: o banco aceita até 100 km de imprecisão */
       $('#f_lat').value = r.lat; $('#f_lng').value = r.lng; $('#f_precisao').value = r.precisao; b.querySelector('span').textContent = 'Pegar de novo';
       t.textContent = textoLocal(r) + (r.precisao > 100 ? ' · precisão baixa: tente de novo fora de casa' : '');
       if (!$('[data-geolimpar]')) t.insertAdjacentHTML('afterend', '<button type="button" class="lk geo-x" data-geolimpar>Apagar</button>');
@@ -6188,7 +6232,7 @@ ${secs}</div>`;
   function anxItens(m, id) {
     const L = id ? anexosDe(m, id) : [], F = (ed && ed.anexosFila) || [];
     const pode = a => eu.perfil === 'Coordenação' || a.legado || a.criado_por === eu.id;
-    const itens = L.map(a => `<li class="anx-i"><span class="anx-ic">${IC_DOC}</span><span class="anx-n"><b>${esc(nomeDoc(a))}</b>${a.criado_em ? `<small>anexado em ${dt(String(a.criado_em).slice(0, 10))}</small>` : ''}</span><span class="anx-ac"><button type="button" class="b peq" data-anxabrir="${esc(a.id)}">Abrir</button>${pode(a) ? `<button type="button" class="b peq anx-x" data-anxdel="${esc(a.id)}" aria-label="Remover ${esc(nomeDoc(a))}">Remover</button>` : ''}</span></li>`)
+    const itens = L.map(a => `<li class="anx-i"><span class="anx-ic">${IC_DOC}</span><span class="anx-n"><b>${esc(nomeDoc(a))}</b>${a.criado_em ? `<small>anexado em ${dt(diaLocal(a.criado_em))}</small>` : ''}</span><span class="anx-ac"><button type="button" class="b peq" data-anxabrir="${esc(a.id)}">Abrir</button>${pode(a) ? `<button type="button" class="b peq anx-x" data-anxdel="${esc(a.id)}" aria-label="Remover ${esc(nomeDoc(a))}">Remover</button>` : ''}</span></li>`)
       .concat(F.map((f, i) => `<li class="anx-i anx-f"><span class="anx-ic">${IC_DOC}</span><span class="anx-n"><b>${esc(f.name.replace(/_+/g, ' '))}</b><small>${tamDoc(f)} · sobe ao salvar</small></span><span class="anx-ac"><button type="button" class="b peq anx-x" data-anxtira="${i}" aria-label="Tirar ${esc(f.name)}">Tirar</button></span></li>`));
     return itens.length ? itens.join('') : '<li class="anx-vazio">Nenhum documento anexado ainda.</li>';
   }
@@ -6283,6 +6327,7 @@ ${secs}</div>`;
   const NOME_FUNCAO = { coordenacao: 'Coordenação do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Bolsista discente', formador: 'Formador(a)' };
   async function carregarConvites() { try { convites = await api.convites(); } catch (e) { convites = []; toast(e.message); } if (tab === 'equipe') render(); }
   function abrirEscolha(funcao, subst) {
+    if (!R.podeGravar(eu, 'membros') || !NOME_FUNCAO[funcao]) return;   /* 29/10/2026: botão forjado não abre a janela */
     ed = null; cadSubst = subst || null; $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${subst ? 'Cadastrar substituta' : 'Cadastrar'}</span><h2>${NOME_FUNCAO[funcao]}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="aj-p">Como você quer fazer este cadastro?</p>
@@ -6350,6 +6395,7 @@ ${secs}</div>`;
   /* ---------- lista de presença de uma atividade (script 13) ---------- */
   let prUlt = {};   // comunidade e município do último nome digitado: na mesma atividade quase sempre se repetem
   function abrirPresenca(evId, msg) {
+    if (['Acompanhamento', 'Equipe'].includes(eu.perfil)) return;   /* 29/10/2026: quem não lê a lista não abre a janela */
     $('#dlg').dataset.rede = 'fila';
     const e = by('eventos', evId); if (!e) return;
     if (prEv !== evId) prEdit = null;
@@ -6358,12 +6404,12 @@ ${secs}</div>`;
     $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('presencas')}<div class="fm-tt"><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="fm-sub">${esc(e.tipo)} · ${dt(e.data)}${e.lugar ? ' · ' + esc(e.lugar) : ''}</p>
-      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: fotografe ou digitalize e anexe como documento da atividade (no Editar da atividade, “Adicionar documento”: aceita foto, PDF e Word). Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
+      <div class="fm-oque"><span>Como fazer</span><p>Imprima a lista em branco, passe na atividade para as pessoas assinarem e digite aqui os nomes depois. A folha assinada é a evidência: ${eu.perfil === 'Formador' ? 'entregue-a à coordenação, que a anexa como documento da atividade' : 'fotografe ou digitalize e anexe como documento da atividade (no Editar da atividade, “Adicionar documento”: aceita foto, PDF e Word)'}. Só a equipe do projeto vê os nomes; o SEAB/MDA vê só o total de participantes.</p></div>
       <p class="pr-t"><b>${L.length}</b> pessoa${L.length === 1 ? '' : 's'} na lista${L.length ? `, das quais ${mul} mulher${mul === 1 ? '' : 'es'}. A quantidade de participantes da atividade é a desta lista` : '. Com nomes aqui, a quantidade de participantes da atividade passa a ser a desta lista'}.${difere ? ` ${R.vazio(e.part) ? 'A atividade ainda não tem número de participantes registrado.' : `Na atividade estão registrados ${num(e.part)} participantes${R.vazio(e.mulheres) ? '' : ` (${num(e.mulheres)} mulheres)`}.`}` : ''}</p>
       ${L.length ? `<ol class="pr-l">${L.map(x => prEdit === x.id && pode ? `<li class="pr-ed"><span class="pr-ed-n"><b>${esc(x.nome)}</b></span><div class="fields"><div class="fld"><label for="pe_com">Comunidade ou instituição</label><input id="pe_com" data-tipo="endereco" value="${esc(x.comunidade || '')}"></div><div class="fld"><label for="pe_mun">Município</label><input id="pe_mun" data-tipo="lugar" value="${esc(x.municipio || '')}"></div>
         <div class="fld"><span aria-hidden="true"></span><fieldset><label><input type="checkbox" id="pe_mul"${x.mulher ? ' checked' : ''}>Mulher</label></fieldset></div></div>
         <div class="acts"><button type="button" class="b p" data-prsalvar="${esc(x.id)}">Salvar</button><button type="button" class="b" data-prcancel>Cancelar</button></div></li>`
-      : `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · ')) || (pode ? '<i>sem comunidade ou instituição e município</i>' : '')}</small></span><span class="pr-dir">${pode && !x._pendente ? `<button type="button" class="pr-x pr-lap" data-predit="${esc(x.id)}" title="Completar comunidade ou instituição, município e se é mulher" aria-label="Completar os dados de ${esc(x.nome)}">${IC_LAPIS_PR}</button>` : ''}${R.podeExcluir(eu, 'presencas', x) && !x._pendente ? `<button type="button" class="pr-x" title="Tirar da lista" data-prdel="${esc(x.id)}" aria-label="Tirar ${esc(x.nome)} da lista"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}</span></li>`).join('')}</ol>` : ''}
+      : `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · ')) || (pode ? '<i>sem comunidade ou instituição e município</i>' : '')}</small></span><span class="pr-dir">${pode && !x._pendente ? `<button type="button" class="pr-x pr-lap" data-predit="${esc(x.id)}" title="Completar comunidade ou instituição, município e se é mulher" aria-label="Completar os dados de ${esc(x.nome)}">${IC_LAPIS_PR}</button>` : ''}${R.podeExcluir(eu, 'presencas', x) && (eu.perfil !== 'Formador' || pode) && !x._pendente ? `<button type="button" class="pr-x" title="Tirar da lista" data-prdel="${esc(x.id)}" aria-label="Tirar ${esc(x.nome)} da lista"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}</span></li>`).join('')}</ol>` : ''}
       ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3>
         <div class="fld w pr-add"><label for="pr_varios">Nomes, um por linha (pode ser um só)</label><textarea id="pr_varios" rows="4" placeholder="Maria da Silva (exemplo)&#10;José Pereira (exemplo)">${prLote.ev === evId ? esc(prLote.texto) : ''}</textarea>
           <p class="fm-dica">Digite ou cole os nomes da ata. A numeração do começo da linha (1., 2 -) sai sozinha. Na conferência, marque quem é mulher. Comunidade ou instituição e município se completam depois, no lápis ao lado de cada nome.</p></div>
@@ -6388,15 +6434,16 @@ ${secs}</div>`;
      sem a numeração do começo, sem repetir quem já está na lista; a pessoa confere e marca quem é mulher antes de gravar. */
   let prLote = { ev: null, texto: '', nomes: [], fora: 0 };
   function prSeparar(evId, texto) {
-    const ja = new Set((db.presencas || []).filter(x => x.evento === evId).map(x => R.nrm(x.nome))), vistos = new Set(); let fora = 0;
-    const nomes = String(texto || '').split(/[\n;]+/).map(l => l.replace(/^[\s\-–•*·]*(\d+\s*[.)\-–:ºª°]?\s*)?/, '').replace(/[^\p{L}\s'’.\-()]/gu, '').replace(/\s+/g, ' ').replace(/^[\s.\-]+|[\s.\-]+$/g, '').trim())
-      .filter(n => { if (n.length < 3) return false; const k = R.nrm(n); if (ja.has(k) || vistos.has(k)) { fora++; return false; } vistos.add(k); return true; });
-    return { ev: evId, texto, nomes: nomes.map(nome => ({ nome, mulher: false })), fora };
+    const ja = new Set((db.presencas || []).filter(x => x.evento === evId).map(x => R.nrm(x.nome))), vistos = new Set(); let fora = 0, curtos = 0;
+    /* 29/10/2026: NFC antes de filtrar (nome colado de PDF vem com o acento separado da letra e o acento sumia) */
+    const nomes = String(texto || '').normalize('NFC').split(/[\n;]+/).map(l => l.replace(/^[\s\-–•*·]*(\d+\s*[.)\-–:ºª°]?\s*)?/, '').replace(/[^\p{L}\p{M}\s'’.\-()]/gu, '').replace(/\s+/g, ' ').replace(/^[\s.\-]+|[\s.\-]+$/g, '').trim())
+      .filter(n => { if (n.length < 3) { if (n) curtos++; return false; } const k = R.nrm(n); if (ja.has(k) || vistos.has(k)) { fora++; return false; } vistos.add(k); return true; });
+    return { ev: evId, texto, nomes: nomes.map(nome => ({ nome, mulher: false })), fora, curtos };
   }
   function prPrevia(evId) {
     const L = prLote.nomes; if (prLote.ev !== evId) return '';
     if (!L.length) return `<p class="small">${prLote.fora ? `Esses nomes já estão na lista.` : 'Nenhum nome encontrado. Cole um nome por linha.'}</p>`;
-    return `<p class="pr-t"><b>${L.length}</b> nome${L.length === 1 ? '' : 's'} para entrar${prLote.fora ? ` (${prLote.fora} já estava${prLote.fora === 1 ? '' : 'm'} na lista ou repetido${prLote.fora === 1 ? '' : 's'} e fica${prLote.fora === 1 ? '' : 'm'} de fora)` : ''}. Confira e marque quem é mulher:</p>
+    return `<p class="pr-t"><b>${L.length}</b> nome${L.length === 1 ? '' : 's'} para entrar${prLote.fora ? ` (${prLote.fora} já estava${prLote.fora === 1 ? '' : 'm'} na lista ou repetido${prLote.fora === 1 ? '' : 's'} e fica${prLote.fora === 1 ? '' : 'm'} de fora)` : ''}${prLote.curtos ? `. ${prLote.curtos} linha${prLote.curtos === 1 ? '' : 's'} com menos de 3 letras ficou de fora` : ''}. Confira e marque quem é mulher:</p>
       <ol class="pr-l pr-cf">${L.map((x, i) => `<li><span class="pr-n"><b>${esc(x.nome)}</b><button type="button" class="pr-x pr-xs" data-prtira="${i}" title="Tirar ${esc(x.nome)}" aria-label="Tirar ${esc(x.nome)} dos nomes a adicionar"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span><label class="pr-m"><input type="checkbox" data-prm="${i}"${x.mulher ? ' checked' : ''}><svg class="pr-mk" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg>Mulher</label></li>`).join('')}</ol>
       <div class="acts"><button type="button" class="b p" data-pradds="${esc(evId)}">Adicionar ${L.length === 1 ? 'esta pessoa' : `as ${L.length} pessoas`}</button></div>`;
   }
@@ -6404,7 +6451,9 @@ ${secs}</div>`;
     if (prOcupado) return; prOcupado = true;
     try {
       const v = id => (($('#' + id) || {}).value || '').trim(), com = v('pr_com'), mun = v('pr_mun'); let ok = 0, fila = 0; const erros = [];
-      for (const x of prLote.nomes.slice()) {
+      const todos = prLote.nomes.slice(), bt = $(`#frm [data-pradds="${CSS.escape(evId)}"]`); let k = 0;
+      for (const x of todos) {
+        k++; if (bt && bt.isConnected) { bt.disabled = true; bt.textContent = `Gravando ${k} de ${todos.length}…`; }   /* 29/10/2026: com sinal fraco, mostra o andamento */
         const r = { id: SQC.novoId(), evento: evId, nome: x.nome, comunidade: com, municipio: mun, mulher: !!x.mulher };
         const msg = R.validar(db, 'presencas', r, null); if (msg) { erros.push(`${x.nome}: ${msg}`); continue; }
         if ((db.presencas || []).some(p => p.evento === evId && R.nrm(p.nome) === R.nrm(r.nome))) continue;
@@ -6415,6 +6464,8 @@ ${secs}</div>`;
       prUlt = { comunidade: com, municipio: mun };
       if (!prLote.nomes.length) prLote = { ev: null, texto: '', nomes: [], fora: 0 };
       if (ok) render();   // 24/10/2026: a tela por trás (Formação, Visão geral) mostra a lista nova sem precisar recarregar
+      /* 29/10/2026 (ataque à Formação): a gravação é lenta com sinal fraco; se a pessoa fechou a Lista ou abriu outra janela no meio, não a apaga */
+      if (!($('#dlg').open && prEv === evId && !ed && $('#pr_varios'))) { if (ok || erros.length) toast(`${ok} pessoa${ok === 1 ? '' : 's'} entr${ok === 1 ? 'ou' : 'aram'} na lista.${erros.length ? ' Não entraram: ' + erros.join(' · ') : ''}`); return; }
       abrirPresenca(evId, `${ok} pessoa${ok === 1 ? '' : 's'} entr${ok === 1 ? 'ou' : 'aram'} na lista.${fila ? ` ${fila} guardada${fila === 1 ? '' : 's'} neste aparelho, envia${fila === 1 ? '' : 'm'} quando o sinal voltar.` : ''}`);
       if (erros.length) $('#ferr').textContent = 'Não entraram: ' + erros.join(' · ');
       setTimeout(() => { const c = $('#pr_varios'); if (c) c.focus(); }, 60);   // 24/10/2026: campo único dos nomes; o foco volta a ele (depois de o ditado, voz.js, montar a barra do campo)
@@ -6425,8 +6476,8 @@ ${secs}</div>`;
   /* ---------- fotos de uma atividade ou visita (script 13) ---------- */
   const urlsFoto = {};   // id da foto → endereço da imagem já baixada nesta página
   function abrirFotos(t, id, msg) {
-    const r = by(t, id); if (!r) return; $('#dlg').dataset.rede = 'foto';
-    ed = null; const F = (db.fotos || []).filter(f => f.tabela === t && f.registro === id).sort((a, b) => (a.criado_em || '') < (b.criado_em || '') ? -1 : 1), pode = R.podeGravar(eu, 'fotos');
+    const r = by(t, id); if (!r || ['Acompanhamento', 'Equipe'].includes(eu.perfil)) return;   /* 29/10/2026: quem não lê as fotos não abre a janela */ $('#dlg').dataset.rede = 'foto';
+    ed = null; const F = (db.fotos || []).filter(f => f.tabela === t && f.registro === id).sort((a, b) => (a.criado_em || '') < (b.criado_em || '') ? -1 : 1), pode = R.podeGravar(eu, 'fotos') && !R.mexerRegistro(db, eu, 'fotos', null, { tabela: t, registro: id });   /* 29/10/2026: formador(a) só nas atividades que registrou */
     const titulo = t === 'eventos' ? esc(r.tema) : t === 'unidades' ? esc(r.nome) : esc((by('agricultores', r.agricultor) || { nome: 'Visita' }).nome), dia = r.data;
     $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('fotos')}<div class="fm-tt"><span class="fm-eye">Fotos ${t === 'eventos' ? 'da atividade' : t === 'unidades' ? 'da biofábrica' : 'da visita'}</span><h2>${titulo}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
@@ -6573,16 +6624,26 @@ ${secs}</div>`;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
     const av = doc.splitTextToSize(pdfTxt('Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).'), LW); doc.text(av, X0, y + 3); y += av.length * 3.6 + 3;
     const ps = (db.presencas || []).filter(x => x.evento === e.id).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1);   // 24/10/2026: nomes já na lista saem preenchidos
-    const cols = [['Nº', 9], ['Nome completo', 55], ['Comunidade/Instituição', 33], ['Município', 28], ['Mulher? S/N', 13], ['Assinatura', LW - 138]], H = 9.6, cabe = Math.floor((280 - y - 9) / H), n = Math.max(ps.length ? ps.length + 6 : 20, Math.min(20, cabe));
-    doc.setFillColor(...PV); doc.rect(X0, y, LW, 9, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
-    let x = X0; cols.forEach(([t, w], k) => { const L = doc.splitTextToSize(pdfTxt(t), w - 2.5); doc.text(L, k ? x + 2 : x + w / 2, y + (L.length > 1 ? 3.8 : 5.6), k ? {} : { align: 'center' }); x += w; }); y += 9;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
-    for (let i = 1; i <= n; i++) { if (i % 2 === 0) { doc.setFillColor(245, 248, 245); doc.rect(X0, y, LW, H, 'F'); } doc.setDrawColor(...PP); doc.setLineWidth(0.25); doc.line(X0, y, X0 + LW, y);
-      x = X0; cols.forEach(([, w], k) => { if (k) { doc.setDrawColor(225, 232, 226); doc.line(x, y, x, y + H); } x += w; }); doc.text(String(i), X0 + 4.5, y + 6, { align: 'center' });
-      const pp = ps[i - 1]; if (pp) { const val = [null, pp.nome, pp.comunidade, pp.municipio, pp.mulher ? 'S' : '', null]; let cx = X0; cols.forEach(([, w], k) => { if (val[k]) doc.text(doc.splitTextToSize(pdfTxt(String(val[k])), w - 3)[0], cx + 2, y + 6); cx += w; }); }
-      y += H; }
-    doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(X0, y - n * H - 9, LW, n * H + 9, 2, 2, 'S');
-    pdfPe(doc, 'Responsável', '', 'Folha ____ de ____');
+    const cols = [['Nº', 9], ['Nome completo', 55], ['Comunidade/Instituição', 33], ['Município', 28], ['Mulher? S/N', 13], ['Assinatura', LW - 138]], H = 9.6;
+    /* 29/10/2026: 20 linhas por folha (antes os nomes depois do ~22º saíam fora da folha); cada folha repete cabeçalho e atividade */
+    const POR = Math.max(10, Math.min(20, Math.floor((280 - y - 9) / H))), total = ps.length ? ps.length + 6 : POR, nf = Math.ceil(total / POR), y0 = y;
+    for (let f = 0; f < nf; f++) {
+      if (f) { doc.addPage(); y = pdfCab(doc, 'Lista de presença', `${e.tipo} · ${dt(e.data)}${e.municipio ? ' · ' + e.municipio : ''}`);
+        doc.setFillColor(238, 244, 238); doc.roundedRect(X0, y, LW, alt, 1.5, 1.5, 'F'); doc.setFillColor(39, 102, 58); doc.rect(X0, y, 1.2, alt, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...PL); doc.text('Atividade', X0 + 4.5, y + 4.5); doc.setFontSize(10); doc.setTextColor(...PT); doc.text(tema, X0 + 4.5, y + 9.2);
+        if (e.lugar) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(pdfTxt(e.lugar), X0 + 4.5, y + 9.2 + tema.length * 4.6); }
+        y = y0; doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC); doc.text(av, X0, y - av.length * 3.6); }
+      doc.setFillColor(...PV); doc.rect(X0, y, LW, 9, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+      let x = X0; cols.forEach(([t, w], k) => { const L = doc.splitTextToSize(pdfTxt(t), w - 2.5); doc.text(L, k ? x + 2 : x + w / 2, y + (L.length > 1 ? 3.8 : 5.6), k ? {} : { align: 'center' }); x += w; }); y += 9;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...PC);
+      for (let j = 0; j < POR; j++) { const i = f * POR + j + 1;
+        if (i % 2 === 0) { doc.setFillColor(245, 248, 245); doc.rect(X0, y, LW, H, 'F'); } doc.setDrawColor(...PP); doc.setLineWidth(0.25); doc.line(X0, y, X0 + LW, y);
+        x = X0; cols.forEach(([, w], k) => { if (k) { doc.setDrawColor(225, 232, 226); doc.line(x, y, x, y + H); } x += w; }); doc.text(String(i), X0 + 4.5, y + 6, { align: 'center' });
+        const pp = ps[i - 1]; if (pp) { const val = [null, pp.nome, pp.comunidade, pp.municipio, pp.mulher ? 'S' : '', null]; let cx = X0; cols.forEach(([, w], k) => { if (val[k]) doc.text(doc.splitTextToSize(pdfTxt(String(val[k])), w - 3)[0], cx + 2, y + 6); cx += w; }); }
+        y += H; }
+      doc.setDrawColor(...PB); doc.setLineWidth(0.35); doc.roundedRect(X0, y - POR * H - 9, LW, POR * H + 9, 2, 2, 'S');
+    }
+    pdfPe(doc, 'Responsável', '');   /* "Folha N de T" em cada folha */
   }
   function pdfEtiqueta(doc, l) {
     const u = by('unidades', l.unidade) || {}, q = qrcode(0, 'M'); q.addData(urlLote(l)); q.make(); const n = q.getModuleCount();
@@ -6730,22 +6791,37 @@ ${secs}</div>`;
     const M = MOD[m], r = by(m, id); if (!r) return; const nome = rotuloImp(m, r) || M.um;
     imprimir(`<section class="pf pf-ficha pf-cheia">${paginasImp(M.um, 'Ficha do sistema · ' + esc(nome), blocosFicha(m, r), M.um, '')}</section>`, `${M.um} - ${nome} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
   }
+  /* 29/10/2026 (ataque aos Relatórios): o relatório vai ao financiador; nele a unidade produtiva sai pelo número (mesma ordem do
+     agricultores_anonimos do banco: data de cadastro e id), nunca pelo nome, e sem as observações livres da visita */
+  /* 29/10/2026: criado_em vem em UTC; à noite no Brasil o "dia" pelo texto já era o seguinte */
+  function diaLocal(ts) { if (/^\d{4}-\d{2}-\d{2}$/.test(String(ts || ''))) return String(ts); const d = new Date(ts); return isNaN(d) ? String(ts || '').slice(0, 10) : iso(d); }
+  function upNum(id) {   /* 50: número fixo da unidade (não muda quando outra é excluída); banco sem o 50, a ordem de cadastro */
+    const a = by('agricultores', id); if (!a) return '—';
+    if (/^Unidade produtiva \d+$/.test(a.nome || '')) return a.nome;
+    if (a.numero) return 'Unidade produtiva ' + String(a.numero).padStart(2, '0');
+    const L = (db.agricultores || []).slice().sort((x, y) => (x.criado_em || '') < (y.criado_em || '') ? -1 : (x.criado_em || '') > (y.criado_em || '') ? 1 : x.id < y.id ? -1 : 1);
+    return 'Unidade produtiva ' + String(L.findIndex(x => x.id === id) + 1).padStart(2, '0');
+  }
   function imprimirLista(evId) {
     const e = by('eventos', evId); if (!e) return;
     // 24/10/2026: se já há nomes na lista, a folha sai com eles preenchidos (as pessoas só assinam ao lado); mais linhas em branco para quem chegar sem estar na lista
     const ps = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1);
-    const td = v => `<td>${esc(v || '')}</td>`, extras = ps.length ? 6 : 20, total = ps.length + extras;
-    const linhas = Array.from({ length: total }, (_, i) => { const x = ps[i];
-      return x ? `<tr><td>${i + 1}</td><td class="pf-lp-n">${esc(x.nome)}</td>${td(x.comunidade)}${td(x.municipio)}<td>${x.mulher ? 'S' : ''}</td><td></td></tr>`
-               : `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`; }).join('');
+    /* 29/10/2026 (ataque à Formação): com mais de ~22 nomes a folha cortava o resto (a .pf-pag tem altura fixa). Agora 20 linhas por folha,
+       cada folha com cabeçalho, atividade, aviso e "Folha N de T"; a última completa com linhas em branco para quem chegar. */
+    const td = v => `<td>${esc(v || '')}</td>`, POR = 20, total = ps.length ? ps.length + 6 : POR, nf = Math.ceil(total / POR);
     const sub = `${esc(e.tipo)} · ${dt(e.data)}${e.municipio ? ' · ' + esc(e.municipio) : ''}`;
-    // 23/10/2026: mesma moldura das fichas (cabeçalho, rodapé no pé da folha), colunas com largura fixa para escrever à mão
-    imprimir(`<section class="pf pf-ficha pf-lista"><div class="pf-pag">${cabImp('Lista de presença', sub)}<div class="pf-corpo">
+    const folhas = Array.from({ length: nf }, (_, f) => {
+      const linhas = Array.from({ length: POR }, (_, j) => { const i = f * POR + j, x = ps[i];
+        return x ? `<tr><td>${i + 1}</td><td class="pf-lp-n">${esc(x.nome)}</td>${td(x.comunidade)}${td(x.municipio)}<td>${x.mulher ? 'S' : ''}</td><td></td></tr>`
+                 : `<tr><td>${i + 1}</td><td></td><td></td><td></td><td></td><td></td></tr>`; }).join('');
+      /* 23/10/2026: mesma moldura das fichas (cabeçalho, rodapé no pé da folha), colunas com largura fixa para escrever à mão */
+      return `<div class="pf-pag">${cabImp('Lista de presença', sub)}<div class="pf-corpo">
       <div class="pf-lp-tema"><span class="pf-l">Atividade</span><b>${esc(e.tema || e.tipo)}</b>${e.lugar ? `<span>${esc(e.lugar)}</span>` : ''}</div>
       <p class="pf-o">Ao assinar, você concorda que seu nome conste nesta lista, usada só para comprovar a atividade ao financiador (Lei nº 13.709/2018).</p>
       <table class="pf-lp"><colgroup><col style="width:9mm"><col style="width:55mm"><col style="width:33mm"><col style="width:28mm"><col style="width:13mm"><col></colgroup>
       <thead><tr><th>Nº</th><th>Nome completo</th><th>Comunidade/Instituição</th><th>Município</th><th>Mulher? S/N</th><th>Assinatura</th></tr></thead><tbody>${linhas}</tbody></table></div>
-      <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span class="pf-pe-id">Responsável: <i></i></span><span>Folha ____ de ____</span></footer></div></section>`, `Lista de presença - ${e.tema || e.tipo} - ${dt(e.data).replace(/\//g, '-')}`);
+      <footer class="pf-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span class="pf-pe-id">Responsável: <i></i></span><span>Folha ${f + 1} de ${nf}</span></footer></div>`; }).join('');
+    imprimir(`<section class="pf pf-ficha pf-lista">${folhas}</section>`, `Lista de presença - ${e.tema || e.tipo} - ${dt(e.data).replace(/\//g, '-')}`);
   }
 
   /* registro que depende de outro (item → biofábrica, lote → biofábrica, entrega → lote pronto e unidade produtiva, visita → unidade produtiva):
@@ -6802,7 +6878,7 @@ ${secs}</div>`;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab">${icCad(m)}<div class="fm-tt"><span class="fm-eye">${memNovo ? (antigo ? 'Cadastrar substituta' : 'Cadastrar') : m === 'pessoas' && !id && pre ? 'Acompanhamento externo' : id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(memNovo ? NOME_FUNCAO[pre] || M.um : m === 'membros' && id ? r.nome : m === 'pessoas' && !id && pre ? 'Nova pessoa que acompanha' : M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span><b>Vai preencher no papel?</b> Imprima a ficha em branco, preencha em campo e digite aqui depois.</span>${btnImprimir(`data-imprimir="${m}"`, FICHA_PAPEL[m])}</div>` : ''}${memNovo && !ed.convite && convites !== null ? `<button type="button" class="cad-modo" data-gerarlink="${esc(pre)}"><b>Prefere que a pessoa preencha?</b><span>Gere um link e mande pelo WhatsApp.</span><i aria-hidden="true">→</i></button>` : ''}${M.oque && !id && m !== 'membros' && !(m === 'pessoas' && pre) ? `<div class="fm-oque fm-oque-fixo" role="note" aria-label="O que é"><b class="fm-oque-t">O que é</b><p>${esc(M.oque)}</p></div>` : ''}${m !== 'membros' && M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${antigo ? `<p class="fm-sub">Substitui <b>${esc(antigo.nome)}</b>, desligada(o) em ${dt(antigo.fim)}. O histórico liga as duas pessoas.</p>` : ''}${corpo}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${id && IMPRIMIVEIS.includes(m) ? btnImprimir(`data-imprimircheio="${m}:${esc(id)}"`, 'Imprimir esta ficha') : ''}${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR')}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${id && IMPRIMIVEIS.includes(m) ? btnImprimir(`data-imprimircheio="${m}:${esc(id)}"`, 'Imprimir esta ficha') : ''}${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${r.codigo ? btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR') : ''}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#dlg').dataset.rede = ['despesas', 'pessoas', 'membros'].includes(m) ? 'conexao' : 'fila';   // aviso sem internet certo para esta janela
     { const d = $('#frm .fm-oque-fixo, #frm .fm-oque-d'), o = $('#frm .fm-obr'); if (d || o) { const w = document.createElement('div'); w.className = 'fm-info'; (d || o).before(w); if (d) w.append(d); if (o) w.append(o); } }   // 21/10/2026: "O que é" e "* obrigatório" numa linha só
     if (id && r._servidor) painelConflito(m, r);
@@ -6846,6 +6922,7 @@ ${secs}</div>`;
   }
   async function gravarRegistro(m, r, ant) {
     const limpo = Object.assign({}, r); delete limpo._pendente; delete limpo._erro; delete limpo._servidor;
+    { const mx = R.mexerRegistro(db, eu, m, ant || null, limpo); if (mx) return { ok: false, msg: mx }; }   /* 29/10/2026: a regra por registro (48) avisa antes, também no modo produção */
     try {
       const naFila = pend.find(p => p.id === SQC.fila.chave(m, r.id));
       const op = ant && ant._servidor && naFila && naFila.erro === R.MSG_CONFLITO ? { novo: false, base: ant._servidor.atualizado_em || null }   // a pessoa conferiu os dois lados no "Corrigir": grava sobre a versão do servidor
@@ -6930,6 +7007,7 @@ ${secs}</div>`;
     if (conviteAberto) { try { await api.conviteEncerrar(conviteAberto, 'aprovado'); } catch (e) { toast('Cadastro gravado, mas o convite não foi encerrado: ' + e.message); } convites = undefined; }
     let acesso = '';
     if (m === 'membros' && !id && !res.fila && coord() && r.email) acesso = await criarAcessoDaFuncao(r);
+    if (m === 'membros' && id && ant && !res.fila && coord()) acesso = await acertarAcesso(ant, r);   /* 29/10/2026 (ataque à Coordenação): e-mail ou função trocados levam o acesso junto */
     $('#dlg').close(); ed = null; render();
     if (acesso) return toast(acesso);
     if (depoisFotos && !res.fila) return abrirFotos(m, r.id, m === 'unidades' ? 'Biofábrica salva. Agora tire ou escolha as fotos da implantação.' : 'Visita salva. Agora tire ou escolha as fotos.');
@@ -6981,7 +7059,7 @@ ${secs}</div>`;
   const fmtCpf = c => { const d = R.soDigitos(c); return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : esc(c || ''); };
   /* ficha de uma pessoa da equipe: só leitura, com as ações ao pé (no formato do Mulheres & Quintais) */
   function abrirFichaMembro(id) {
-    const m = by('membros', id); if (!m) return; const F = FUNCOES.find(f => f[0] === m.funcao), hj = iso(hoje()), ativo = !m.fim || m.fim >= hj, res = cuidaHab();
+    const m = by('membros', id); if (!m || !abas().some(t => t[0] === 'equipe')) return; const F = FUNCOES.find(f => f[0] === m.funcao), hj = iso(hoje()), ativo = !m.fim || m.fim >= hj, res = cuidaHab();
     const l = (t, v) => v ? `<div><dt>${t}</dt><dd>${v}</dd></div>` : '', bloco = (t, h) => h.trim() ? `<section class="fi-s"><h3 class="fm-sec">${t}</h3><dl class="fi-dl">${h}</dl></section>` : '';
     const end = [m.logradouro, m.numero, m.complemento, m.bairro].filter(Boolean).map(esc).join(', ') + (m.cep ? ` · CEP ${esc(String(m.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2'))}` : '') + (m.uf ? ` · ${esc(m.uf)}` : '');
     /* 19/10/2026: cada resposta em linha própria, como os outros dados da ficha (juntas numa linha só ficavam difíceis de ler) */
@@ -7005,7 +7083,7 @@ ${secs}</div>`;
   const MOTIVOS_DESL = ['Pediu para sair', 'Concluiu, trancou ou mudou de curso', 'Passou a receber outra bolsa ou emprego', 'Terminou o período previsto', 'Decisão da coordenação', 'Outro'];
   let desl = null;
   function abrirDesligamento(id) {
-    const m = by('membros', id); if (!m) return; ed = null; $('#frm').className = 'fm'; desl = { id, base: m.atualizado_em };
+    const m = by('membros', id); if (!m || !coord()) return;   /* 29/10/2026: botão forjado não abre a janela da coordenação */ ed = null; $('#frm').className = 'fm'; desl = { id, base: m.atualizado_em };
     const p = db.pessoas.find(x => x.ativo && String(x.email || '').toLowerCase() === String(m.email || '').toLowerCase());
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Desligar da equipe</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><p class="fm-sub">${esc(NOME_FUNCAO[m.funcao] || '')} desde ${dt(m.inicio)}. O cadastro continua no histórico; a vaga volta a aparecer aberta na aba Equipe.</p>
@@ -7037,7 +7115,7 @@ ${secs}</div>`;
     focarDlg();
   }
   function abrirHabilitacao(id, msg) {
-    const m = by('membros', id); if (!m) return; ed = null; $('#frm').className = 'fm'; hab = { id, base: m.atualizado_em };
+    const m = by('membros', id); if (!m || !coord()) return;   /* 29/10/2026: botão forjado não abre a janela da coordenação */ ed = null; $('#frm').className = 'fm'; hab = { id, base: m.atualizado_em };
     $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Habilitação na FUNCERN</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo"><div class="fm-oque"><span>O que marcar</span><p>Quando a FUNCERN confirmar o cadastro da pessoa no Arlo, marque “Sim”. Quando o termo de compromisso estiver assinado, informe a data. Só esses dois dados mudam aqui; o resto do cadastro é da coordenação.</p></div>
       <div class="fields"><div class="fld"><label for="h_arlo">Cadastro no Arlo</label><select id="h_arlo">${[['', '—'], ['Sim', 'Sim'], ['Não', 'Não']].map(o => `<option value="${o[0]}" ${String(m.arlo || '') === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>
@@ -7055,8 +7133,20 @@ ${secs}</div>`;
   }
   /* acesso ao sistema de quem entra na equipe: o perfil vem da função (auxiliar e formador(a) têm perfil próprio) */
   const PERFIL_DA_FUNCAO = { coordenacao: 'Coordenação', auxiliar: 'Auxiliar', discente: 'Equipe', formador: 'Formador' };
+  /* cadastro da equipe editado: o acesso (ligado só pelo e-mail) acompanha o e-mail e o perfil da função */
+  async function acertarAcesso(ant, r) {
+    const velho = String(ant.email || '').trim().toLowerCase(), novo = String(r.email || '').trim().toLowerCase(), pf = PERFIL_DA_FUNCAO[r.funcao];
+    const p = velho && db.pessoas.find(x => String(x.email || '').toLowerCase() === velho); if (!p || p.perfil === 'Coordenação') return '';
+    const muda = {}; if (novo && novo !== velho && !db.pessoas.some(x => String(x.email || '').toLowerCase() === novo)) muda.email = novo;
+    if (pf && r.funcao !== ant.funcao && p.perfil !== pf) muda.perfil = pf;
+    if (!Object.keys(muda).length) return '';
+    const res = await gravarRegistro('pessoas', Object.assign({}, p, muda), p);
+    return res.ok ? `Cadastro salvo. O acesso ao sistema acompanhou: ${[muda.email ? 'e-mail ' + muda.email : '', muda.perfil ? 'perfil ' + (R.NOME_PERFIL[muda.perfil] || muda.perfil) : ''].filter(Boolean).join(' e ')}.` : 'Cadastro salvo, mas o acesso não foi atualizado: ' + res.msg + ' Atualize em Dados › Pessoas com acesso.';
+  }
   async function criarAcessoDaFuncao(r) {
     const email = String(r.email).trim().toLowerCase(), ja = db.pessoas.find(p => String(p.email || '').toLowerCase() === email);
+    if (ja && ja.ativo === false) { const res = await gravarRegistro('pessoas', Object.assign({}, ja, { ativo: true, perfil: PERFIL_DA_FUNCAO[r.funcao] || ja.perfil }), ja);   /* 29/10/2026: recontratação reativa o acesso */
+      return res.ok ? `Cadastro salvo e acesso reativado, com o perfil ${R.NOME_PERFIL[PERFIL_DA_FUNCAO[r.funcao] || ja.perfil]}.` : 'Cadastro salvo, mas o acesso desativado não foi reativado: ' + res.msg; }
     if (ja) return ja.perfil === PERFIL_DA_FUNCAO[r.funcao] ? 'Cadastro salvo. Esta pessoa já tinha acesso ao sistema.' : `Cadastro salvo. Esta pessoa já tem acesso como ${R.NOME_PERFIL[ja.perfil] || ja.perfil}: se precisar, mude o perfil em Dados › Pessoas com acesso.`;
     const p = { id: SQC.novoId(), nome: r.nome, email, perfil: PERFIL_DA_FUNCAO[r.funcao] || 'Equipe', ativo: true };
     const res = await gravarRegistro('pessoas', p, null);
@@ -7488,7 +7578,7 @@ ${secs}</div>`;
     else if (d.descartar) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: descartar'; return; } await SQC.fila.remover(d.descartar); await recarregarDb(); pend = await SQC.fila.listar(eu.id); aplicarFila(); render(); }
     else if (d.del) {
       const [m, id] = d.del.split(':');
-      const uso = R.emUso(db, m, id).map(c => ({ presencas: 'lista de presença', fotos: 'fotos' })[c] || MOD[c].nome.toLowerCase());
+      const uso = R.emUso(db, m, id).map(c => ({ presencas: 'lista de presença', fotos: 'fotos', anexos: 'documentos anexados (remova-os no Editar)' })[c] || MOD[c].nome.toLowerCase());
       if (uso.length) { toast('Não dá para excluir: este registro está em uso em ' + uso.join(', ') + '. Exclua ou mude esses registros antes.'); t.focus(); return; }   // 24/10/2026: avisa e mantém o foco (antes o botão travava e o foco se perdia)
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; anunciar('Toque de novo para confirmar a exclusão.'); return; }
       t.disabled = true;

@@ -167,6 +167,8 @@
     db.eventos = db.eventos.filter(e => e.data <= HOJE).concat(novos.filter(e => e.data <= ate).map(e => e.data > HOJE ? Object.assign(e, { part: '', mulheres: '' }) : e));
     // participação em evento já feita e sem número: quem da equipe foi (a lista de presença não se aplica)
     db.eventos.forEach(e => { if (e.tipo === 'Participação em evento' && e.data <= HOJE && !e.part) { e.part = 2; e.mulheres = 1; } });
+    /* 29/10/2026: cada atividade com quem registrou (como no banco): capacitação e dia de campo pelo formador(a), o resto pela coordenação */
+    db.eventos.forEach(e => { if (!e.criado_por) e.criado_por = ['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'p-form' : 'p-coord'; });
     db.eventos.sort((x, y) => x.data < y.data ? -1 : 1);
 
     /* listas de presença das capacitações e dias de campo já feitos (nomes das unidades produtivas e de outras pessoas, todos fictícios) */
