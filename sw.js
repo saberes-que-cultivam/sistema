@@ -1,13 +1,12 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v173';
+const VERSAO = 'sqc-v174';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
 const ARQUIVOS = ['./', 'index.html', 'css/app.css?v=' + V, 'js/config.js?v=' + V, 'js/simulacao.js?v=' + V, 'js/tudo.js?v=' + V,
   'assets/icon-192.png', 'manifest.webmanifest',
-  'assets/fontes/manrope-latin-400-normal.woff2', 'assets/fontes/manrope-latin-500-normal.woff2', 'assets/fontes/manrope-latin-600-normal.woff2',
-  'assets/fontes/manrope-latin-700-normal.woff2', 'assets/fontes/manrope-latin-800-normal.woff2', 'assets/fontes/lora-latin-600-normal.woff2', 'assets/fontes/lora-latin-700-normal.woff2'];
+  'assets/fontes/manrope-latin-wght-normal.woff2', 'assets/fontes/lora-latin-700-normal.woff2'];   // 29/10/2026: Manrope variável (1 arquivo); a Lora 600 não era usada
 // cada versão nova baixa tudo de novo, sem passar pelo cache do navegador (senão podia guardar arquivo velho)
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSAO)
   .then(c => c.addAll(ARQUIVOS.map(u => new Request(u, { cache: 'no-cache' })   /* no-cache: o servidor responde “não mudou” para o que o navegador já tem (reload baixava tudo de novo) */))).then(() => self.skipWaiting())));
@@ -34,6 +33,15 @@ self.addEventListener('fetch', e => {
   }
   // arquivos do sistema, biblioteca e fontes: abre do aparelho na hora; o que não estiver guardado vem da internet
   /* sem internet e sem o arquivo desta versão (?v= novo): usa o mesmo arquivo de outra versão guardada, em vez de deixar a página sem código */
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(x => guardar(e.request, x)))
-    .catch(() => caches.match(e.request).then(r => r || caches.match(e.request, { ignoreSearch: true })).then(r => r || Response.error())));
+  /* 29/10/2026 (auditoria de campo): com sinal que trava (não cai), a versão nova do código (?v=) ficava esperando sem prazo e o sistema não abria;
+     depois de 6 s usa o mesmo arquivo de outra versão guardada, e a busca continua por trás para a próxima vez */
+  const req = e.request; let acabou; const busca = new Promise(ok => { acabou = ok; });
+  e.respondWith(caches.match(req).then(r => { if (r) { acabou(); return r; } return new Promise(ok => {
+    let feito = false; const fim = x => { if (!feito && x) { feito = true; ok(x); } };
+    const t = u.search ? setTimeout(() => caches.match(req, { ignoreSearch: true }).then(fim), 6000) : 0;
+    fetch(req).then(x => { clearTimeout(t); guardar(req, x); fim(x); })
+      .catch(() => { clearTimeout(t); return caches.match(req, { ignoreSearch: true }).then(x => { if (!feito) { feito = true; ok(x || Response.error()); } }); })
+      .finally(acabou);
+  }); }).catch(() => { acabou(); return Response.error(); }));
+  e.waitUntil(busca);
 });
