@@ -361,12 +361,15 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     const tot = linhas.reduce((s, x) => s + x.valor, 0);
     const real = linhas.reduce((s, x) => s + x.valor * x.feito, 0) / tot * 100, prev = linhas.reduce((s, x) => s + x.valor * x.prev, 0) / tot * 100;
     const prevEq = linhas.reduce((s, x) => s + x.valor * x.prevEq, 0) / tot * 100;
-    const situacao = p => real >= 99.5 ? 'concluida' : real >= p ? 'andamento' : real >= p * 0.7 ? 'atencao' : 'atrasada';
+    /* 29/10/2026 (ataque às contas): "Concluída" só com todas as etapas na quantidade (99,75% arredondava para 100% com etapa vencida em aberto) */
+    const tudo = linhas.every(x => x.feito >= 1), realT = tudo ? real : Math.min(real, 99.4);   /* arredondado, fica em 99% */
+    const situacao = p => tudo ? 'concluida' : real >= p ? 'andamento' : real >= p * 0.7 ? 'atencao' : 'atrasada';
     const st = situacao(prev), stEq = situacao(prevEq);
     const porMeta = [1, 2, 3, 4, 5, 6].map(m => { const l = linhas.filter(x => x.e.m === m), v = l.reduce((s, x) => s + x.valor, 0); return { m, valor: v, feito: l.reduce((s, x) => s + x.valor * x.feito, 0) / v * 100, prev: l.reduce((s, x) => s + x.valor * x.prev, 0) / v * 100, prevEq: l.reduce((s, x) => s + x.valor * x.prevEq, 0) / v * 100, temEq: l.some(x => x.e.eq) }; });
+    porMeta.forEach(pm => { const l = linhas.filter(x => x.e.m === pm.m); pm.concluida = l.every(x => x.feito >= 1); if (!pm.concluida) pm.feito = Math.min(pm.feito, 99.4); });
     const meses = mesesEntre(pd(D.VIGENCIA.ini), pd(D.VIGENCIA.fim)) + 1, mes = Math.max(1, Math.min(meses, mesesEntre(pd(D.VIGENCIA.ini), hoje) + 1));   // mês da vigência (ago/2026 = 1 de 12), não da base dos gráficos (jul/2026)
     const ultimo = fimDoMes(hoje), ant0 = new Date(hoje.getFullYear(), hoje.getMonth() - (ultimo ? 0 : 1), 1), vf = pd(D.VIGENCIA.fim), ant = ant0 > vf ? new Date(vf.getFullYear(), vf.getMonth(), 1) : ant0;   // depois da vigência, "previsto até" para no mês final   // no último dia, o mês já conta
-    return { real, prev, st, prevEq, stEq, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
+    return { real: realT, prev, st, prevEq, stEq, porMeta, mes, meses, ate: String(ant.getMonth() + 1).padStart(2, '0') + '/' + ant.getFullYear() };
   }
 
   /* ---------- financeiro ---------- */
@@ -447,9 +450,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     /* 29/10/2026 (ataque à aba Financeiro): "A liquidar", "Não quitada", "Sem liquidação", "Inconclusa", "Pago parcialmente" viravam Pago,
        "Cancelamento negado" virava Ignorar e "Pagamento efetuado", Comprometido. Na dúvida, Comprometido (a coordenação pode trocar). */
     if (/\b(cancel|estorn)\w* (negad|recusad|indeferid|nao)/.test(s)) return 'Comprometido';
+    if (/\bnao (aprovad|autorizad|deferid)/.test(s)) return 'Ignorar';
     if (/\b(nao|sem|aguardando|pendente|a|falta|para) (\w+ )?(pag|liquid|quit|finaliz|conclu)|inconclu|parcial|devolv|pendente|aguardando|\bem (liquid|conclu|finaliz|andamento|analise|aberto)/.test(s)) return 'Comprometido';
     if (/cancel|recus|reprov|indefer|estorn/.test(s)) return 'Ignorar';
-    return /\bpago\b|\bpaga\b|pagamento (efetuad|realizad|confirmad|concluid)|finalizad|concluid|liquidad|quitad/.test(s) ? 'Pago' : 'Comprometido';
+    return /\bpago\b|\bpaga\b|pagamento (efetuad|efetivad|realizad|confirmad|concluid)|efetivad|finalizad|concluid|liquidad|quitad/.test(s) ? 'Pago' : 'Comprometido';
   }
   /* escolhas = { status: { texto: 'Pago' | 'Comprometido' | 'Ignorar' }, etapa: { grupo: id }, rubrica: { grupo: id } }
      Devolve o que seria feito, sem gravar nada: a tela mostra, a coordenação confirma. */
@@ -532,6 +536,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const brl = v => 'R$ ' + FMT_BRL.format(n(v));
   // só dígitos e traço passam: a data vai direto para o HTML, então nada que não seja data chega à tela
   const dt = s => s ? String(s).slice(0, 10).replace(/[^0-9-]/g, '').split('-').reverse().join('/') : '—';
+  /* último dia do prazo de uma etapa: o fim do mês, mas nunca depois do fim da vigência (29/10/2026: 07/2027 termina em 30/07) */
+  const fimPrazo = e => { const f = fimMes(e.fim), v = D.VIGENCIA && pd(D.VIGENCIA.fim); return v && v < f ? v : f; };
   const venceu = (e, hoje) => { const f = iso(fimMes(e.fim)), v = D.VIGENCIA && D.VIGENCIA.fim; return (v && v < f ? v : f) < iso(hoje || new Date()); };   /* 29/10/2026: a etapa de 07/2027 vence com a vigência (30/07), não no dia 31 */   // a etapa só vence depois do último dia do mês final (em 30/07/2027 a etapa de 07/2027 ainda não venceu: o aviso diria "venceu" com prazo no dia seguinte)   // a etapa só vence depois do último dia do mês final
   /* cada aviso: [nível ('bad' urgente, 'f' atenção), assunto, texto completo, título, detalhe, prazo (AAAA-MM-DD ou ''), aba onde se resolve] */
   function alertas(db, hoje) {
@@ -573,7 +579,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     db.unidades.forEach(u => { if (u.funcionando && !u.funcionando_em) add('f', 'Meta 2', `${u.nome}: falta a data em que começou a funcionar.`, 'Edite a unidade e informe a data: sem ela, o relatório de um período passado conta a unidade como se já funcionasse.', '', 'unidades'); });
     db.eventos.forEach(x => { if (['Capacitação', 'Dia de campo'].includes(x.tipo) && String(x.data || '') < hj && !realizada(db, x))
       add('f', 'Atividade', `${x.tipo} “${x.tema || 'sem tema'}” (${dt(x.data)}) está sem participantes registrados.`, 'Informe quantas pessoas participaram ou exclua, se não aconteceu. Sem isso, não conta para a meta.', '', 'eventos'); });
-    D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimMes(e.fim)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
+    D.ETAPAS.forEach(e => { if (venceu(e, hoje) && feito(db, e, hj) < e.q) add('bad', 'Prazo', `Etapa ${e.id} venceu em ${e.fim.split('-').reverse().join('/')} com ${feito(db, e, hj)} de ${e.q}.`, e.nome + '.', iso(fimPrazo(e)), D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : 'painel'); });
     /* 24/10/2026 (decisão da coordenação): avisa antes de vencer. Faltando 60 dias ou menos para o fim do prazo do TED e com o feito abaixo
        da quantidade, um aviso por etapa (amarelo até 31 dias, vermelho a 30 ou menos). Fora do relatório descritivo. */
     D.ETAPAS.forEach(e => { if (venceu(e, hoje)) return; const f = feito(db, e, hj), fv = pd(D.VIGENCIA.fim), fm = fimMes(e.fim), fimE = fm > fv ? fv : fm, d = dias(pd(hj), fimE);   /* dia contra dia (a hora não muda a conta); o prazo não passa do fim da vigência (30/07/2027) */ if (f >= e.q || d > 60 || d < 0) return;   /* depois do fim da vigência não é "próximo" */
@@ -642,6 +648,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da entrega está no futuro. Confira o ano.'; }
     }
     if (tabela === 'agricultores' && r.diag) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.diag > iso(lim)) return 'A data da linha de base está no futuro. Registre o diagnóstico depois de feito.'; }   /* 29/10/2026 */
+    if (tabela === 'visitas' && n(r.gasto) > 1000000) return 'Gasto grande demais. Confira o número.';   /* 29/10/2026 */
     if (tabela === 'agricultores' && (n(r.gasto0) > 1000000 || n(r.area) > 100000)) return 'Gasto ou área grande demais. Confira o número.';
     if (tabela === 'agricultores' && r.termo_em) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.termo_em > iso(lim)) return 'A data do termo está no futuro. Registre a data em que o termo foi assinado.'; }
     if (tabela === 'visitas' && r.data) { const lim = new Date(); lim.setDate(lim.getDate() + 1); if (r.data > iso(lim)) return 'A data da visita está no futuro. Registre a visita depois de feita.'; }
@@ -832,7 +839,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const extDocumento = nome => { const m = String(nome || '').toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : ''; };
   const validarDocumento = a => !a ? 'Escolha o arquivo.' : !DOC_TIPOS[extDocumento(a.name)] ? 'Este tipo de arquivo não é aceito. Envie PDF, Word, Excel, PowerPoint, LibreOffice, JPEG ou PNG.'
     : !(a.size > 0) ? 'O arquivo está vazio.' : a.size > DOC_MAX ? 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' : '';
-  SQC.regras = { qtdBr, avanco, passosUnidades, degrau, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
+  SQC.regras = { fimPrazo, qtdBr, avanco, passosUnidades, degrau, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
     novoDesenho, siglaSugerida, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, mexerRegistro, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
@@ -1173,7 +1180,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         c.visitas = [];   /* 48 */
         c.distribuicoes = [];   /* 49: entrega de bioinsumo ligada ao nome da lista identificava quem recebeu */
         c.pessoas = c.pessoas.filter(p => p.id === eu.id);
-        c.despesas = []; c.membros = []; c.fotos = c.fotos.filter(f => f.tabela === 'eventos'); c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });
+        c.despesas = []; c.membros = []; { const meus = new Set(c.eventos.filter(e => e.criado_por === eu.id).map(e => e.id)); c.fotos = c.fotos.filter(f => f.tabela === 'eventos' && meus.has(f.registro)); c.presencas = c.presencas.filter(x => meus.has(x.evento)); }   /* 51: lista e fotos só das atividades que registrou */ c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });
       }
       if (pf === 'Acompanhamento') c.entregas = c.entregas.map(g => ({ id: g.id, etapa: g.etapa, titulo: g.titulo, data: g.data, criado_em: g.criado_em, atualizado_em: g.atualizado_em, ex: g.ex }));   /* 50: como entregas_acompanhamento() */
       if (['Acompanhamento', 'Formador', 'Equipe'].includes(pf)) c.anexos = [];   // como no banco (42): a lista de documentos é de quem registra o campo
@@ -1226,6 +1233,13 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     },
     _lixo: {},
     /* como no banco (41): só quem excluiu, até 30 minutos depois; volta igual (autor, data de criação, código do lote), sem o documento */
+    async anonimizarAgricultor(id) {   /* como o 51 */
+      if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação atende pedido de apagar dados.');
+      const a = db.agricultores.find(x => x.id === id); if (!a) throw falha('Unidade produtiva não encontrada.');
+      a.nome = 'Titular anonimizado'; a.comunidade = null;
+      db.visitas.filter(v => v.agricultor === id).forEach(v => { v.obs = null; v.problemas = null; v.lat = null; v.lng = null; v.precisao = null; });
+      db.anexos = (db.anexos || []).filter(x => x.registro !== id); persistir(); return true;
+    },
     async desfazerExclusao(tabela, id) {
       const x = this._lixo[tabela + ':' + id];
       if (!x || !eu || x.quem !== eu.id) throw falha('Só quem excluiu pode desfazer; peça à coordenação para restaurar pelo Histórico.');
@@ -1759,6 +1773,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     },
     /* 41: "Desfazer" logo depois de excluir, pelo banco (o registro volta igual: autor, data de criação, código do lote).
        Banco sem o 41: devolve null e a tela grava de volta como antes. */
+    /* 51 (LGPD, 29/10/2026): pedido do titular para apagar os dados; o banco limpa o cadastro, as visitas e o histórico e devolve os documentos a apagar */
+    async anonimizarAgricultor(id) {
+      const { data, error } = await sb.rpc('anonimizar_agricultor', { p_id: id }); if (error) throw erro(error);
+      if (Array.isArray(data) && data.length) await sb.storage.from('documentos').remove(data).catch(() => {});
+      return true;
+    },
     async desfazerExclusao(tabela, id) {
       const { data, error } = await sb.rpc('desfazer_exclusao', { p_tabela: tabela, p_id: id });
       if (error && (error.code === 'PGRST202' || error.code === '42883')) return null;
@@ -2094,7 +2114,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   function preparar(raiz) {
     if (!SR) return;
     (raiz || document).querySelectorAll('textarea:not([readonly]):not([disabled]):not([data-voz-ok])').forEach(ta => {
-      ta.dataset.vozOk = '1'; if (ta.closest('#pub')) return;   // link de cadastro público: sem ditado (o áudio sairia para o serviço de fala)
+      ta.dataset.vozOk = '1'; if (ta.closest('#pub') || ta.hasAttribute('data-semvoz')) return;   /* 29/10/2026: lista de nomes (data-semvoz) sem ditado: o áudio com os nomes iria ao serviço de fala */   // link de cadastro público: sem ditado (o áudio sairia para o serviço de fala)
       const caixa = document.createElement('div'); caixa.className = 'voz-caixa'; ta.parentNode.insertBefore(caixa, ta); caixa.appendChild(ta);
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-voz'; btn.setAttribute('aria-pressed', 'false');
       btn.setAttribute('aria-label', 'Falar: ditar por voz neste campo'); btn.innerHTML = ICONE + '<span>Falar</span>';
@@ -4567,7 +4587,7 @@ var qrcode = function() {
   let real = null;
   function semPessoal(d) {
     const c = JSON.parse(JSON.stringify(d)); c.presencas = []; c.fotos = []; c.despesas = []; c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; }); c.eventos = c.eventos.map(e => { const x = Object.assign({}, e); delete x.link; delete x.obs; delete x.resumo; const L = (d.presencas || []).filter(p => p.evento === e.id); if (L.length) { x.presentes = L.length; x.mulheres_lista = L.filter(p => p.mulher).length; } return x; });   /* 29/10/2026: como o banco entrega ao SEAB/MDA (presencas_por_evento, mulheres_por_evento) */
-    c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
+    c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(a.numero || i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, ex: a.ex }));
     c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
     c.pessoas = c.pessoas.filter(p => eu && p.id === eu.id); c.membros = []; c.anexos = []; c.entregas = (c.entregas || []).map(g => ({ id: g.id, etapa: g.etapa, titulo: g.titulo, data: g.data })); c.eventos.forEach(e => { delete e.arquivo; delete e.arquivo_nome; delete e.criado_por; }); return c;   /* 29/10/2026 (ataque ao SEAB/MDA): a pré-visualização igual ao que o banco entrega */
   }
@@ -4890,7 +4910,7 @@ var qrcode = function() {
   function tabela(m) {
     const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !((c[3] === 'equipe' && fora()) || (semDinheiro() && COLS_DINHEIRO.includes(m + ':' + c[0])))) }, semDinheiro() && m === 'itens' ? { desc: 'Cada item passa por orçamento, compra pela FUNCERN e entrega.' } : {}), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
-    const acoes = r => `<span class="ac">${pode && !M0.soLeitura && !R.mexerRegistro(db, eu, m, r, {}) ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
+    const acoes = r => `<span class="ac">${pode && !M0.soLeitura && !R.mexerRegistro(db, eu, m, r, {}) ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && (r._pendente ? pend.some(p => p.id === SQC.fila.chave(m, r.id) && p.op && p.op.novo) : R.podeExcluir(eu, m, r)) ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
  ${AGR[m] && todas.length ? agrupada(m, M, pode, acoes) : `<div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc tb-${m}${fora() || !rows.some(r => (pode && !M0.soLeitura) || (!M.semExcluir && R.podeExcluir(eu, m, r))) ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? (m === 'despesas' ? ' Use “Importar planilha da FUNCERN”.' : ` Use “${M.novo}”.`) : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`}`;
   }
@@ -4972,7 +4992,7 @@ var qrcode = function() {
     const metas = X.porMeta.map(pm => {
       // o ritmo segue o cronograma da equipe nas etapas que ele trata; nas outras, o plano de trabalho (TED)
       const es = D.ETAPAS.filter(e => e.m === pm.m), prontas = es.filter(e => feito(e) >= e.q).length, ini = es.map(e => pd((e.eq || e).ini)).sort((a, b) => a - b)[0], pv = pm.prevEq;
-      const stM = pm.feito >= 99.5 ? ['ok', 'Concluída'] : hoje() < ini && !(pm.feito > 0) ? ['', 'Começa em ' + mesCurto(ini)] : pm.feito >= pv ? ['ok', 'No ritmo'] : pm.feito >= pv * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
+      const stM = pm.concluida ? ['ok', 'Concluída'] : hoje() < ini && !(pm.feito > 0) ? ['', 'Começa em ' + mesCurto(ini)] : pm.feito >= pv ? ['ok', 'No ritmo'] : pm.feito >= pv * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
       const conta = es.length === 1 ? `<b>${num(feito(es[0]))}</b> de ${num(es[0].q)} (${esc(es[0].un)})` : `<b>${prontas}</b> de ${es.length} etapas concluídas`;
       return `<li><details class="mt ${stM[0]}"><summary><span class="mt-n" aria-hidden="true">M${pm.m}</span><span class="mt-c"><span class="mt-t"><b>${esc(D.METAS[pm.m])}</b><span class="chip ${stM[0]}">${stM[1]}</span></span>
         <span class="medidor" role="img" aria-label="Meta ${pm.m}: ${pct(pm.feito)}% realizado; previsto até o mês passado: ${pct(pv)}%${pm.temEq ? ` pelo cronograma da equipe e ${pct(pm.prev)}% pelo plano de trabalho` : ''}"><i style="width:${Math.min(100, pm.feito)}%"></i>${pv > 0 && pv < 100 ? `<b style="left:${pv}%"></b>` : ''}${pm.temEq && pm.prev > 0 && pm.prev < 100 && Math.abs(pm.prev - pv) > 0.5 ? `<b class="ted" style="left:${pm.prev}%"></b>` : ''}</span>
@@ -4980,14 +5000,15 @@ var qrcode = function() {
         <ul class="mt-e">${es.map(e => `<li><span class="mono">${e.id}</span><span>${esc(e.nome)}<small>${e.eq ? 'Plano de trabalho: ' : ''}${mesAno(e.ini)} a ${mesAno(e.fim)}${e.eq ? ` · cronograma da equipe: ${mesAno(e.eq.ini)} a ${mesAno(e.eq.fim)}` : ''}${semDinheiro() ? '' : ' · ' + brl(e.q * e.v)}</small>${e.vale ? `<small class="mt-vale">${esc(e.vale)}</small>` : ''}${e.ajuste && !fora() ? `<small class="mt-vale">${esc(e.ajuste)}</small>` : ''}</span><b>${num(feito(e))} de ${num(e.q)}</b>${D.ETAPAS_AUTOMATICAS.includes(e.id) ? '' : entregasDe(e)}</li>`).join('')}</ul></details></li>`; }).join('');
     /* próximos marcos: saem do que já está no plano (início e prazo de etapa ainda não concluída, parcela a receber, fim da vigência) */
     const dia0 = new Date(hoje().getFullYear(), hoje().getMonth(), hoje().getDate()), marcosT = [];
-    D.ETAPAS.forEach(e => { const tag = `Meta ${e.m} · ${D.METAS[e.m]}`; if (pd(e.ini) > dia0) marcosT.push([pd(e.ini), `Começa a etapa ${e.id}: ${e.nome}`, tag]); if (feito(e) < e.q) marcosT.push([R.fimMes(e.fim), `Prazo da etapa ${e.id}: ${e.nome}`, tag]); });
+    D.ETAPAS.forEach(e => { const tag = `Meta ${e.m} · ${D.METAS[e.m]}`; if (pd(e.ini) > dia0) marcosT.push([pd(e.ini), `Começa a etapa ${e.id}: ${e.nome}`, tag]); if (feito(e) < e.q) marcosT.push([R.fimPrazo(e), `Prazo da etapa ${e.id}: ${e.nome}`, tag]); });
     if (!semDinheiro()) D.PARCELAS.forEach((p, i) => { if (!p.recebida && p.previsao) marcosT.push([R.fimMes(p.previsao), `${i + 1}ª parcela do MDA prevista (${brl(p.valor)})`, '']); });
     marcosT.push([pd(D.VIGENCIA.fim), 'Fim da vigência do TED', '']);
     D.CRONOGRAMA_EQUIPE.itens.forEach(c => { if (c[5] === 'dinheiro' && semDinheiro()) return; marcosT.push([pd(c[2]), c[1], `Cronograma da equipe · item ${c[0]} · Meta ${c[4].join(', ')}`, 'eq']); });
     const MESES3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
     const marcosF = marcosT.filter(m => m[0] >= dia0).sort((a, b) => a[0] - b[0]), nMarcos = 5;
     const marcos = marcosF.slice(0, nMarcos).map((m, i) => { const d = R.dias(dia0, m[0]); return `<li class="${i ? '' : 'prox'}" tabindex="0"><time datetime="${iso(m[0])}"><b>${m[0].getDate()}</b><span>${MESES3[m[0].getMonth()]} ${m[0].getFullYear()}</span></time><div><b>${esc(m[1])}</b>${m[2] ? `<span class="mc-m${m[3] ? ' eq' : ''}">${esc(m[2])}</span>` : ''}<span class="mc-d">${d === 0 ? 'hoje' : `em ${d} dia${d === 1 ? '' : 's'}`}</span></div></li>`; }).join('');
-    const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { const k = l.tipo + '|' + (l.med || 'kg'); prod[k] = prod[k] || [0, 0, l.med || 'kg', l.tipo]; prod[k][0] += +l.qtd || 0; prod[k][1] += (+l.qtd || 0) - saldo(l); });   /* 29/10/2026: por tipo E medida (kg e L do mesmo tipo não se somam) */
+    const prod = {}; db.lotes.filter(l => l.status !== 'Descartado').forEach(l => { const k = l.tipo + '|' + (l.med || 'kg'), dist = (+l.qtd || 0) - saldo(l), emProd = ['Em preparo', 'Maturando'].includes(l.status);
+      prod[k] = prod[k] || [0, 0, l.med || 'kg', l.tipo, 0]; prod[k][0] += emProd ? dist : +l.qtd || 0; prod[k][1] += dist; if (emProd) prod[k][4] += saldo(l); });   /* 29/10/2026: produzido = lotes prontos (do lote ainda em produção, só o que já saiu); o resto fica "em produção" */   /* 29/10/2026: por tipo E medida (kg e L do mesmo tipo não se somam) */
     const I = R.indicadores(db);
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
     return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
@@ -5064,10 +5085,10 @@ var qrcode = function() {
     const ic = '<span class="i5-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></svg></span>';
     return `<section class="panel mts i5-p" aria-label="Produção e distribuição"><div class="mts-cab"><h2>Produção e distribuição</h2><p>Por tipo de bioinsumo, somando os lotes (menos os descartados)${fora() ? '' : ' · barra: parte já distribuída'}</p></div>
      ${L.length ? `<ul class="i5-l">${L.map(([, v]) => { const pc = v[0] ? v[1] / v[0] * 100 : 0, nl = db.lotes.filter(l => l.tipo === v[3] && (l.med || 'kg') === v[2] && l.status !== 'Descartado').length, k = v[3] + (L.filter(([, w]) => w[3] === v[3]).length > 1 ? ` (${v[2]})` : '');
-       const [r, x] = explica(esc(k), `Produzido: soma dos lotes de ${esc(k.toLowerCase())} registrados (os descartados ficam de fora). ${fora() ? 'Entregue às famílias: o que saiu desses lotes nas entregas às unidades produtivas.' : 'Distribuído: o que saiu desses lotes nas entregas às unidades produtivas. Saldo: o que ainda está nos lotes. A barra é a parte já distribuída.'}`);
+       const [r, x] = explica(esc(k), `Produzido: soma dos lotes de ${esc(k.toLowerCase())} já prontos (os descartados ficam de fora; do lote ainda em produção, conta só o que já foi entregue). ${fora() ? 'Entregue às unidades produtivas: o que saiu desses lotes nas entregas.' : 'Distribuído: o que saiu desses lotes nas entregas às unidades produtivas. Saldo: o que ainda está nos lotes. A barra é a parte já distribuída.'}`);
        // 24/10/2026: para o SEAB/MDA, só os números absolutos (sem % distribuído nem saldo): a produção é contínua e a entrega acompanha; o percentual leria como "sobra parada". A equipe vê tudo.
        return `<li class="i5">${ic}<div class="i5-t">${r}<b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b>${fora() ? '' : `<span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>`}
-        <small>${num(v[1])} ${esc(v[2])} ${fora() ? 'entregues às famílias' : `distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])}`} · ${nl} lote(s)</small>${x}</div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
+        <small>${num(v[1])} ${esc(v[2])} ${fora() ? 'entregues às unidades produtivas' : `distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])}`} · ${nl} lote(s)${v[4] > 0.004 ? ` · mais ${num(v[4])} ${esc(v[2])} em produção` : ''}</small>${x}</div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
   }
   /* 28/10/2026 (versão 165, pedido da coordenação: "algo que sobressalte aos olhos do parceiro, o MDA"): no alto da Visão geral do
      SEAB/MDA, o resultado antes do controle. "O projeto em números" (famílias que já receberam bioinsumo, municípios e estados,
@@ -5317,9 +5338,9 @@ var qrcode = function() {
       'Tela: ' + window.innerWidth + ' x ' + window.innerHeight, 'Navegador: ' + navigator.userAgent].join('\n');
     $('#rl_saida').hidden = false; $('#rl_pronto').value = txt; $('#ferr').textContent = '';
     // 43: o relato fica guardado no sistema (aba Histórico da coordenação); sem o script 43 ou sem internet, segue só pelo WhatsApp
-    if (!botao.dataset.guardado) api.relatarProblema({ texto: t, aba: $('#frm').dataset.aba || tab, versao, tecnico: txt.split('— informações técnicas —')[1] || '' })
-      .then(id => { if (id) { botao.dataset.guardado = '1'; toast('Relato guardado no sistema para a coordenação.'); relatos = undefined; } })
-      .catch(e => toast(e.semRede ? 'Sem internet: o relato não foi guardado no sistema. Envie pelo WhatsApp.' : 'O relato não foi guardado: ' + (e.message || e))); if ($('#rl_wa')) $('#rl_wa').href = `https://wa.me/${zapCoord().wa}?text=${encodeURIComponent(txt)}`;
+    if (!botao.dataset.guardado) { botao.dataset.guardado = 'enviando'; api.relatarProblema({ texto: t, aba: $('#frm').dataset.aba || tab, versao, tecnico: txt.split('— informações técnicas —')[1] || '' })   /* 29/10/2026: dois toques não gravam dois relatos */
+      .then(id => { if (id) { botao.dataset.guardado = '1'; toast('Relato guardado no sistema para a coordenação.'); relatos = undefined; } else delete botao.dataset.guardado; })
+      .catch(e => { delete botao.dataset.guardado; toast(e.semRede ? 'Sem internet: o relato não foi guardado no sistema. Envie pelo WhatsApp.' : 'O relato não foi guardado: ' + (e.message || e)); }); } if ($('#rl_wa')) $('#rl_wa').href = `https://wa.me/${zapCoord().wa}?text=${encodeURIComponent(txt)}`;
     try { await navigator.clipboard.writeText(txt); botao.textContent = 'Copiado'; toast('Texto copiado. Cole no WhatsApp ou no e-mail da coordenação.'); }
     catch (e) { $('#rl_pronto').focus(); $('#rl_pronto').select(); toast('Selecione e copie o texto que apareceu, e envie para a coordenação.'); }
   }
@@ -5583,7 +5604,7 @@ var qrcode = function() {
       return `<section class="eq" aria-label="${f[2]}"><div class="eq-cab"><div><h2>${f[2]}</h2><p>${f[4]}</p></div></div>
        ${cvHtml}${corpo}
        ${fora_.length ? `<p class="note eq-n">Na planilha da FUNCERN há bolsa desta função para ${fora_.map(g => esc(g.nome)).join(', ')}, que não ${fora_.length === 1 ? 'está' : 'estão'} no cadastro. Cadastre com o mesmo nome para ligar a pessoa às bolsas.</p>` : ''}
-       ${E.antigos.length ? `<details class="dx-como eq-h"><summary>Quem já passou por esta função (${E.antigos.length})</summary><ul class="eq-a">${E.antigos.map(m => `<li><span><b>${esc(m.nome)}</b>${exChip(m)}<small>${m.vinculo ? esc(m.vinculo) + ' · ' : ''}${dt(m.inicio)} a ${dt(m.fim)}${m.motivo ? ' · ' + esc(m.motivo) : ''}</small></span>${pode ? `<span class="ac"><button class="ab" title="Editar" data-edit="membros:${esc(m.id)}">${IC_LAPIS}<span class="so">Editar</span></button>${R.podeExcluir(eu, 'membros', m) ? `<button class="ab d" title="Excluir" data-del="membros:${esc(m.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>` : ''}</li>`).join('')}</ul></details>` : ''}</section>`; };
+       ${E.antigos.length ? `<details class="dx-como eq-h"><summary>Quem já passou por esta função (${E.antigos.length})</summary><ul class="eq-a">${E.antigos.map(m => `<li><span><b>${esc(m.nome_social || m.nome)}</b>${exChip(m)}<small>${m.vinculo ? esc(m.vinculo) + ' · ' : ''}${dt(m.inicio)} a ${dt(m.fim)}${m.motivo ? ' · ' + esc(m.motivo) : ''}</small></span>${pode ? `<span class="ac"><button class="ab" title="Editar" data-edit="membros:${esc(m.id)}">${IC_LAPIS}<span class="so">Editar</span></button>${R.podeExcluir(eu, 'membros', m) ? `<button class="ab d" title="Excluir" data-del="membros:${esc(m.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>` : ''}</li>`).join('')}</ul></details>` : ''}</section>`; };
     /* habilitação na FUNCERN: barra das três etapas e uma linha por pessoa, com os dois passos (Arlo e termo) marcados */
     const habil = () => { if (!cuidaHab()) return ''; const at = (db.membros || []).filter(m => !m.fim);   // quem tem desligamento marcado (mesmo que a data ainda não tenha chegado) não precisa mais se habilitar
       const etapa = m => m.arlo === 'Sim' && m.termo_em ? 2 : m.arlo === 'Sim' ? 1 : 0, n = [0, 1, 2].map(k => at.filter(m => etapa(m) === k).length), tot = at.length || 1;
@@ -5668,7 +5689,7 @@ var qrcode = function() {
   /* capa dos relatórios (19/10/2026): a mesma no descritivo e nos quadros numéricos (só muda o rótulo) */
   function capaRel(rotulo) { const [nm, sb] = D.NOME_COMPLETO.split(': ');   /* capa do relatório (19/10/2026): projeto, período, instrumento, execução e coordenação */
         const co = (db.membros || []).filter(m => m.funcao === 'coordenacao' && (!m.fim || m.fim >= rel.ate));   // quem coordenava no fim do período do relatório (não a de hoje)
-        const coTxt = co.map(m => [m.nome, m.siape ? 'SIAPE ' + m.siape : '', m.email].filter(Boolean).join(' · ')).join('; ');
+        const coTxt = co.map(m => [m.nome_social || m.nome, m.siape ? 'SIAPE ' + m.siape : '', m.email].filter(Boolean).join(' · ')).join('; ');
         const ced = [`${rotulo} · ${dt(rel.de)} a ${dt(rel.ate)}`, D.NOME_COMPLETO, coTxt ? `Coordenação: ${coTxt}` : ''].filter(Boolean).join('\n');
         return `<header class="panel rel-doc rd-cab" data-cp="${esc(ced)}">
          <div class="rdc-top"><span class="rdc-tag"><img src="assets/icone.svg" alt="" width="40" height="40"><span class="rel-sup">${rotulo}</span></span><span class="rdc-per"><span class="so">Período: </span>${dt(rel.de)} a ${dt(rel.ate)}</span></div>
@@ -5703,7 +5724,7 @@ var qrcode = function() {
       .concat((D.EQUIPE_VOLUNTARIA || []).filter(v => !(db.membros || []).some(m => (!m.inicio || m.funcao === 'coordenacao' || m.inicio <= rel.ate) && (!m.fim || m.fim >= rel.de) && semAcento(m.nome) === semAcento(v.nome))).map(v => ({ nome: v.nome, funcao: v.funcao })));   // quem colabora sem bolsa (não está no cadastro da equipe)
     const nomeF = f => ({ coordenacao: 'Coordenador do projeto', auxiliar: 'Auxiliar administrativo', discente: 'Apoio técnico (discente)', formador: 'Formador(a)' })[f] || f;   // nomes das funções como no plano de trabalho (quadro 13)
     const perM = m => iniM(m) && iniM(m) > rel.de || m.fim && m.fim < rel.ate ? `${iniM(m) && iniM(m) > rel.de ? dt(iniM(m)) : dt(rel.de)} a ${m.fim && m.fim < rel.ate ? dt(m.fim) : dt(rel.ate)}` : 'Todo o período';
-    const equipeHtml = () => `<div class="rd-vis rd-eq"><div class="vis-g" data-cp=""><table class="tc sem-ac rdm-t"><thead><tr><th>Nome</th><th>Função no projeto</th><th>No período</th></tr></thead><tbody>${equipe.map(m => `<tr data-cp="${esc(`${m.nome} · ${nomeF(m.funcao)} · ${perM(m)}`)}"><td data-r="Nome" class="w"><b>${esc(m.nome_social || m.nome)}</b></td><td data-r="Função">${esc(nomeF(m.funcao))}</td><td data-r="No período">${esc(perM(m))}</td></tr>`).join('')}</tbody></table></div></div>`;
+    const equipeHtml = () => `<div class="rd-vis rd-eq"><div class="vis-g" data-cp=""><table class="tc sem-ac rdm-t"><thead><tr><th>Nome</th><th>Função no projeto</th><th>No período</th></tr></thead><tbody>${equipe.map(m => `<tr data-cp="${esc(`${m.nome_social || m.nome} · ${nomeF(m.funcao)} · ${perM(m)}`)}"><td data-r="Nome" class="w"><b>${esc(m.nome_social || m.nome)}</b></td><td data-r="Função">${esc(nomeF(m.funcao))}</td><td data-r="No período">${esc(perM(m))}</td></tr>`).join('')}</tbody></table></div></div>`;
     /* 2. o que foi feito: uma frase por atividade, só com o que foi registrado (tema, local, participantes e observações da atividade) */
     const nPart = e => R.participantes(db, e);
     /* resumo da ata e observações: como a equipe escreveu; só fecha com ponto quando falta (sem "decisões:." nem ".”.") */
@@ -5766,7 +5787,7 @@ var qrcode = function() {
     /* cada marco: [data, o quê, de onde vem] (19/10/2026: mostrados em linha do tempo; o texto corrido fica para "Editar como texto" e "Copiar") */
     const alcM = [...produtos.map(g => [g.data, g.titulo, `Entrega do plano · etapa ${g.etapa}`]), ...db.unidades.filter(u => u.funcionando_em && u.funcionando_em >= rel.de && u.funcionando_em <= fimRel).map(u => [u.funcionando_em, `${u.nome} entrou em funcionamento`, 'Biofábrica · Meta 2'])].sort(porData);
     const proxM = D.CRONOGRAMA_EQUIPE.itens.filter(c => c[2] > fimRel && c[2] <= ate90).map(c => [c[2], c[1], 'Cronograma da equipe · a partir desta data'])
-      .concat(D.ETAPAS.filter(e => { const fi = iso(R.fimMes(e.fim)); return fi > fimRel && fi <= ate90 && (fis.find(x => x.e === e) || {}).f < e.q; }).map(e => [iso(R.fimMes(e.fim)), `Etapa ${e.id}: ${e.nome.charAt(0).toLowerCase() + e.nome.slice(1)}`, `Prazo do plano de trabalho (${mesAno(e.fim)})`])).sort(porData);
+      .concat(D.ETAPAS.filter(e => { const fi = iso(R.fimPrazo(e)); return fi > fimRel && fi <= ate90 && (fis.find(x => x.e === e) || {}).f < e.q; }).map(e => [iso(R.fimPrazo(e)), `Etapa ${e.id}: ${e.nome.charAt(0).toLowerCase() + e.nome.slice(1)}`, `Prazo do plano de trabalho (${mesAno(e.fim)})`])).sort(porData);
     const alcancados = alcM.map(x => `${dt(x[0])}: ${x[1]}`), proximos = proxM.map(x => x[2].startsWith('Cronograma') ? `${x[1]} (a partir de ${dt(x[0])})` : `prazo da etapa ${x[1].replace(/^Etapa /, '').replace(':', ',')} (${x[2].match(/\((.*)\)/)[1]})`);
     const marcos = [alcancados.length ? `Marcos alcançados no período: ${alcancados.join('; ')}.` : '',
       proximos.length ? `Próximos marcos (até ${dt(ate90)}): ${proximos.join('; ')}.` : ''];
@@ -5811,8 +5832,8 @@ var qrcode = function() {
         const t = [c ? (c === 1 ? 'na capacitação realizada' : `nas ${num(c)} capacitações realizadas`) : '', d ? (d === 1 ? 'no dia de campo realizado' : `nos ${num(d)} dias de campo realizados`) : ''].filter(Boolean).join(' e ');
         return t.charAt(0).toUpperCase() + t.slice(1); })()} no período, houve ${pl(totPart, 'participação', 'participações')}${partMul ? `, das quais ${pct(totMul / partMul * 100)}% de mulheres${partMul < totPart ? ' (entre as atividades com essa informação)' : ''}` : ''}.` : '',
       municipios.length ? `As ações chegaram a ${pl(municipios.length, 'município', 'municípios')}${ufs.length ? ` em ${pl(ufs.length, 'estado', 'estados')} (${lista(ufs)})` : ''}: ${lista(municipios)}${comunidades.length ? `, alcançando ${pl(comunidades.length, 'comunidade, assentamento ou instituição', 'comunidades, assentamentos e instituições')}` : ''}.` : '',
-      agrAte.length ? `Estão cadastradas ${pl(agrAte.length, 'unidade produtiva', 'unidades produtivas')} da agricultura familiar${agrAte.filter(a => a.diag).length ? `, ${num(agrAte.filter(a => a.diag).length)} com diagnóstico inicial (linha de base)` : ''}${receberam ? `; ${num(receberam)} já ${receberam === 1 ? 'recebeu' : 'receberam'} bioinsumo` : ''}${comKit ? ` e ${num(comKit)} ${comKit === 1 ? 'recebeu' : 'receberam'} kit de apoio` : ''}.` : '',
-      comUso.length ? (comUso.length === 1 ? `Na visita de monitoramento com essa informação, o bioinsumo ${usou ? 'foi' : 'não foi'} usado.` : `Nas ${num(comUso.length)} visitas de monitoramento com essa informação, o bioinsumo foi usado em ${pct(usou / comUso.length * 100)}% delas.`) : '',
+      agrAte.length ? `Estão cadastradas ${pl(agrAte.length, 'unidade produtiva', 'unidades produtivas')} da agricultura familiar${agrAte.filter(a => a.diag && a.diag <= fimRel).length ? `, ${num(agrAte.filter(a => a.diag && a.diag <= fimRel).length)} com diagnóstico inicial (linha de base)` : ''}${receberam ? `; ${num(receberam)} já ${receberam === 1 ? 'recebeu' : 'receberam'} bioinsumo` : ''}${comKit ? ` e ${num(comKit)} ${comKit === 1 ? 'recebeu' : 'receberam'} kit de apoio` : ''}.` : '',
+      comUso.length ? (comUso.length === 1 ? `Desde o início do projeto, na visita de monitoramento com essa informação, o bioinsumo ${usou ? 'foi' : 'não foi'} usado.` : `Desde o início do projeto, nas ${num(comUso.length)} visitas de monitoramento com essa informação, o bioinsumo foi usado em ${pct(usou / comUso.length * 100)}% delas.`) : '',
       I5.pares && I5.variacao != null ? `${I5.pares === 1 ? 'Na unidade produtiva' : `Entre as ${num(I5.pares)} unidades produtivas`} com o gasto com insumos comprados medido no diagnóstico e numa visita posterior, a média mensal passou de R$ ${num(I5.base, 2)} para R$ ${num(I5.atual, 2)} (${I5.variacao <= 0 ? 'redução' : 'aumento'} de ${pct(Math.abs(I5.variacao))}%).` : ''
     ].filter(Boolean);
     /* 21/10/2026: a finalidade geral é dita; a importância de cada evento para o projeto é a coordenação que escreve (o sistema não inventa o que a equipe aprendeu) */
@@ -5828,7 +5849,7 @@ var qrcode = function() {
       const pend = daMeta(x.m).filter(y => y.f < y.e.q && R.previstoEtapa(y.e, fim) > 0).map(y => `${y.e.id} (${y.e.nome}: ${qt(y.f)} de ${qt(y.e.q)})`);
       const fatos = [];
       if (x.m === 2) { const it = (db.itens || []).filter(i => unidMeta2.some(u => u.id === i.unidade) && i.status !== 'Entregue'); if (it.length) fatos.push(`${pl(it.length, 'item de aquisição das unidades ainda não foi entregue', 'itens de aquisição das unidades ainda não foram entregues')} (${lista(unicos(it.map(i => (i.status || 'A definir').toLowerCase())))})`);
-        const imp = unidMeta2.filter(u => !R.unidadePronta(u)); if (imp.length) fatos.push(`${pl(imp.length, 'unidade segue', 'unidades seguem')} em implantação`); }
+        const imp = unidMeta2.filter(u => !R.unidadePronta(u, fimRel)); if (imp.length) fatos.push(`${pl(imp.length, 'unidade segue', 'unidades seguem')} em implantação`); }
       if ([3, 5].includes(x.m)) { const tp = x.m === 3 ? 'Capacitação' : 'Dia de campo', ag = db.eventos.filter(e => e.tipo === tp && e.data > fimRel && e.data > iso(hoje())); if (ag.length) fatos.push(`${x.m === 3 ? pl(ag.length, 'capacitação está agendada', 'capacitações estão agendadas') : pl(ag.length, 'dia de campo está agendado', 'dias de campo estão agendados')} a partir de ${dt(ag.map(e => e.data).sort()[0])}`); }
       if (x.m === 4) { const sem = agrAte.filter(a => !db.distribuicoes.some(d => d.agricultor === a.id && d.data <= fimRel)).length; if (sem) fatos.push(`${pl(sem, 'unidade produtiva cadastrada ainda não recebeu', 'unidades produtivas cadastradas ainda não receberam')} bioinsumo`); }
       return `Meta ${x.m} (${D.METAS[x.m]}): ${pct(x.r)}% realizado até ${dt(fimRel)}, para ${pct(x.pv)}% previsto.${pend.length ? ` Etapas em aberto: ${lista(pend)}.` : ''}${fatos.length ? ` Situação registrada: ${lista(fatos)}.` : ''} Motivo e encaminhamento: [a coordenação descreve aqui o motivo do atraso e o que será feito].`;
@@ -5862,8 +5883,10 @@ var qrcode = function() {
     /* tabela do relatório: na tela mostra as 10 primeiras linhas e um botão para ver todas; impressa, sai inteira */
     const LIM = 10, rotC = x => String(x).replace(/<[^>]*>/g, '').replace(/"/g, ''), tl = (h, rows, todas) => rows.length ? `<div class="scroll" tabindex="0" role="region" aria-label="Tabela"><table class="tc sem-ac"><thead><tr>${h.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map((r, i) => `<tr${i >= LIM && !todas ? ' class="rx"' : ''}>${r.map((c, j) => `<td data-r="${rotC(h[j])}"${String(c).replace(/<[^>]*>/g, '').length > 28 ? ' class="w"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${rows.length > LIM && !todas ? `<div class="acts noprint"><button type="button" class="b s" data-relmais="${rows.length}" aria-expanded="false">Ver todas as ${rows.length} linhas</button></div>` : ''}` : '';   // sem linhas: a seção inteira sai do relatório
     const sec = (ic, titulo, sub, corpo) => `<section class="panel mts rs"><div class="mts-cab rs-cab"><span class="i5-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC_REL[ic]}</svg></span><div><h3>${titulo}</h3>${sub ? `<p>${sub}</p>` : ''}</div></div>${corpo}</section>`;
-    const ben = new Set(di.map(d => d.agricultor)).size, tp = ev.reduce((s, e) => s + R.participantes(db, e), 0), tmA = ev.reduce((s, e) => s + R.mulheresDe(db, e), 0), pmA = ev.filter(e => R.temMulheres(db, e)).reduce((s, e) => s + R.participantes(db, e), 0),
-      evF = ev.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && R.realizada(db, e)), tpF = evF.reduce((s, e) => s + R.participantes(db, e), 0),
+    /* 29/10/2026 (ataque às contas): nos quadros, o que está marcado para depois de hoje é planejado e não entra (o descritivo cita as agendadas à parte) */
+    const evQ = ev.filter(e => e.data <= fimRel), enQ = en.filter(g => g.data <= fimRel), loQ = lo.filter(l => l.inicio <= fimRel);
+    const ben = new Set(di.map(d => d.agricultor)).size, tp = evQ.reduce((s, e) => s + R.participantes(db, e), 0), tmA = evQ.reduce((s, e) => s + R.mulheresDe(db, e), 0), pmA = evQ.filter(e => R.temMulheres(db, e)).reduce((s, e) => s + R.participantes(db, e), 0),
+      evF = evQ.filter(e => ['Capacitação', 'Dia de campo'].includes(e.tipo) && R.realizada(db, e)), tpF = evF.reduce((s, e) => s + R.participantes(db, e), 0),
       tmF = evF.reduce((s, e) => s + R.mulheresDe(db, e), 0), pmF = evF.filter(e => R.temMulheres(db, e)).reduce((s, e) => s + R.participantes(db, e), 0);   // 21/10/2026: % de mulheres e participações como na Visão geral (só formação realizada)
     const fis = D.ETAPAS.map(e => ({ e, f: R.feito(db, e, fimRel), av: R.avanco(db, e, fimRel) })), pfis = fis.reduce((t, x) => t + x.e.q * x.e.v * x.av, 0) / D.TOTAL * 100;   /* avanço como no painel (biofábricas pelos passos, 24/10/2026) */
     const gasto = de.reduce((t, d) => t + (+d.valor || 0), 0), pagas = de.filter(d => d.status === 'Pago').length, aplic = vi.filter(v => v.usou === 'Sim').length;
@@ -5872,12 +5895,12 @@ var qrcode = function() {
     /* 19/10/2026: seção sem registro no período não aparece; as que ficam são numeradas em ordem */
     const QS = [['fis', 'Execução física acumulada', `Até ${dt(fimRel)} · o que está marcado para depois é planejado e não conta`, tl(['Etapa', 'Descrição', 'Previsto', 'Realizado', '%'], fis.map(({ e, f, av }) => [`<span class="mono">${e.id}</span>`, e.nome, `${num(e.q)} ${quantos(e.q, e.un)}`, e.id === '2.1' && av > Math.min(1, f / e.q) ? `${f} <span class="small">(${(() => { const p = R.passosUnidades(db, fimRel); return p.feitos + ' de ' + p.total; })()} passos da implantação)</span>` : f, num(Math.min(100, (av !== undefined ? av : f / e.q) * 100)) + '%']), true)],
  ['bio', 'Unidades de produção de bioinsumos', (() => { const fu = u => nCheck(u) === D.CHECK.length && (!u.funcionando_em || u.funcionando_em <= fimRel), m2 = db.unidades.filter(u => u.conta === 'Sim'), ap = db.unidades.length - m2.length;   // 21/10/2026: a Meta 2 conta só as do TED; a de apoio aparece à parte
-        return `Meta 2: ${m2.filter(fu).length} de ${m2.length} em funcionamento até ${dt(fimRel)} (com os ${D.CHECK.length} passos)${ap ? ` · mais ${pl(ap, 'unidade de apoio', 'unidades de apoio')}, fora do TED` : ''}`; })(), tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${u.funcionando ? ' · em funcionamento' : ''}`, esc(u.parceiro) || 'a definir']), true)],
- ['ati', 'Capacitações, dias de campo e reuniões no período', ev.length ? `${ev.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], ev.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null; const q = [R.pelaLista(db, e) ? 'pela lista' : '', mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`].filter(Boolean).join(', '); return `${num(p)}${q ? ` (${q})` : ''}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
- ['lot', 'Produção de bioinsumos no período', lo.length ? `${lo.length} lote(s) iniciado(s)` : '', tl(['Lote', 'Tipo', 'Biofábrica', 'Início', 'Situação', 'Produzido'], lo.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))],
+        return `Meta 2: ${m2.filter(fu).length} de ${m2.length} em funcionamento até ${dt(fimRel)} (com os ${D.CHECK.length} passos)${ap ? ` · mais ${pl(ap, 'unidade de apoio', 'unidades de apoio')}, fora do TED` : ''}`; })(), tl(['Unidade', 'Modelo', 'Implantação', 'Parceiro institucional'], db.unidades.map(u => [esc(u.nome) + (u.conta === 'Sim' ? '' : ' (apoio)'), esc(u.modelo), `${nCheck(u)} de ${D.CHECK.length} passos${(u.funcionando && (!u.funcionando_em || u.funcionando_em <= fimRel)) ? ' · em funcionamento' : ''}`   /* 29/10/2026: a situação até a data final */, esc(u.parceiro) || 'a definir']), true)],
+ ['ati', 'Capacitações, dias de campo e reuniões no período', evQ.length ? `${evQ.length} atividade(s)` : '', tl(['Data', 'Tipo', 'Tema', 'Local', 'Participantes'], evQ.map(e => [dt(e.data), esc(e.tipo), esc(e.tema), esc(e.lugar) + (e.municipio ? ' · ' + esc(e.municipio) : ''), (() => { const p = R.participantes(db, e); if (!p) return '—'; const mu = R.temMulheres(db, e) ? R.mulheresDe(db, e) : null; const q = [R.pelaLista(db, e) ? 'pela lista' : '', mu === null ? '' : `${num(mu)} ${mu === 1 ? 'mulher' : 'mulheres'}`].filter(Boolean).join(', '); return `${num(p)}${q ? ` (${q})` : ''}`; })()])) + (tp ? `<p>Total de ${num(tp)} participações${pmA ? `, ${num(tmA / pmA * 100)}% de mulheres${pmA < tp ? ' (entre as atividades com essa informação)' : ''}` : ''}.</p>` : '')],
+ ['lot', 'Produção de bioinsumos no período', loQ.length ? `${loQ.length} lote(s) iniciado(s)` : '', tl(['Lote', 'Tipo', 'Biofábrica', 'Início', 'Situação', 'Produzido'], loQ.map(l => [`<span class="mono">${esc(l.codigo)}</span>`, esc(l.tipo), esc((by('unidades', l.unidade) || {}).nome), dt(l.inicio), esc(l.status), `${num(l.qtd)} ${esc(l.med)}`]))],
  ['dis', 'Distribuição no período', '', tl(['Data', 'Lote', 'Unidade produtiva', 'Cultura', 'Quantidade'], di.map(d => { const l = by('lotes', d.lote) || {}; return [dt(d.data), `<span class="mono">${esc(l.codigo)}</span>`, upNum(d.agricultor), esc(d.cultura), `${num(d.qtd)} ${esc(l.med || '')}`]; })) + (di.length ? `<p>${di.length} entrega(s) a ${ben} unidade(s) produtiva(s).</p>` : '')],
  ['mon', 'Monitoramento do uso no período', '', tl(['Data', 'Unidade produtiva', 'Aplicou?', 'Vigor'], vi.map(v => [dt(v.data), upNum(v.agricultor), esc(v.usou), v.vigor ? esc(v.vigor) + '/5' : '—'])) + (vi.length ? `<p>${vi.length} visita(s); em ${aplic} o bioinsumo havia sido aplicado.</p>` : '')],
- ['ent', 'Entregas e evidências no período', en.length ? `${en.length} entrega(s) do plano` : '', tl(['Etapa', 'Entrega', 'Data'], en.map(g => [`<span class="mono">${esc(g.etapa)}</span>`, esc(g.titulo), dt(g.data)]))],
+ ['ent', 'Entregas e evidências no período', enQ.length ? `${enQ.length} entrega(s) do plano` : '', tl(['Etapa', 'Entrega', 'Data'], enQ.map(g => [`<span class="mono">${esc(g.etapa)}</span>`, esc(g.titulo), dt(g.data)]))],
  ['fin', `Execução financeira acumulada até ${dt(rel.ate)}, por meta`, '', `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)">${finTabela(F, 'Meta')}</div>`],
  ['rub', `Execução financeira acumulada até ${dt(rel.ate)}, por rubrica`, 'Valores lançados no sistema. O registro oficial é o da FUNCERN.', `<div class="scroll" tabindex="0" role="region" aria-label="Tabela (role para o lado no celular)">${finTabela(FR, 'Rubrica')}</div>`],
  ['des', 'Despesas do período', de.length ? `${de.length} despesa(s) · ${brl(gasto)}` : '', tl(['Data', 'Etapa', 'Rubrica', 'Descrição', 'Situação', 'Valor'], de.map(d => [dt(d.data), `<span class="mono">${esc(d.etapa)}</span>`, esc(nomeRubrica(d.rubrica)), esc(d.descricao), esc(d.status), brl(d.valor)]))]];
@@ -5886,7 +5909,7 @@ var qrcode = function() {
   <div class="dx-exec"><span class="dx-rot">Execução física até ${dt(fimRel)}</span><div class="dx-exec-num"><b>${pct(pfis)}%</b></div>
    <span class="medidor" role="img" aria-label="${pct(pfis)}% da execução física"><i style="width:${Math.min(100, pfis)}%"></i></span>
    <p class="dx-exec-sub"><span>Período: <b>${dt(rel.de)} a ${dt(rel.ate)}</b></span></p></div>
-  <div class="dx-kpis fin">${kpi(1, pmF ? tmF / pmF * 100 : 0, ev.length, 'no período', 'atividades', tpF ? `${num(tpF)} participações em formação` : 'sem participantes em formação', undefined, 'mulheres')}
+  <div class="dx-kpis fin">${kpi(1, pmF ? tmF / pmF * 100 : 0, evQ.length, 'no período', 'atividades', tpF ? `${num(tpF)} participações em formação` : 'sem participantes em formação', undefined, 'mulheres')}
    ${kpi(2, ben / 30 * 100, di.length, 'entregas', 'de bioinsumo', `a ${ben} unidade(s) produtiva(s)`, undefined, 'da meta de 30 unidades')}
    ${kpi(3, vi.length ? aplic / vi.length * 100 : 0, vi.length, 'visitas', 'de monitoramento', `em ${aplic} o bioinsumo foi aplicado`, undefined, 'com aplicação')}
    ${kpi(4, gasto / D.TOTAL * 100, gasto >= 1e4 ? num(Math.round(gasto / 1000)) : num(Math.round(gasto)), gasto >= 1e4 ? 'mil reais' : 'reais', 'em despesas no período', `${de.length} despesa(s), ${pagas} paga(s)`, undefined, 'do TED')}</div></div>
@@ -6363,7 +6386,7 @@ ${secs}</div>`;
     const M = MOD.membros, rotLgpd = 'Autorizo o projeto Saberes que Cultivam (IFRN, MDA e FUNCERN) a usar estes dados só para a gestão do projeto e o pagamento da bolsa, conforme a Lei nº 13.709/2018 (LGPD).';
     const Mp = Object.assign({}, M, { membrosPub: true, campos: M.campos.map(c => c[0] === 'lgpd' ? ['lgpd', rotLgpd, 'check'] : c[0] === 'socio' ? ['socio', 'Quero responder. Só a coordenação do projeto vê estas respostas.', 'check'] : c[0] === 'arlo' ? ['arlo', 'Você já tem cadastro no sistema Arlo, da FUNCERN?', 'simnao'] : c),
       dicas: Object.assign({}, M.dicas, { nome: '', vinculo: 'Exemplo: IFRN Campus Apodi, ou o seu curso.', cpf: 'Só a coordenação do projeto vê (para o cadastro na FUNCERN).', socio: '' }) });
-    P.innerHTML = `<div class="pub">${cab}<form id="fpub" class="fm panel pub-c" novalidate><div class="fm-cab"><div><span class="fm-eye">Cadastro na equipe</span><h1>${NOME_FUNCAO[funcao]}</h1></div></div>
+    P.innerHTML = `<div class="pub">${cab}<form id="fpub" class="fm panel pub-c" novalidate autocomplete="off"><div class="fm-cab"><div><span class="fm-eye">Cadastro na equipe</span><h1>${NOME_FUNCAO[funcao]}</h1></div></div>
       <div class="fm-corpo"><ol class="pub-passos" aria-label="Etapas do cadastro"><li class="pp-at" aria-current="step"><b>1</b>Seus dados</li><li><b>2</b>A coordenação confere</li><li><b>3</b>Você cria a senha</li></ol>
        <div class="fm-faz" id="fm_faz" hidden></div>
        <div class="fm-oque"><span>Como funciona</span><p>Preencha e envie. A coordenação do projeto confere e confirma o seu cadastro; depois você recebe o aviso para criar a senha com este mesmo e-mail. O link serve uma vez só. O que você digitar fica guardado neste aparelho por 24 horas (sem CPF, documentos, endereço nem questionário), caso a internet caia.</p></div>${corpoForm(Mp, rascunhoLer(funcao), null, R.CAMPOS_CONVITE)}</div>
@@ -6411,7 +6434,7 @@ ${secs}</div>`;
         <div class="acts"><button type="button" class="b p" data-prsalvar="${esc(x.id)}">Salvar</button><button type="button" class="b" data-prcancel>Cancelar</button></div></li>`
       : `<li><span><b>${esc(x.nome)}</b>${x.mulher ? ' <span class="chip">mulher</span>' : ''}${x._pendente ? ' <span class="chip f">aguardando envio</span>' : ''}<small>${esc([x.comunidade, x.municipio].filter(Boolean).join(' · ')) || (pode ? '<i>sem comunidade ou instituição e município</i>' : '')}</small></span><span class="pr-dir">${pode && !x._pendente ? `<button type="button" class="pr-x pr-lap" data-predit="${esc(x.id)}" title="Completar comunidade ou instituição, município e se é mulher" aria-label="Completar os dados de ${esc(x.nome)}">${IC_LAPIS_PR}</button>` : ''}${R.podeExcluir(eu, 'presencas', x) && (eu.perfil !== 'Formador' || pode) && !x._pendente ? `<button type="button" class="pr-x" title="Tirar da lista" data-prdel="${esc(x.id)}" aria-label="Tirar ${esc(x.nome)} da lista"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}</span></li>`).join('')}</ol>` : ''}
       ${pode ? `<h3 class="fm-sec">Adicionar à lista</h3>
-        <div class="fld w pr-add"><label for="pr_varios">Nomes, um por linha (pode ser um só)</label><textarea id="pr_varios" rows="4" placeholder="Maria da Silva (exemplo)&#10;José Pereira (exemplo)">${prLote.ev === evId ? esc(prLote.texto) : ''}</textarea>
+        <div class="fld w pr-add"><label for="pr_varios">Nomes, um por linha (pode ser um só)</label><textarea id="pr_varios" rows="4" data-semvoz autocomplete="off" placeholder="Maria da Silva (exemplo)&#10;José Pereira (exemplo)">${prLote.ev === evId ? esc(prLote.texto) : ''}</textarea>
           <p class="fm-dica">Digite ou cole os nomes da ata. A numeração do começo da linha (1., 2 -) sai sozinha. Na conferência, marque quem é mulher. Comunidade ou instituição e município se completam depois, no lápis ao lado de cada nome.</p></div>
         <div class="acts"><button type="button" class="b" data-prconf="${esc(evId)}">Conferir os nomes</button></div>
         <div id="pr_prev" aria-live="polite">${prLote.ev === evId ? prPrevia(evId) : ''}</div>` : ''}</div>
@@ -6878,7 +6901,7 @@ ${secs}</div>`;
     const corpo = corpoForm(M, r, id);
     $('#frm').innerHTML = `<div class="fm-cab">${icCad(m)}<div class="fm-tt"><span class="fm-eye">${memNovo ? (antigo ? 'Cadastrar substituta' : 'Cadastrar') : m === 'pessoas' && !id && pre ? 'Acompanhamento externo' : id ? 'Editar cadastro' : 'Novo cadastro'}</span><h2>${esc(memNovo ? NOME_FUNCAO[pre] || M.um : m === 'membros' && id ? r.nome : m === 'pessoas' && !id && pre ? 'Nova pessoa que acompanha' : M.um || M.novo)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo">${!id && IMPRIMIVEIS.includes(m) ? `<div class="imp-barra"><span><b>Vai preencher no papel?</b> Imprima a ficha em branco, preencha em campo e digite aqui depois.</span>${btnImprimir(`data-imprimir="${m}"`, FICHA_PAPEL[m])}</div>` : ''}${memNovo && !ed.convite && convites !== null ? `<button type="button" class="cad-modo" data-gerarlink="${esc(pre)}"><b>Prefere que a pessoa preencha?</b><span>Gere um link e mande pelo WhatsApp.</span><i aria-hidden="true">→</i></button>` : ''}${M.oque && !id && m !== 'membros' && !(m === 'pessoas' && pre) ? `<div class="fm-oque fm-oque-fixo" role="note" aria-label="O que é"><b class="fm-oque-t">O que é</b><p>${esc(M.oque)}</p></div>` : ''}${m !== 'membros' && M.campos.some(c => c[3] && c[2] !== 'sec' && c[2] !== 'check') ? '<p class="fm-obr"><span class="obr" aria-hidden="true">*</span> obrigatório</p>' : ''}${m === 'membros' ? '<div class="fm-faz" id="fm_faz" hidden></div>' : ''}${antigo ? `<p class="fm-sub">Substitui <b>${esc(antigo.nome)}</b>, desligada(o) em ${dt(antigo.fim)}. O histórico liga as duas pessoas.</p>` : ''}${corpo}</div>
-     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${id && IMPRIMIVEIS.includes(m) ? btnImprimir(`data-imprimircheio="${m}:${esc(id)}"`, 'Imprimir esta ficha') : ''}${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'lotes' && id ? `${r.codigo ? btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR') : ''}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
+     <div class="fm-pe"><div class="err" id="ferr" role="alert"></div><div class="frow"><button type="button" class="b" data-fechar>Cancelar</button>${id && IMPRIMIVEIS.includes(m) ? btnImprimir(`data-imprimircheio="${m}:${esc(id)}"`, 'Imprimir esta ficha') : ''}${m === 'agricultores' && podeAnexar(M) ? btnImprimir(`data-termo="${esc(id || '')}"`, 'Imprimir termo') : ''}${m === 'agricultores' && id && coord() ? `<button type="button" class="b" data-anonimizar="${esc(id)}" title="LGPD: o titular pediu para apagar os dados">Apagar dados pessoais</button>` : ''}${m === 'lotes' && id ? `${r.codigo ? btnImprimir(`data-etiqueta="${esc(id)}"`, 'Etiqueta com QR') : ''}${r.status === 'Pronto' && R.podeGravar(eu, 'distribuicoes') ? `<button type="button" class="b" data-novadist="${esc(id)}">Registrar entrega</button>` : ''}` : ''}${['visitas', 'unidades'].includes(m) && R.podeGravar(eu, 'fotos') ? (id ? `<button type="button" class="b" data-fotos="${m}:${esc(id)}">Fotos (${(db.fotos || []).filter(f => f.tabela === m && f.registro === id).length})</button>` : '<button type="button" class="b" data-salvarfotos>Salvar e anexar fotos</button>') : ''}<button class="b p" id="fsalvar">Salvar</button></div></div>`;
     $('#dlg').dataset.rede = ['despesas', 'pessoas', 'membros'].includes(m) ? 'conexao' : 'fila';   // aviso sem internet certo para esta janela
     { const d = $('#frm .fm-oque-fixo, #frm .fm-oque-d'), o = $('#frm .fm-obr'); if (d || o) { const w = document.createElement('div'); w.className = 'fm-info'; (d || o).before(w); if (d) w.append(d); if (o) w.append(o); } }   // 21/10/2026: "O que é" e "* obrigatório" numa linha só
     if (id && r._servidor) painelConflito(m, r);
@@ -6921,7 +6944,7 @@ ${secs}</div>`;
       if (i >= 0) db[p.tabela][i] = Object.assign({}, db[p.tabela][i], r); else db[p.tabela].push(r); });
   }
   async function gravarRegistro(m, r, ant) {
-    const limpo = Object.assign({}, r); delete limpo._pendente; delete limpo._erro; delete limpo._servidor;
+    const limpo = Object.assign({}, r); delete limpo._pendente; delete limpo._erro; delete limpo._servidor; gravacoes++;
     { const mx = R.mexerRegistro(db, eu, m, ant || null, limpo); if (mx) return { ok: false, msg: mx }; }   /* 29/10/2026: a regra por registro (48) avisa antes, também no modo produção */
     try {
       const naFila = pend.find(p => p.id === SQC.fila.chave(m, r.id));
@@ -6946,7 +6969,7 @@ ${secs}</div>`;
     try { await aoSalvar0(ev); } finally { e0.salvando = false; bs.forEach(b => { if (b.isConnected) b.disabled = false; }); }
   }
   async function aoSalvar0(ev) {
-    ev.preventDefault(); if (!ed) return; const depoisFotos = ed.depoisFotos; ed.depoisFotos = false;   // vale só para este envio (um erro de validação não deixa o pedido ligado)
+    ev.preventDefault(); if (!ed) return; const e0 = ed, fechar0 = () => { if (ed === e0) { $('#dlg').close(); ed = null; } render(); }; const depoisFotos = ed.depoisFotos;   /* 29/10/2026 (ataque de uso real): o fim do Salvar só mexe na janela que o começou */ ed.depoisFotos = false;   // vale só para este envio (um erro de validação não deixa o pedido ligado)
     const { m, id } = ed, M = MOD[m], ant = id ? Object.assign({}, by(m, id)) : null, r = id ? Object.assign({}, ant) : { id: SQC.novoId() };
     const er = t => { $('#ferr').textContent = t; };
     document.querySelectorAll('#frm [data-culpa]').forEach(tiraCulpa);   /* só a marca que o Salvar pôs (a das máscaras, como CPF inválido, fica) */
@@ -6985,9 +7008,9 @@ ${secs}</div>`;
     const doc = DOC_TAB.includes(m) && $('#f_arquivo') && $('#f_arquivo').files[0], tiraDoc = DOC_TAB.includes(m) && $('#f_tirardoc') && $('#f_tirardoc').checked;
     if (doc) { const md = R.validarDocumento(doc); if (md) { $('#f_arquivo').focus(); return er(md); } if (!navigator.onLine) return er('Para anexar o arquivo é preciso internet. Salve sem o arquivo (ou com o link) e anexe quando a conexão voltar.'); }
     const b = $('#fsalvar'); b.disabled = true; b.textContent = 'Salvando…';
-    const res = await gravarRegistro(m, r, ant && ed && ed.baseRasc !== undefined ? Object.assign({}, ant, { atualizado_em: ed.baseRasc }) : ant);   // rascunho recuperado: a base é a versão de quando foi guardado
+    const res = await gravarRegistro(m, r, ant && e0.baseRasc !== undefined ? Object.assign({}, ant, { atualizado_em: e0.baseRasc }) : ant);   // rascunho recuperado: a base é a versão de quando foi guardado
     b.disabled = false; b.textContent = m === 'membros' && !id ? 'Cadastrar' : 'Salvar';
-    if (!res.ok) return er(res.msg);
+    if (!res.ok) return ed === e0 ? er(res.msg) : toast('Não foi salvo: ' + res.msg);
     if (doc || (tiraDoc && ant && ant.arquivo)) {   // o registro já está gravado: agora o arquivo (sem internet a entrega fica sem ele e avisa)
       const b2 = $('#fsalvar'); if (b2) { b2.disabled = true; b2.textContent = doc ? 'Enviando o arquivo…' : 'Salvando…'; }
       try {
@@ -6996,10 +7019,10 @@ ${secs}</div>`;
         if (doc) { const cam = await api.enviarDocumento(r.id, doc, m); g.arquivo = cam; g.arquivo_nome = doc.name.slice(0, 200); }
         else { await api.tirarDocumento(r.id, m); g.arquivo = null; g.arquivo_nome = null; }
         await renovarCarimbo(m, r.id);
-      } catch (e) { if (b2) { b2.disabled = false; b2.textContent = 'Salvar'; } $('#dlg').close(); ed = null; render(); return toast('Registro salvo, mas o documento não: ' + (e.message || e)); }
+      } catch (e) { if (b2) { b2.disabled = false; b2.textContent = 'Salvar'; } fechar0(); return toast('Registro salvo, mas o documento não: ' + (e.message || e)); }
     }
     // 42: documentos escolhidos no cadastro novo sobem agora que o registro existe
-    const fila = ANX_TAB.includes(m) && ed && ed.anexosFila && ed.anexosFila.length ? ed.anexosFila.splice(0) : [];
+    const fila = ANX_TAB.includes(m) && e0.anexosFila && e0.anexosFila.length ? e0.anexosFila.splice(0) : [];
     if (fila.length) { if (res.fila) toast('O registro ficou guardado no aparelho; os documentos só sobem com internet: abra o registro depois e anexe.');
       else { const b3 = $('#fsalvar'); if (b3) { b3.disabled = true; b3.textContent = 'Enviando os documentos…'; } const falhas = [];
         for (const f of fila) { try { const a = await api.enviarAnexo(m, r.id, f); if (a) db.anexos.push(a); else { const g = by(m, r.id) || r; const cam = await api.enviarDocumento(r.id, f, m); g.arquivo = cam; g.arquivo_nome = f.name.slice(0, 200); } } catch (e) { falhas.push(`${f.name}: ${e.message || e}`); } }
@@ -7008,7 +7031,7 @@ ${secs}</div>`;
     let acesso = '';
     if (m === 'membros' && !id && !res.fila && coord() && r.email) acesso = await criarAcessoDaFuncao(r);
     if (m === 'membros' && id && ant && !res.fila && coord()) acesso = await acertarAcesso(ant, r);   /* 29/10/2026 (ataque à Coordenação): e-mail ou função trocados levam o acesso junto */
-    $('#dlg').close(); ed = null; render();
+    fechar0();
     if (acesso) return toast(acesso);
     if (depoisFotos && !res.fila) return abrirFotos(m, r.id, m === 'unidades' ? 'Biofábrica salva. Agora tire ou escolha as fotos da implantação.' : 'Visita salva. Agora tire ou escolha as fotos.');
     if (depoisFotos && res.fila) return toast(`Sem internet: ${m === 'unidades' ? 'a biofábrica ficou guardada' : 'a visita ficou guardada'} neste aparelho. As fotos precisam de internet: anexe depois, pelo botão Fotos ${m === 'unidades' ? 'no Editar da biofábrica' : 'da visita'}.`);
@@ -7065,7 +7088,7 @@ ${secs}</div>`;
     /* 19/10/2026: cada resposta em linha própria, como os outros dados da ficha (juntas numa linha só ficavam difíceis de ler) */
     const perf = [['agricultor', 'É agricultor(a)?'], ['atua_af', 'Atua com agricultura familiar?'], ['zona_rural', 'Mora na zona rural?'], ['celular_internet', 'Tem celular com internet?']].filter(([k]) => m[k]).map(([k, t]) => l(t, esc(m[k]))).join('');
     ed = null; $('#frm').className = 'fm';
-    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(NOME_FUNCAO[m.funcao] || 'Equipe')}</span><h2>${esc(m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">${esc(NOME_FUNCAO[m.funcao] || 'Equipe')}</span><h2>${esc(m.nome_social || m.nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
      <div class="fm-corpo fi"><div class="fi-top">${comX(m, avatar(m))}<div><span class="chip ${ativo ? 'ok' : ''}">${ativo ? (m.fim ? 'Sai em ' + dt(m.fim) : 'Na equipe') : 'Desligado(a) em ' + dt(m.fim)}</span>${res ? seloHab(m) : ''}${F ? `<p class="small">${esc(F[4])}</p>` : ''}</div></div>
       ${podeFoto(m) ? botoesFoto(m) : ''}
       ${bloco('Contato', l('E-mail (login)', esc(m.email)) + l('Celular', esc(m.telefone)) + l('Município', esc(m.municipio)))}
@@ -7148,7 +7171,7 @@ ${secs}</div>`;
     if (ja && ja.ativo === false) { const res = await gravarRegistro('pessoas', Object.assign({}, ja, { ativo: true, perfil: PERFIL_DA_FUNCAO[r.funcao] || ja.perfil }), ja);   /* 29/10/2026: recontratação reativa o acesso */
       return res.ok ? `Cadastro salvo e acesso reativado, com o perfil ${R.NOME_PERFIL[PERFIL_DA_FUNCAO[r.funcao] || ja.perfil]}.` : 'Cadastro salvo, mas o acesso desativado não foi reativado: ' + res.msg; }
     if (ja) return ja.perfil === PERFIL_DA_FUNCAO[r.funcao] ? 'Cadastro salvo. Esta pessoa já tinha acesso ao sistema.' : `Cadastro salvo. Esta pessoa já tem acesso como ${R.NOME_PERFIL[ja.perfil] || ja.perfil}: se precisar, mude o perfil em Dados › Pessoas com acesso.`;
-    const p = { id: SQC.novoId(), nome: r.nome, email, perfil: PERFIL_DA_FUNCAO[r.funcao] || 'Equipe', ativo: true };
+    const p = { id: SQC.novoId(), nome: r.nome_social || r.nome, email, perfil: PERFIL_DA_FUNCAO[r.funcao] || 'Equipe', ativo: true };
     const res = await gravarRegistro('pessoas', p, null);
     return res.ok ? `Cadastro salvo e acesso criado, com o perfil ${R.NOME_PERFIL[p.perfil]}. Avise a pessoa para abrir o sistema e usar “Primeiro acesso” com o e-mail ${email}.` : 'Cadastro salvo, mas o acesso não foi criado: ' + res.msg;
   }
@@ -7370,13 +7393,17 @@ ${secs}</div>`;
   let sincronizando = false, espera = null;
   /* auditoria de 23/10/2026: o resultado guardado leva a marca de quem pediu; se outra pessoa entrar no aparelho antes de ele ser aplicado, é descartado */
   async function atualizarPorBaixo() { try { await buscarPorBaixo(); } catch (e) { /* fica como está */ } }
-  async function buscarPorBaixo() { const quem = eu && eu.id; const db1 = await api.carregar(), pend1 = demo() ? [] : await SQC.fila.listar(quem);
-    if (eu && eu.id === quem) { espera = { db: db1, pend: pend1, de: quem }; buscouEm = Date.now(); } }
+  /* 29/10/2026 (ataque de uso real): busca que começou antes de uma gravação não pode ser aplicada depois dela (apagava da tela o que
+     acabou de ser salvo e tirava da lista o que esperava envio). Cada gravação, exclusão e envio da fila conta em "gravacoes";
+     resultado de busca mais velho que a última gravação é descartado (a próxima busca traz tudo). */
+  let gravacoes = 0;
+  async function buscarPorBaixo() { const quem = eu && eu.id, g0 = gravacoes; const db1 = await api.carregar(), pend1 = demo() ? [] : await SQC.fila.listar(quem);
+    if (eu && eu.id === quem && gravacoes === g0) { espera = { db: db1, pend: pend1, de: quem, g: g0 }; buscouEm = Date.now(); } }
   /* 19/10/2026: ao trocar de aba, busca o que os outros lançaram (ex.: quem preencheu o link de cadastro) se a última busca passou de 30 s.
      A busca é por baixo: a aba aparece na hora e os dados novos entram quando chegam, sem mexer em janela aberta. */
   let buscouEm = Date.now(), buscando = false, ultimaMarca = '';
   async function atualizarAoTrocar() {
-    if (buscando || !eu || demo() || real || navigator.onLine === false || pend.length || Date.now() - buscouEm < 30000) return;
+    if (buscando || !eu || demo() || real || navigator.onLine === false || pend.some(p => !p.erro) || Date.now() - buscouEm < 30000) return;   /* 29/10/2026: item "não enviado" parado não impede de buscar o que os outros lançam */
     buscando = true; try { await atualizarPorBaixo();
       // 20/10/2026: nada mudou desde a última busca → não redesenha (no celular, cada redesenho custava meio segundo e a tela pulava depois do toque)
       let marca = ''; if (espera) { try { marca = JSON.stringify(espera.db) + '|' + espera.pend.length; } catch (e) { marca = ''; } if (marca && marca === ultimaMarca && !pend.length) { espera = null; return; } }
@@ -7385,7 +7412,7 @@ ${secs}</div>`;
     buscando = true; try { await buscarPorBaixo(); if (espera && eu && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); } }
     catch (e) { if (eu && !e.semRede) toast('Não consegui buscar os dados novos do servidor: ' + (e.message || 'tente de novo.') + ' Você está vendo a cópia deste aparelho.'); marcarNet(); }   // auditoria: antes a falha passava calada
     finally { buscando = false; buscouEm = Date.now(); } }   // janela aberta: os dados novos entram quando ela fechar (como na atualização ao trocar de aba)
-  function aplicarEspera() { if (!espera || !eu) return; if (espera.de && espera.de !== eu.id) { espera = null; return; } trocarDb(espera.db); pend = espera.pend; espera = null; aplicarFila(); render(); }
+  function aplicarEspera() { if (!espera || !eu) return; if ((espera.de && espera.de !== eu.id) || (espera.g !== undefined && espera.g !== gravacoes)) { espera = null; return; } trocarDb(espera.db); pend = espera.pend; espera = null; aplicarFila(); render(); }
   /* "falta enviar" (script 14): com internet, o aparelho informa só a contagem do que guarda sem enviar. A coordenação vê na Visão geral. */
   const aparelho = () => { let a = ''; try { a = localStorage.getItem('sqc-aparelho') || ''; if (!a) { a = SQC.novoId(); localStorage.setItem('sqc-aparelho', a); } } catch (e) { a = a || 'sem-armazenamento'; } return a; };
   async function informarFila() {
@@ -7417,8 +7444,9 @@ ${secs}</div>`;
       // só busca tudo de novo se algo foi enviado, se abriu com a cópia do aparelho ou se a pessoa pediu: logo depois de entrar
       // os dados acabaram de chegar, e baixar tudo outra vez dobrava o tempo e o consumo de internet (auditoria de 14/10)
       const precisa = r.enviados || r.erros || api.offline || avisar;
-      const novo = precisa ? await api.carregar() : null; const fila = await SQC.fila.listar(eu.id);
-      if (novo) { if ($('#dlg').open) { espera = { db: novo, pend: fila, de: eu && eu.id }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
+      const g0 = gravacoes, novo = precisa ? await api.carregar() : null; const fila = await SQC.fila.listar(eu.id);
+      if (novo && gravacoes !== g0) { pend = fila; buscouEm = 0; }   /* 29/10/2026: houve gravação durante a busca: a tela fica com o que tem (a próxima busca traz o resto) */
+      else if (novo) { if ($('#dlg').open) { espera = { db: novo, pend: fila, de: eu && eu.id, g: g0 }; }   // não troca os dados por baixo de um formulário aberto: aplica quando ele fechar
         else { trocarDb(novo); pend = fila; aplicarFila(); render(); } }
       informarFila(); if (coord()) filas = undefined;   // a lista da coordenação busca de novo na próxima vez que o painel aparecer
       const resta = (await SQC.fila.listar(eu.id)).filter(p => !p.erro).length;
@@ -7536,7 +7564,7 @@ ${secs}</div>`;
     else if (d.vercomo !== undefined) { if (coord() && !real) { real = { eu, db, tab }; db = semPessoal(db); eu = Object.assign({}, eu, { perfil: 'Acompanhamento', orgao: d.vercomo || 'SEAB/MDA' }); tab = 'painel'; nav(); render(); scrollTo(0, 0); } }
     else if (d.sairver !== undefined) { if (real) { eu = real.eu; db = real.db; tab = real.tab; real = null; nav(); render(); scrollTo(0, 0); } }
     else if (d.impok !== undefined) { if (imp) await confirmarImportacao(t); }
-    else if (d.fechar !== undefined) { if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
+    else if (d.fechar !== undefined) { if (ed && ed.salvando) return toast('Aguarde: salvando.'); if (perderia()) return avisarPerda(); $('#dlg').close(); ed = null; }
     else if (d.pular !== undefined) { const v = $('#view'); v.setAttribute('tabindex', '-1'); v.focus(); }
     else if (d.ajudaentrada !== undefined) abrirAjudaEntrada();
     else if (d.geo !== undefined) pegarLocal(t);
@@ -7582,11 +7610,19 @@ ${secs}</div>`;
       if (uso.length) { toast('Não dá para excluir: este registro está em uso em ' + uso.join(', ') + '. Exclua ou mude esses registros antes.'); t.focus(); return; }   // 24/10/2026: avisa e mantém o foco (antes o botão travava e o foco se perdia)
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; anunciar('Toque de novo para confirmar a exclusão.'); return; }
       t.disabled = true;
-      const antigo = Object.assign({}, by(m, id));
+      const antigo = Object.assign({}, by(m, id)); gravacoes++;
+      /* 29/10/2026 (ataque de uso real): lançamento novo que ainda não subiu sai só do aparelho (antes ia ao servidor e dava "sem internet" ou "sem permissão") */
+      { const k = SQC.fila.chave(m, id), it = pend.find(p => p.id === k); if (antigo._pendente && it && it.op && it.op.novo) { await SQC.fila.remover(k); pend = await SQC.fila.listar(eu.id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render(); return toast('Lançamento retirado deste aparelho (ainda não tinha sido enviado).'); } }
       try { await api.excluir(m, id); try { const k = SQC.fila.chave(m, id); if (pend.some(p => p.id === k)) { await SQC.fila.remover(k); pend = await SQC.fila.listar(eu.id); } } catch (x) {}   /* auditoria de 28/10/2026: a edição que esperava na fila não ressuscita o excluído */
         db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render();
         oferecerDesfazer(m, antigo); }
       catch (e) { t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
+    }
+    else if (d.anonimizar) {   /* 51 (LGPD): pedido do titular. Dois toques; o número, as entregas e as metas ficam, o nome e o que identifica saem, também do histórico */
+      if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar nome, comunidade, observações e documentos'; anunciar('Toque de novo para confirmar. Não tem volta.'); return; }
+      t.disabled = true;
+      try { await api.anonimizarAgricultor(d.anonimizar); gravacoes++; await recarregarDb(); if ($('#dlg').open) $('#dlg').close(); render(); toast('Dados pessoais apagados a pedido do titular. A unidade produtiva segue nas contas pelo número.'); }
+      catch (e) { t.disabled = false; t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
@@ -7688,7 +7724,7 @@ ${secs}</div>`;
         const alvo = [...document.querySelectorAll('#frm select')].find(x => x.dataset[foco] === val); if (alvo) alvo.focus(); return;
       } if (ev.target.id === 'f_agricultor') avisoTermo();
       if (ev.target.id === 'f_tipo' && ed && ed.m === 'lotes' && !ed.id) { const t = D.TIPOS[ev.target.value]; if (t) { $('#f_dias').value = t[1]; $('#f_med').value = t[2]; } } });
-    $('#dlg').addEventListener('cancel', ev => { if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
+    $('#dlg').addEventListener('cancel', ev => { if (ed && ed.salvando) { ev.preventDefault(); return; } if (perderia()) { ev.preventDefault(); avisarPerda(); } });   // Esc ou "voltar" do Android
     /* 22/10/2026 (auditoria de campo): o "voltar" do Android em navegador sem CloseWatcher saía da página e perdia o formulário.
        Janela aberta = uma entrada a mais no histórico do navegador; o voltar fecha só a janela (e, com algo digitado, avisa como o ×). */
     { let ignorar = false; const D0 = $('#dlg');
@@ -7699,7 +7735,7 @@ ${secs}</div>`;
       window.addEventListener('popstate', () => {
         if (ignorar) { ignorar = false; return; }
         if (!D0.open) return;
-        if (perderia()) { avisarPerda(); try { history.pushState({ sqcDlg: 1 }, ''); } catch (e) {} return; }
+        if ((ed && ed.salvando) || perderia()) { if (!(ed && ed.salvando)) avisarPerda(); try { history.pushState({ sqcDlg: 1 }, ''); } catch (e) {} return; }   /* 29/10/2026: durante o Salvar a janela não fecha */
         D0.close(); ed = null;
       }); }
     $('#dlg').addEventListener('close', () => { ed = null; $('#dlg').classList.remove('dlg-ap'); delete $('#dlg').dataset.rede; aplicarEspera(); const g = gatilho; setTimeout(() => devolverFoco(g), 0); });
@@ -7759,7 +7795,7 @@ ${secs}</div>`;
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'hidden') { saiuEm = Date.now(); return; }
       if (saiuEm && Date.now() - saiuEm >= 30000) atualizarHist();   // Histórico aberto: as seções carregadas se atualizam ao voltar
-      if (!saiuEm || Date.now() - saiuEm < 60000 || !eu || demo() || real || navigator.onLine === false || pend.length) return;
+      if (!saiuEm || Date.now() - saiuEm < 60000 || !eu || demo() || real || navigator.onLine === false || pend.some(p => !p.erro)) return;
       saiuEm = 0; if (coord()) convites = undefined; await atualizarPorBaixo();
       if (espera && !$('#dlg').open && !$('#abas-m').open) { const y = window.scrollY; aplicarEspera(); window.scrollTo(0, y); }
     });
