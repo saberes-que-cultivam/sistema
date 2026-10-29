@@ -1,7 +1,10 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v168';
-const ARQUIVOS = ['./', 'index.html', 'css/app.css', 'js/config.js', 'js/simulacao.js', 'js/tudo.js',
+const VERSAO = 'sqc-v169';
+/* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
+   em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
+const V = VERSAO.replace('sqc-v', '');
+const ARQUIVOS = ['./', 'index.html', 'css/app.css?v=' + V, 'js/config.js?v=' + V, 'js/simulacao.js?v=' + V, 'js/tudo.js?v=' + V,
   'assets/icon-192.png', 'manifest.webmanifest',
   'assets/fontes/manrope-latin-400-normal.woff2', 'assets/fontes/manrope-latin-500-normal.woff2', 'assets/fontes/manrope-latin-600-normal.woff2',
   'assets/fontes/manrope-latin-700-normal.woff2', 'assets/fontes/manrope-latin-800-normal.woff2', 'assets/fontes/lora-latin-600-normal.woff2', 'assets/fontes/lora-latin-700-normal.woff2'];

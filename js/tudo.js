@@ -5101,8 +5101,8 @@ var qrcode = function() {
     const LM = [...db.agricultores, ...db.unidades].filter(x => String(x.municipio || '').trim()).map(x => [semAcento(String(x.municipio).trim()).toLowerCase(), x.uf || '']);
     LM.forEach(([m, uf]) => { if (uf) { muns.add(m + '/' + uf); ufs.add(uf); } else if (!LM.some(y => y[0] === m && y[1])) muns.add(m + '/'); });   /* sem UF conta só se o mesmo nome não aparece com UF */
     const ent = {}; ds.forEach(d => { const m = (by('lotes', d.lote) || {}).med; if (m === 'kg' || m === 'L') ent[m] = (ent[m] || 0) + (+d.qtd || 0); });   /* lote sem medida (ou que não veio) não vira kg */
-    const qtd = ['kg', 'L'].filter(m => ent[m]).map((m, i) => `<span class="mda-q">${i ? '+&nbsp;' : ''}${num(Math.round(ent[m]))}&nbsp;${m}</span>`);   /* 29/10/2026: a unidade não fica sozinha na linha de baixo; se não couber, quebra antes do + */
-    const cart = (n, rot, sub, extra) => `<li class="mda-n${extra ? ' mda-com-mapa' : ''}"><b>${n}</b><span class="mda-r">${rot}</span>${sub ? `<small>${sub}</small>` : ''}${extra || ''}</li>`;
+    const qtd = ['kg', 'L'].filter(m => ent[m]).map(m => `<span class="mda-q">${m === 'kg' ? IC_SOLIDO : IC_LIQUIDO}<span>${num(Math.round(ent[m]))}&nbsp;${m}</span><span class="so">${m === 'kg' ? ' de sólidos' : ' de líquidos'}</span></span>`);   /* 29/10/2026 (pedido da coordenação): uma quantidade por linha, com o ícone do saco (sólidos) e da gota (líquidos), sem o + */
+    const cart = (n, rot, sub, extra) => `<li class="mda-n${extra ? ' mda-com-mapa' : ''}">${extra ? `<div class="mda-top"><b>${n}</b>${extra}</div>` : `<b>${n}</b>`}<span class="mda-r">${rot}</span>${sub ? `<small>${sub}</small>` : ''}</li>`;   /* o mapa pequeno fica no canto de cima, ao lado do número */
     /* 29/10/2026 (pedido da coordenação): mapa pequeno no cartão dos municípios — contorno do CE e do RN, um ponto por município com
        unidade produtiva e um losango por biofábrica (os mesmos dados do mapa "Onde o projeto está", sem nome nem número de pessoa) */
     const miniMapa = () => { const G = SQC.GEO; if (!G || !G.uf) return '';
@@ -5122,7 +5122,7 @@ var qrcode = function() {
     const C = [
       fam ? cart(num(fam), fam === 1 ? 'unidade produtiva já recebeu bioinsumo' : 'unidades produtivas já receberam bioinsumo', `de ${num(db.agricultores.length)} cadastradas`) : '',
       muns.size ? cart(num(muns.size), muns.size === 1 ? 'município com unidade produtiva ou biofábrica' : 'municípios com unidades produtivas ou biofábricas', esc([...ufs].sort().join(' e ')), miniMapa()) : '',   /* bateria de 28/10/2026: a UF vem do cadastro (texto) e precisa de esc */
-      qtd.length ? cart(qtd.join(' '), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
+      qtd.length ? cart(qtd.join(''), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
       I.participantes ? cart(num(I.participantes), 'participações em capacitações e dias de campo realizados', I.partMulheres ? `${num(I.mulheres / I.partMulheres * 100)}% mulheres${I.partMulheres < I.participantes ? ' (nas atividades com essa informação)' : ''}` : '') : ''].filter(Boolean);
     /* 29/10/2026 (pedido da coordenação): cada realização num cartão — data e tipo em cima, o que foi feito em destaque, onde e quantos embaixo */
     const RL = [];

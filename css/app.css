@@ -2450,7 +2450,13 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 .mda{padding:28px 32px;border-radius:20px;margin-bottom:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface) 70%);border-color:color-mix(in srgb,var(--accent) 28%,var(--line))}
 .mda-l{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
 .mda-n{display:flex;flex-direction:column;gap:4px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:14px}
-.mda-q{white-space:nowrap}
+.mda-q{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.mda-q .ag-ic{width:.8em;height:.8em;flex:none;color:var(--accent)}
+.mda-n b:has(.mda-q){display:grid;gap:2px}
+.mda-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.mda-top .mda-mapa{flex:none;width:76px;max-width:none;margin:-4px -4px 0 0}
+@media (max-width:640px){.mda-top .mda-mapa{width:56px;margin:-2px -2px 0 0}}
+.mda-com-mapa .mm-leg{display:none}
 .mda-mapa{display:block;width:100%;max-width:280px;height:auto;margin-top:10px}
 .mda-mapa .mm-uf{fill:color-mix(in srgb,var(--accent) 10%,var(--surface));stroke:color-mix(in srgb,var(--accent) 45%,var(--line));stroke-width:1;stroke-linejoin:round}
 .mda-mapa .mm-p{fill:var(--accent);stroke:var(--surface);stroke-width:1.2}
