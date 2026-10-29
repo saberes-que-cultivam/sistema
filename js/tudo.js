@@ -4588,7 +4588,9 @@ var qrcode = function() {
         ['Meta 2', u => u.conta === 'Sim' ? '<span class="chip ok">conta</span>' : '<span class="chip">apoio</span>'],
         ['Implantação', u => `${bar(nCheck(u), D.CHECK.length)}<div class="small">${nCheck(u)} de ${D.CHECK.length} · próximo: ${esc(R.proximoPasso(u))}</div>`],
         ['Parceiro', u => esc(u.parceiro) || '<span class="chip f">a definir</span>'],
-        ['Itens estimados', u => { const s = db.itens.filter(i => i.unidade === u.id).reduce((t, i) => t + (+i.valor || 0), 0); return `${brl(s)}${u.conta === 'Sim' ? `<div class="small">de ${brl(D.TETO_UNIDADE)}</div>` : ''}`; }, 'n']] },
+        ['Itens estimados', u => { const its = db.itens.filter(i => i.unidade === u.id), s = its.reduce((t, i) => t + (+i.valor || 0), 0), v = `${brl(s)}${u.conta === 'Sim' ? `<div class="small">de ${brl(D.TETO_UNIDADE)}</div>` : ''}`;
+          /* 28/10/2026: o valor leva aos itens desta biofábrica (grupo aberto na lista de baixo) */
+          return its.length ? `<button type="button" class="lk-in" data-veritens="${esc(u.id)}" title="Ver os itens de ${esc(u.nome)}">${v}<span class="so"> (ver os ${its.length} ${its.length === 1 ? 'item' : 'itens'})</span></button>` : v; }, 'n']] },
     itens: { um: 'Item de aquisição', oque: 'Bem ou material a comprar pela FUNCERN para uma unidade de produção.', dicas: { rubrica: 'A rubrica do plano em que a compra vai entrar.' }, nome: 'Itens', titulo: 'Itens e aquisições das unidades', desc: `Cada item passa por orçamento, compra pela FUNCERN e entrega. O teto do plano é ${brl(D.TETO_UNIDADE)} por unidade.`, novo: 'Novo item',
       campos: [['unidade', 'Biofábrica', 'ref', 1, 'unidades'], ['descricao', 'Descrição', 'text', 1], ['valor', 'Valor estimado (R$)', 'number'],
         ['rubrica', 'Rubrica do plano', 'select', 0, () => [['', '']].concat(optRubrica())],
@@ -4740,6 +4742,11 @@ var qrcode = function() {
   const salAg = l => saldo(l);
   const comSaldos = f => { if (agSal) return f(); agSal = new Map(); db.distribuicoes.forEach(d => agSal.set(d.lote, (agSal.get(d.lote) || 0) + (+d.qtd || 0))); try { return f(); } finally { agSal = null; } };
   const AGR = {
+    itens: { ph: 'Item, rubrica…', busca: i => [i.descricao, nomeRubrica(i.rubrica), (by('unidades', i.unidade) || {}).nome],
+      filtros: [['status', 'Situação', () => ['A definir', 'Orçamento enviado', 'Em compras na FUNCERN', 'Entregue'].map(t => [t, t])]],
+      grupos: L => [...db.unidades].sort((a, b) => (b.conta === 'Sim') - (a.conta === 'Sim') || (a.nome < b.nome ? -1 : 1)).map(u => ({ k: u.id, t: u.nome + (u.conta === 'Sim' ? '' : ' (apoio)'), ls: L.filter(i => i.unidade === u.id) })).filter(g => g.ls.length || L.length === db.itens.length),   /* sem filtro, a biofábrica sem item aparece (“nenhum item ainda”) */
+      resumo: g => { const ent = g.ls.filter(i => i.status === 'Entregue').length, falta = g.ls.length - ent, u = by('unidades', g.k) || {}, tot = g.ls.reduce((s, i) => s + (+i.valor || 0), 0);
+        return [pl(g.ls.length, 'item', 'itens'), falta ? `${ent} entregue${ent === 1 ? '' : 's'}, ${falta} em andamento` : 'todos entregues', semDinheiro() ? '' : { rot: u.conta === 'Sim' ? 'Valor dos itens' : 'Valor (fora do teto)', v: [`${brl(tot)}${u.conta === 'Sim' ? ` <small>de ${brl(D.TETO_UNIDADE)}</small>` : ''}`] }, falta ? 'f' : 'ok', falta ? 'em andamento' : 'concluído']; } },
     lotes: { ph: 'Código, tipo, responsável…', busca: l => [l.codigo, l.tipo, (by('unidades', l.unidade) || {}).nome, l.responsavel],
       filtros: [['unidade', 'Biofábrica', () => db.unidades.map(u => [u.id, u.nome])], ['tipo', 'Tipo de bioinsumo', () => [...new Set(db.lotes.map(l => l.tipo).filter(Boolean))].sort().map(t => [t, t])]],
       grupos: L => [['prod', 'Em produção', l => l.status === 'Em preparo' || l.status === 'Maturando', 1], ['pronto', 'Prontos para entregar', l => l.status === 'Pronto' && salAg(l) > 0.004, 1],
@@ -4774,7 +4781,8 @@ var qrcode = function() {
     const GR = A.grupos(L).map(g => ({ g, r: A.resumo(g) })), med = r => (r[2] && r[2].v || []).map(x => typeof x === 'string' ? { md: '', h: x } : x),
       cols = [...new Set(GR.flatMap(({ r }) => med(r).map(x => x.md)))].sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : 1);   // 24/10/2026: cada medida na mesma coluna em todas as linhas (sem L num mês, fica o lugar vazio)
     const pilulas = r => cols.map(md => { const x = med(r).find(y => y.md === md); return x ? `<b class="ag-q">${x.h}</b>` : '<b class="ag-q ag-q0" aria-hidden="true"></b>'; }).join('');
-    return GR.map(({ g, r }) => { const aberto = g.k in ab ? ab[g.k] : filtro,   /* 24/10/2026: ao abrir a aba, todos os grupos fechados (só o resumo); abrem ao tocar. A busca abre os que casam */ [n, s2, dir, chipC, chipT] = r;
+    return GR.map(({ g, r }) => { if (!g.ls.length) return `<div class="dsp-m ag-g ag-vz" data-agm="${m}" data-agk="${esc(g.k)}"><div class="ag-vz-l"><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">nenhum item ainda${(by('unidades', g.k) || {}).conta === 'Sim' ? '' : ' · fora do teto do TED'}</span></div></div>`;
+      const aberto = g.k in ab ? ab[g.k] : filtro,   /* 24/10/2026: ao abrir a aba, todos os grupos fechados (só o resumo); abrem ao tocar. A busca abre os que casam */ [n, s2, dir, chipC, chipT] = r;
       return `<details class="dsp-m ag-g" data-agm="${m}" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${[n, s2].filter(Boolean).join(' · ')}</span>${chipT ? `<span class="chip ${chipC}">${esc(chipT)}</span>` : ''}${dir && dir.v && dir.v.length ? `<span class="dsp-v ag-tot"><span class="ag-rot">${esc(dir.rot)}</span>${pilulas(r)}</span>` : ''}</summary>
         <div class="ag-c">${aberto ? agLinhas(m, M, g.ls.sort(ord), acoes, g.t) : ''}</div></details>`; }).join('');
   }
@@ -4784,8 +4792,9 @@ var qrcode = function() {
     const g = AGR[m].grupos(agFiltradas(m)).find(x => x.ls.some(r => r.id === id)); if (!g) return;
     (agAb[m] = agAb[m] || {})[g.k] = true; if (tab === m && !semDesenhar) render();
   }
-  const agResumo = m => { const L = agFiltradas(m), T = { lotes: ['lote', 'lotes'], distribuicoes: ['entrega', 'entregas'], visitas: ['visita', 'visitas'] }[m]; return pl(L.length, T[0], T[1]); };
+  const agResumo = m => { const L = agFiltradas(m), T = { itens: ['item', 'itens'], lotes: ['lote', 'lotes'], distribuicoes: ['entrega', 'entregas'], visitas: ['visita', 'visitas'] }[m]; return pl(L.length, T[0], T[1]); };
   function agrupada(m, M, pode, acoes) {
+    if (m === 'itens') M = Object.assign({}, M, { cols: M.cols.filter(c => c[0] !== 'Biofábrica') });   /* o nome da biofábrica já é o título do grupo */
     agCtx[m] = { M, acoes }; const A = AGR[m], F = agF[m] = agF[m] || { q: '' };
     return `<div class="panel dsp-p ag-p"><div class="dsp-f ag-f" role="search" aria-label="Filtrar ${esc(M.nome)}">${A.filtros.map(([k, rot, ops]) => `<label class="fld dsp-c"><span>${esc(rot)}</span><select data-agfil="${m}:${k}"><option value="">Todos</option>${ops().map(([v, t]) => `<option value="${esc(v)}"${F[k] === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`).join('')}
       <label class="fld dsp-c dsp-q"><span>Buscar</span><input type="search" data-agq="${m}" value="${esc(F.q || '')}" placeholder="${esc(A.ph)}" autocomplete="off"></label>
@@ -7397,6 +7406,10 @@ ${secs}</div>`;
     ['input', 'change'].forEach(tp => document.addEventListener(tp, ev => { const t = ev.target; if (t && t.dataset && 'culpa' in t.dataset) tiraCulpa(t); }));   /* corrigiu o campo: a marca de erro sai */
     let despT = 0; document.addEventListener('input', ev => { if (ev.target.id !== 'dsp_q') return; despFiltro.q = ev.target.value; clearTimeout(despT); despT = setTimeout(despRedesenha, 180); });
     document.addEventListener('change', ev => { const t = ev.target; if (t.id === 'dsp_st') despFiltro.st = t.value; else if (t.id === 'dsp_rub') despFiltro.rub = t.value; else return; despRedesenha(); });
+    /* 28/10/2026: o valor dos itens de uma biofábrica abre o grupo dela na lista de itens */
+    document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-veritens]'); if (!b) return; const u = b.dataset.veritens, it = db.itens.find(i => i.unidade === u); if (!it) return;
+      revelar('itens', it.id, true); render();
+      const g = document.querySelector(`details.ag-g[data-agm="itens"][data-agk="${CSS.escape(u)}"]`); if (g) { g.scrollIntoView({ behavior: suave(), block: 'start' }); const sm = g.querySelector('summary'); if (sm) sm.focus({ preventScroll: true }); } });
     document.addEventListener('click', ev => { const sm = ev.target.closest && ev.target.closest('details.dsp-m > summary'); if (!sm) return; const g = sm.parentNode; if (g.classList.contains('ag-g')) (agAb[g.dataset.agm] = agAb[g.dataset.agm] || {})[g.dataset.agk] = !g.open; else despAberto[g.dataset.ym] = !g.open; }, true);   // só o que a pessoa abriu ou fechou (o toggle também dispara ao desenhar)
     document.addEventListener('change', ev => { const t = ev.target; if (t.id !== 'f_arquivo') return; const a = t.files && t.files[0], n = $('#f_arquivo_n');
       if (n) n.textContent = a ? `${a.name} (${a.size >= 1048576 ? num(Math.round(a.size / 104857.6) / 10) + ' MB' : Math.max(1, Math.round(a.size / 1024)) + ' KB'})` : 'nenhum arquivo escolhido'; });

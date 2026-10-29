@@ -2427,3 +2427,5 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 #impresso .pf-cx-v{display:flex;align-items:center;padding:0 2.5mm;font-size:var(--t-sm);color:#1b2a20;line-height:1.15;overflow:hidden}
 #impresso .pf-ml.pf-cx-v{display:block;padding:1.5mm 3mm;white-space:pre-wrap}
 #impresso .pf-bx-on{background:#eef4ee;color:#27663a;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-size:3.6mm}
+/* 28/10/2026: biofábrica sem item na lista de itens agrupada (não abre) */
+.ag-vz .ag-vz-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 18px 14px 41px;min-height:48px}
