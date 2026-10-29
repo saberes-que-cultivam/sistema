@@ -5123,7 +5123,7 @@ var qrcode = function() {
       fam ? cart(num(fam), fam === 1 ? 'unidade produtiva já recebeu bioinsumo' : 'unidades produtivas já receberam bioinsumo', `de ${num(db.agricultores.length)} cadastradas`) : '',
       muns.size ? cart(num(muns.size), muns.size === 1 ? 'município com unidade produtiva ou biofábrica' : 'municípios com unidades produtivas ou biofábricas', esc([...ufs].sort().join(' e ')), miniMapa()) : '',   /* bateria de 28/10/2026: a UF vem do cadastro (texto) e precisa de esc */
       qtd.length ? cart(qtd.join(''), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
-      I.participantes ? cart(num(I.participantes), 'participações em capacitações e dias de campo realizados', I.partMulheres ? `${num(I.mulheres / I.partMulheres * 100)}% mulheres${I.partMulheres < I.participantes ? ' (nas atividades com essa informação)' : ''}` : '') : ''].filter(Boolean);
+      I.participantes ? cart(num(I.participantes), 'presenças em capacitações e dias de campo realizados', I.partMulheres ? `${num(I.mulheres / I.partMulheres * 100)}% mulheres${I.partMulheres < I.participantes ? ' (nas atividades com essa informação)' : ''}` : '') : ''].filter(Boolean);
     /* 29/10/2026 (pedido da coordenação): cada realização num cartão — data e tipo em cima, o que foi feito em destaque, onde e quantos embaixo */
     const RL = [];
     db.eventos.filter(e => e.data && String(e.data) <= h && e.tipo !== 'Participação em evento' && (!['Capacitação', 'Dia de campo'].includes(e.tipo) || R.realizada(db, e))).forEach(e => { const np = R.participantes(db, e);
