@@ -8,7 +8,8 @@
   const q = new URLSearchParams(location.search);
   if (!q.has('simulacao')) return;
   const pedido = q.get('simulacao') || '';
-  const dia = /^\d{4}-\d{2}-\d{2}$/.test(pedido) && pedido >= '2026-08-01' && pedido <= '2027-07-31' ? pedido : '2027-07-31';
+  const valida = x => { const d = new Date(x + 'T12:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === x; };   /* ataque de 28/10/2026: 2026-13-01 deixava NaN na tela */
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(pedido) && valida(pedido) && pedido >= '2026-08-01' && pedido <= '2027-07-31' ? pedido : '2027-07-31';
   SQC.SIMULACAO = { dia };
   SQC.CONFIG = Object.assign({}, SQC.CONFIG || {}, { supabaseUrl: '', supabaseAnonKey: '', semServiceWorker: true });   // nunca o banco de verdade
 
@@ -30,6 +31,10 @@
     d.innerHTML = `<b>Simulação com dados fictícios</b><span>Data simulada: ${br(dia)}. Nada aqui vai para o banco do projeto.</span>`
       + `<span class="sim-ir">Ver em: <a href="${ir('2026-10-31')}">out/2026</a> · <a href="${ir('2027-01-31')}">jan/2027</a> · <a href="${ir('2027-04-30')}">abr/2027</a> · <a href="${ir('2027-07-31')}">fim do projeto</a> · <a href="${location.pathname}">sair da simulação</a></span>`;
     document.body.prepend(d);
+    /* 28/10/2026 (telas diversas): a faixa presa no alto cobria o menu ao rolar (dobrável, smart TV). O menu desce a altura da faixa
+       enquanto ela está presa; em tela baixa ou estreita a faixa rola junto com a página (CSS) e o menu volta ao topo. */
+    const ajusta = () => document.documentElement.style.setProperty('--sim-h', getComputedStyle(d).position === 'sticky' ? d.offsetHeight + 'px' : '0px');
+    ajusta(); try { new ResizeObserver(ajusta).observe(d); } catch (e) {} addEventListener('resize', ajusta);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', faixa); else faixa();
 

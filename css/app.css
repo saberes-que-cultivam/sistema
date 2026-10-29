@@ -40,7 +40,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:var(--t-base)/1.5 var(-
 header.top .wrap{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;justify-content:space-between}
 h1{font:700 var(--t-3xl)/1.1 var(--marca);margin:0}
 
-nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--sim-h,0px));z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 nav .wrap{display:flex;gap:2px;overflow-x:auto}
 nav button{flex:none;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);font:500 var(--t-md) var(--body);padding:10px 10px 8px;cursor:pointer}
 
@@ -2429,3 +2429,47 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 #impresso .pf-bx-on{background:#eef4ee;color:#27663a;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-size:3.6mm}
 /* 28/10/2026: biofábrica sem item na lista de itens agrupada (não abre) */
 .ag-vz .ag-vz-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 18px 14px 41px;min-height:48px}
+/* 28/10/2026 (versão 165): cartões das unidades produtivas dentro do grupo do polo, com respiro do quadro */
+.pc-g>.ag-c>.pcs{margin:0;padding:4px 14px 14px}
+@media (max-width:640px){.pc-g>.ag-c>.pcs{padding:4px 8px 10px}}
+/* 28/10/2026 (versão 165): Ajuda desta página — para que serve, como fazer (passos numerados), bom saber e o resto recolhido */
+.aj-passos{list-style:none;counter-reset:aj;margin:6px 0 4px;padding:0;display:flex;flex-direction:column;gap:12px}
+.aj-passos li{counter-increment:aj;display:grid;grid-template-columns:28px 1fr;gap:2px 12px;align-items:start}
+.aj-passos li::before{content:counter(aj);grid-row:span 2;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-weight:700;font-size:var(--t-sm);line-height:28px;text-align:center}
+.aj-passos b{font-size:var(--t-md);color:var(--ink);font-weight:700;line-height:1.35}
+.aj-passos span{font-size:var(--t-base);color:var(--txt-2);line-height:1.5}
+.aj-dicas{margin:6px 0 4px;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;font-size:var(--t-base);color:var(--txt-2);line-height:1.5}
+.aj-dicas li::marker{color:var(--accent)}
+.aj-perfil{margin:18px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:var(--t-sm);color:var(--txt-2);line-height:1.5}
+.aj-mais{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.aj-mais>summary{cursor:pointer;padding:12px 0;font-weight:600;font-size:var(--t-base);color:var(--accent);min-height:24px}
+.aj-mais[open]>summary{border-bottom:1px solid var(--line);margin-bottom:6px}
+.aj-mais .aj-p,.aj-mais .aj{margin-bottom:10px}
+.aj-corpo .aj-aqui{font-size:var(--t-md)}
+/* 28/10/2026 (versão 165): "O projeto em números" e "Últimas realizações", no alto da Visão geral do SEAB/MDA */
+.mda{padding:28px 32px;border-radius:20px;margin-bottom:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface) 70%);border-color:color-mix(in srgb,var(--accent) 28%,var(--line))}
+.mda-l{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.mda-n{display:flex;flex-direction:column;gap:4px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:14px}
+.mda-n b{font-size:var(--t-3xl);line-height:1.1;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.mda-r{font-size:var(--t-md);font-weight:600;color:var(--ink);line-height:1.35}
+.mda-n small{font-size:var(--t-sm);color:var(--txt-2);line-height:1.4}
+.mda-u{margin-top:22px}
+.mda-u h3{margin:0 0 10px;font-size:var(--t-lg);font-weight:700}
+.mda-u ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:8px 24px}
+.mda-u li{display:flex;gap:12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);font-size:var(--t-base);line-height:1.45;color:var(--txt-2)}
+.mda-u time{flex:none;min-width:5.6em;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.mda-u b{color:var(--ink);font-weight:600}
+@media (max-width:640px){.mda{padding:20px 16px}.mda-l{grid-template-columns:1fr 1fr;gap:10px}.mda-n{padding:12px 12px}.mda-n b{font-size:var(--t-2xl)}.mda-u ol{grid-template-columns:1fr}}
+/* 28/10/2026 (telas diversas): faixa da simulação rola junto em tela estreita ou baixa (no dobrável fechado ela tinha 4 linhas presas) */
+@media (max-width:640px),(max-height:600px){#sim-faixa{position:static}}
+/* 28/10/2026 (telas diversas): TV 4K e monitor 4K sem escala (3840 × 2160 com 1 px por ponto): a coluna de 1.180 px ficava com letra de 15 px
+   no meio de uma tela enorme, ilegível de longe. Nessas telas tudo cresce 60% (zoom: largura, letra e espaçamentos juntos). */
+@media (min-width:3000px) and (min-height:1700px){html{zoom:1.6}}
+/* 28/10/2026 (telas diversas): celular dobrável fechado (280 px) — os 4 botões do alto, os rodapés das janelas e a faixa "Vai preencher no papel?"
+   passavam da tela; abaixo de 301 px os botões do alto encolhem para 34 px e os botões das janelas quebram em linhas */
+@media (max-width:300px){
+  header .wrap{gap:6px} .who{gap:2px} .tb,.tb-av{width:34px;height:34px} .tb svg{width:18px;height:18px}
+  .fm-cab,.fm-corpo,.fm-pe{padding-inline:10px} #frm .fm-corpo{--fpx:10px} .fm-cab h2{overflow-wrap:anywhere}
+  .fm-pe .frow,.fm-corpo .frow{flex-wrap:wrap} .fm-pe .frow>.b,.fm-corpo .frow>.b{flex:1 1 100%;min-width:0;white-space:normal}
+  #frm *{min-width:0} #frm .b{white-space:normal;height:auto;min-height:40px}
+}

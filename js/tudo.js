@@ -631,6 +631,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     if (tabela === 'eventos') {
       if (String(r.resumo || '').length > 4000) return `O resumo tem ${String(r.resumo).length} caracteres; o limite é 4.000. Encurte o texto.`;   // 21/10/2026: o ditado passava do limite e o banco recusava com mensagem genérica
       if (!inteiro(r.part) || !inteiro(r.mulheres)) return 'Participantes e mulheres precisam ser números inteiros.';
+      if (n(r.part) > 10000 || n(r.mulheres) > 10000) return 'Participantes e mulheres: no máximo 10.000 por atividade. Confira o número.';   /* ataque de 28/10/2026 */
       if (!vazio(r.mulheres) && vazio(r.part)) return 'Informe o total de participantes antes do número de mulheres.';
       if (n(r.mulheres) > n(r.part)) return 'O número de mulheres não pode passar do total de participantes.';
     }
@@ -687,6 +688,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const GRAVA = { Formador: ['eventos', 'presencas', 'fotos'], Equipe: ['entregas'] }, CAMPO = ['Auxiliar'];   // 22/10/2026: o bolsista (nível médio) só registra entregas
   const podeGravar = (eu, tabela) => !!eu && eu.ativo !== false && (eu.perfil === 'Coordenação' || (CAMPO.includes(eu.perfil) && !RESTRITAS.includes(tabela)) || (GRAVA[eu.perfil] || []).includes(tabela));
   /* excluir: a coordenação exclui tudo; nos demais casos, só o que a própria pessoa lançou (nunca acessos nem despesas) */
+  /* 28/10/2026 (48, ataque ao banco): regras por registro, iguais às do banco. Formador(a) altera só a atividade que registrou e
+     mexe só na lista dela; só a coordenação ou quem criou a entrega troca ou retira o documento; depois de informada, a data de
+     funcionamento da biofábrica só a coordenação muda. Devolve '' ou a mensagem. */
+  function mexerRegistro(db, eu, tabela, ant, novo) {
+    if (!eu) return 'Entre no sistema.';
+    if (eu.perfil === 'Formador') {
+      if (tabela === 'eventos' && ant && ant.criado_por && ant.criado_por !== eu.id) return 'Você altera só as atividades que registrou. Peça à coordenação.';
+      if (tabela === 'presencas') { const ev = (db.eventos || []).find(e => e.id === ((novo || ant || {}).evento)); if (ev && ev.criado_por && ev.criado_por !== eu.id) return 'Você mexe só na lista das atividades que registrou. Peça à coordenação.'; }
+    }
+    if (tabela === 'entregas' && ant && ant.arquivo && novo && 'arquivo' in novo && novo.arquivo !== ant.arquivo && eu.perfil !== 'Coordenação' && ant.criado_por && ant.criado_por !== eu.id) return 'Só a coordenação ou quem registrou a entrega troca ou retira o documento dela.';
+    if (tabela === 'unidades' && ant && ant.funcionando_em && novo && 'funcionando_em' in novo && (novo.funcionando_em || null) !== ant.funcionando_em && eu.perfil !== 'Coordenação') return 'Depois de informada, a data em que a biofábrica começou a funcionar só a coordenação muda.';
+    return '';
+  }
   const podeExcluir = (eu, tabela, r) => !!eu && eu.ativo !== false && tabela !== 'pessoas'
     && (eu.perfil === 'Coordenação'
       || (((CAMPO.includes(eu.perfil) && !RESTRITAS.includes(tabela)) || (GRAVA[eu.perfil] || []).includes(tabela)) && !!r && r.criado_por === eu.id));
@@ -784,7 +798,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const validarDocumento = a => !a ? 'Escolha o arquivo.' : !DOC_TIPOS[extDocumento(a.name)] ? 'Este tipo de arquivo não é aceito. Envie PDF, Word, Excel, PowerPoint, LibreOffice, JPEG ou PNG.'
     : !(a.size > 0) ? 'O arquivo está vazio.' : a.size > DOC_MAX ? 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' : '';
   SQC.regras = { qtdBr, avanco, passosUnidades, degrau, participantes, pelaLista, temMulheres, mulheresDe, DOC_TIPOS, DOC_MAX, extDocumento, validarDocumento, pd, iso, dias, fimMes, vazio, distribuido, saldo, pronto, codigoLote, nCheck, unidadePronta, realizada, proximoPasso, visitasDe, recebeu, acompanhada, feito, previstoEtapa, execucaoGeral,
-    novoDesenho, siglaSugerida, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
+    novoDesenho, siglaSugerida, venceu, MSG_CONFLITO, MSG_EXCLUIDO, recebido, previstoMeta, fin, finRubrica, finItens, equipePorFuncao, cpfValido, soDigitos, normalizarMembro, validarDadosPessoais, validarConvite, CAMPOS_CONVITE, CAMPOS_RESERVADOS, nrm, lerSolicitacoes, planoImportacao, rubricaDaFuncern, itemDaFuncern, destinoStatus, numSol, valorPlanilha, dataPlanilha, soma, desembolsoMensal, ritmo, tempoDecorrido, alertas, indicadores, validar, REFS, emUso, mexerRegistro, RESTRITAS, PERFIS, NOME_PERFIL, VAGAS, obrigatoriosMembro, podeGravar, podeExcluir, mensagemErro, brl, dt };
 })();
 ;
 /* ===== planilha.js ===== */
@@ -830,7 +844,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
         const l = [];
         for (const m of row.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
           const at = m[1], corpo = m[2] || '', tipo = (/\bt="([^"]+)"/.exec(at) || [])[1], ref = (/\br="([^"]+)"/.exec(at) || [])[1], val = (/<v>([\s\S]*?)<\/v>/.exec(corpo) || [])[1];
-          const c = tipo === 's' ? fixos[+val] : tipo === 'inlineStr' ? textos(corpo) : val === undefined ? '' : tipo === 'str' || tipo === 'b' ? ent(val) : val;
+          const c0 = tipo === 's' ? fixos[+val] : tipo === 'inlineStr' ? textos(corpo) : val === undefined ? '' : tipo === 'str' || tipo === 'b' ? ent(val) : val;
+          /* auditoria de 28/10/2026: célula numérica vem crua ("124.125" = 124,125); como texto, o ponto era lido como milhar (124.125 reais) */
+          const c = (tipo === undefined || tipo === 'n') && typeof c0 === 'string' && /^-?\d+(\.\d+)?(e[-+]?\d+)?$/i.test(c0) ? Number(c0) : c0;
+          if (ref && coluna(ref) > 200) throw new Error('A planilha tem uma coluna fora do esperado (' + String(ref).slice(0, 12) + '). Confira se é a planilha da FUNCERN.');   /* ataque de 28/10/2026: ZZZZZZ1 travava a aba */
           l[ref ? coluna(ref) : l.length] = c === undefined ? '' : c;
         }
         for (let i = 0; i < l.length; i++) if (l[i] === undefined) l[i] = '';
@@ -902,6 +919,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const depende = it => Object.entries(it.dados || {}).some(([k, v]) => k !== 'id' && typeof v === 'string' && presos.has(v));
       try {
         for (const it of await F.listar(dono)) {
+          if (api.donoAtual && api.donoAtual() !== dono) break;   /* auditoria de 28/10/2026: saiu e outra pessoa entrou no meio do envio: o resto espera o dono */
           const prende = () => { if (it.op && it.op.novo && it.dados && it.dados.id) presos.add(it.dados.id); };   // só registro NOVO segura os outros: o que já existe no servidor pode receber visita mesmo com a edição dele em erro
           if (it.erro && !it.reenviar) { erros++; prende(); continue; }
           if (depende(it)) { prende(); continue; }   // espera: sobe depois que o outro for corrigido
@@ -910,7 +928,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
           const atual = async () => { const x = await F.ler(it.id); return !!x && x.versao === it.versao; };
           try { await api.salvar(it.tabela, it.dados, it.op || {}); if (await atual()) await F.remover(it.id); enviados++; }
           catch (e) {
-            if (e.semRede) break;
+            if (e.semRede || e.passageiro) break;   /* auditoria de 28/10/2026: token vencido ou servidor fora não marca o item: tenta de novo depois */
+            if (e.code === '42501' && api.sessaoValida && !(await api.sessaoValida().catch(() => false))) break;   /* "sem permissão" porque a sessão caiu, não porque a regra recusou */
             if (!(await atual())) continue;
             it.erro = e.message || 'Não foi possível enviar. Tente de novo.'; it.reenviar = false; erros++; prende();
             await F.salvar(it);
@@ -1075,10 +1094,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (!eu || !(tabela === 'entregas' ? ['Coordenação', 'Equipe', 'Auxiliar'] : ['Coordenação', 'Auxiliar']).includes(eu.perfil)) throw falha(tabela === 'entregas' ? 'Só a equipe do projeto anexa documento às entregas.' : 'Só a coordenação e o auxiliar anexam documento à atividade e à biofábrica.');   // como no banco (27, 34 e 40)
       const msg = R.validarDocumento(arquivo); if (msg) throw falha(msg);
       const g = (db[tabela] || []).find(x => x.id === entrega); if (!g) throw falha(R.MSG_EXCLUIDO);
+      if (tabela === 'entregas') { const mx = R.mexerRegistro(db, eu, 'entregas', g, { arquivo: '(novo)' }); if (mx) throw falha(mx); }   /* 48 */
       const caminho = `${entrega}/${SQC.novoId()}.${R.extDocumento(arquivo.name)}`; this._docs[caminho] = arquivo;
       g.arquivo = caminho; g.arquivo_nome = String(arquivo.name || '').slice(0, 200); g.atualizado_em = new Date().toISOString(); persistir(); return caminho;
     },
-    async tirarDocumento(entrega, tabela = 'entregas') { if (!eu || !(tabela === 'entregas' ? ['Coordenação', 'Equipe', 'Auxiliar'] : ['Coordenação', 'Auxiliar']).includes(eu.perfil)) throw falha('O seu perfil não tira este documento.'); const g = (db[tabela] || []).find(x => x.id === entrega); if (g) { g.arquivo = null; g.arquivo_nome = null; persistir(); } },
+    async tirarDocumento(entrega, tabela = 'entregas') { if (!eu || !(tabela === 'entregas' ? ['Coordenação', 'Equipe', 'Auxiliar'] : ['Coordenação', 'Auxiliar']).includes(eu.perfil)) throw falha('O seu perfil não tira este documento.'); if (tabela === 'entregas') { const g0 = (db.entregas || []).find(x => x.id === entrega), mx = g0 && R.mexerRegistro(db, eu, 'entregas', g0, { arquivo: null }); if (mx) throw falha(mx); }   /* 48 */ const g = (db[tabela] || []).find(x => x.id === entrega); if (g) { g.arquivo = null; g.arquivo_nome = null; persistir(); } },
     /* como no banco (43): relata qualquer perfil; lê e marca só a coordenação (guardado neste navegador) */
     _rel() { try { const g = ler(CHAVE + '-relatos'); if (g === null && SIM) { const L = relatosSim(); gravar(CHAVE + '-relatos', JSON.stringify(L)); return L; } return JSON.parse(g || '[]'); } catch (e) { return []; } },
     async relatarProblema(r) { if (!eu) throw falha('Entre no sistema para relatar o problema.'); const L = this._rel(); const x = { id: SQC.novoId(), por: eu.id, em: new Date().toISOString(), texto: String(r.texto).slice(0, 4000), aba: r.aba, versao: r.versao, tecnico: r.tecnico, situacao: 'Aberto' }; L.unshift(x); gravar(CHAVE + '-relatos', JSON.stringify(L)); return x.id; },
@@ -1114,8 +1134,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const c = JSON.parse(JSON.stringify(carregarLocal()));
       const pf = eu ? eu.perfil : '', nPres = {}, nMu = {}; c.presencas.forEach(x => { nPres[x.evento] = (nPres[x.evento] || 0) + 1; if (x.mulher) nMu[x.evento] = (nMu[x.evento] || 0) + 1; });
       if (pf === 'Formador') {   // como no banco (23): unidades produtivas numeradas, visitas sem texto; cada um só o que é seu (o auxiliar lê o campo inteiro desde o 36)
-        c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), municipio: a.municipio, uf: a.uf, territorio: a.territorio, unidade: a.unidade, area: a.area, diag: a.diag, quimico: a.quimico, gasto0: a.gasto0, kit: a.kit, kitdata: a.kitdata, criado_em: a.criado_em, ex: a.ex }));
-        c.visitas = c.visitas.map(v => ({ id: v.id, data: v.data, agricultor: v.agricultor, usou: v.usou, vigor: v.vigor, gasto: v.gasto, ex: v.ex }));
+        c.agricultores = [...c.agricultores].sort((a, b) => String(a.criado_em || '') < String(b.criado_em || '') ? -1 : 1).map((a, i) => ({ id: a.id, nome: 'Unidade produtiva ' + String(i + 1).padStart(2, '0'), criado_em: a.criado_em, ex: a.ex }));   /* 48: ao formador, só o número (cruzar com a lista de presença identificava a pessoa) */
+        c.visitas = [];   /* 48 */
         c.pessoas = c.pessoas.filter(p => p.id === eu.id);
         c.despesas = []; c.membros = []; c.fotos = c.fotos.filter(f => f.tabela === 'eventos'); c.itens = c.itens.map(i => { const x = Object.assign({}, i); delete x.valor; delete x.rubrica; return x; });
       }
@@ -1137,6 +1157,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (pf === 'Acompanhamento' || pf === 'Equipe') {
         c.eventos.forEach(e => { e.presentes = nPres[e.id] || 0; if (e.presentes) e.mulheres_lista = nMu[e.id] || 0; });   // como no banco (32, 40 e 41): só as contagens
       }
+      if (pf === 'Equipe') c.membros = c.membros.filter(m => String(m.email || '').trim().toLowerCase() === String(eu.email || '').trim().toLowerCase());   /* 48: o bolsista lê só o próprio cadastro da equipe */
       if (pf === 'Equipe') c.despesas = [];   // como no banco (33): o bolsista não lê as despesas
       if (eu && eu.perfil !== 'Coordenação') c.membros = c.membros.map(m => { const x = Object.assign({}, m); R.CAMPOS_RESERVADOS.forEach(k => { delete x[k]; }); return x; });   // como no banco: dado reservado só para a coordenação
       c._avisos = await this.avisosRelatos(); return c;
@@ -1146,6 +1167,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (!R.podeGravar(eu, tabela)) throw falha('O seu perfil não tem permissão para fazer isso.');
       const i = db[tabela].findIndex(x => x.id === reg.id); const ant = i >= 0 ? db[tabela][i] : null;
       const r = Object.assign({}, ant || {}, reg); delete r._pendente; delete r._erro;
+      const mx = R.mexerRegistro(db, eu, tabela, ant, reg); if (mx) throw falha(mx);   /* 48 */
       const msg = R.validar(db, tabela, r, ant); if (msg) throw falha(msg);
       if (!ant) { r.id = r.id || SQC.novoId(); r.criado_por = eu.id; r.criado_em = new Date().toISOString(); if (tabela === 'lotes') r.codigo = R.codigoLote(db, r); }
       else { r.criado_por = ant.criado_por; r.criado_em = ant.criado_em; if (tabela === 'lotes') r.codigo = ant.codigo; }
@@ -1267,7 +1289,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const copiaMinha = () => { const d = donoCopia(); return !!d && ler(CHAVE_DE) === d; };
   const erro = e => {
     const x = new Error(R.mensagemErro(e)); x.original = e; x.code = e && e.code;
-    x.semRede = !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network/i.test(String((e && e.message) || e));
+    x.semRede = !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network|abort|timed? ?out/i.test(String((e && (e.message || e.name)) || e));
+    /* auditoria de 28/10/2026: token vencido, servidor fora (502/503/504, página HTML no lugar da resposta), muitas chamadas:
+       é passageiro — a fila deixa para depois em vez de marcar o lançamento como "não enviado" para sempre */
+    const msg = String((e && (e.message || e.hint || '')) || ''), st = +(e && (e.status || e.statusCode)) || 0;
+    x.passageiro = x.semRede || ['PGRST301', 'PGRST302', 'PGRST303'].includes(x.code) || st === 401 || st === 408 || st === 429 || st >= 500
+      || /<html|bad gateway|service unavailable|gateway time|jwt expired|too many requests/i.test(msg);
     return x;
   };
   const ler = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
@@ -1361,7 +1388,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       // script 15: primeiro a linha (o banco só aceita arquivo com o caminho exato de uma linha sua), depois o arquivo.
       // Se o arquivo não subir, a linha sai; assim nunca sobra arquivo solto no Storage.
       const id = SQC.novoId(), caminho = `${tabela}/${registro}/${id}.jpg`, pasta = sb.storage.from('evidencias');
-      const linha = await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true });
+      let linha; try { linha = await this._salvar('fotos', { id, tabela, registro, caminho, tirada_em: tiradaEm || null, legenda: legenda || null }, { novo: true }); }
+      catch (e) { if (e.semRede) this._orfa(id, caminho); throw e; }   /* auditoria de 28/10/2026: a linha pode ter gravado sem resposta: fica anotada e sai na próxima conexão */
       let up; try { up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '0' }); }
       catch (e) { up = { error: e }; }   // 22/10/2026: sinal caiu no meio do envio (exceção, não resposta de erro): a linha também sai
       if (up.error) {
@@ -1384,6 +1412,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const up = await pasta.upload(caminho, blob, { contentType: 'image/jpeg', upsert: false, cacheControl: '3600' });
       if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'A foto da equipe ainda não foi ligada no banco: a coordenação precisa rodar o script 24_foto_da_equipe.sql no Supabase.' } : up.error); }
       const { data: antes, error } = await sb.rpc('definir_foto', { p_membro: membro, p_caminho: caminho });
+      if (error && erro(error).semRede) throw erro(error);   /* idem */
       if (error) { await pasta.remove([caminho]).catch(() => {}); throw erro(error); }
       if (antes) await pasta.remove([antes]).catch(() => {});
       return caminho;
@@ -1399,6 +1428,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const up = await pasta.upload(caminho, arquivo, { contentType: arquivo.type || R.DOC_TIPOS[ext], upsert: false, cacheControl: '0' });
       if (up.error) { const m = String(up.error.message || ''); throw erro(/bucket|not found/i.test(m) ? { code: 'P0001', message: 'O envio de documentos ainda não foi ligado no banco: a coordenação precisa rodar o script 27_documentos_e_substituta.sql no Supabase. Enquanto isso, use o link.' } : /size|large|limit/i.test(m) ? { code: 'P0001', message: 'O arquivo passa de 20 MB. Diminua (por exemplo, salvando o PDF em qualidade menor) ou use um link.' } : up.error); }
       const nome = String(arquivo.name || '').slice(0, 200), { data: antes, error } = tabela === 'entregas' ? await sb.rpc('definir_documento', { p_entrega: entrega, p_caminho: caminho, p_nome: nome }) : await sb.rpc('definir_anexo', { p_tabela: tabela, p_id: entrega, p_caminho: caminho, p_nome: nome });
+      if (error && erro(error).semRede) throw erro(error);   /* auditoria de 28/10/2026: sem resposta não quer dizer que não ligou; o arquivo fica (no pior caso, solto na pasta) */
       if (error) { await pasta.remove([caminho]).catch(() => {}); if (error.code === 'PGRST202' || error.code === '42883') throw erro({ code: 'P0001', message: 'Para anexar documento na atividade e na biofábrica, a coordenação precisa rodar antes o script 34_anexo_atividade_e_biofabrica.sql no Supabase.' }); throw erro(error); }
       if (antes) await pasta.remove([antes]).catch(() => {});
       return caminho;
@@ -1432,6 +1462,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const up = await pasta.upload(caminho, arquivo, { contentType: arquivo.type || R.DOC_TIPOS[ext], upsert: false, cacheControl: '0' });
       if (up.error) throw erro(up.error);
       const { data, error } = await sb.rpc('adicionar_anexo', { p_tabela: tabela, p_id: registro, p_caminho: caminho, p_nome: nome });
+      if (error && erro(error).semRede) throw erro(error);   /* idem: pode ter ligado */
       if (error) { await pasta.remove([caminho]).catch(() => {}); if (error.code === 'PGRST202' || error.code === '42883') return null; throw erro(error); }
       return { id: data, tabela, registro, caminho, nome, criado_por: euCache && euCache.id, criado_em: new Date().toISOString() };
     },
@@ -1485,7 +1516,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (/[#&]error(_code|_description)?=/.test(h)) this.linkVencido = true;
       this.preparar();
       // voltou pelo link de "esqueci a senha": a tela pede a senha nova antes de qualquer coisa
-      sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { this.recuperando = true; if (SQC.app && SQC.app.pedirSenhaNova) SQC.app.pedirSenhaNova(); } });
+      this.veioDeLink = veioDeLink;
+      sb.auth.onAuthStateChange((ev, sessao) => { if (ev === 'PASSWORD_RECOVERY') { this.recuperando = true; if (SQC.app && SQC.app.pedirSenhaNova) SQC.app.pedirSenhaNova(); return; }
+        /* auditoria de 28/10/2026: a sessão saiu em outra aba (ou foi encerrada) ou passou a ser de outra pessoa: esta aba não pode continuar com o "eu" antigo */
+        if (this._saindo || !euCache) return;
+        if (ev === 'SIGNED_OUT') { if (SQC.app && SQC.app.sairExterno) SQC.app.sairExterno(); return; }
+        const uid = sessao && sessao.user && sessao.user.id; if (uid && euCache.auth_id && uid !== euCache.auth_id) location.reload(); });
       // 21/10/2026 (auditoria de campo): com sinal fraco a renovação da sessão podia levar 26 s e cair na tela de entrada,
       // que exige internet; agora, se o servidor não responde e há cópia válida no aparelho, abre com ela
       const ate = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(ATRASOU), ms))]), ATRASOU = {};
@@ -1550,10 +1586,16 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (error) throw erro(error);
       this.recuperando = false;
     },
+    async sessaoValida() { try { const { data } = await sb.auth.getSession(); const x = data && data.session; return !!x && (!x.expires_at || x.expires_at * 1000 > Date.now()); } catch (e) { return false; } },
+    donoAtual() { return euCache ? euCache.id : null; },
     async sair() {
       // a cópia dos dados sai do aparelho; o que estava na fila (lançado sem internet e ainda não enviado) FICA, para não se perder
       euCache = null; guardar(CHAVE_EU, null); guardar(CHAVE_DADOS, null); guardar(CHAVE_QUANDO, null); guardar(CHAVE_DE, null);
-      try { await sb.auth.signOut(); } catch (e) { /* sem rede: a sessão local já foi apagada */ }
+      this._saindo = true;
+      try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { /* sem rede */ }   /* auditoria de 28/10/2026: 'local' — sair num aparelho não derruba a pessoa nos outros */
+      /* e, mesmo se a biblioteca não conseguiu (token vencido sem rede), a sessão sai deste aparelho: senão, ao reabrir com internet, entrava direto na conta de quem saiu */
+      try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+      this._saindo = false;
     },
     /* tudo de uma vez (o projeto é pequeno). Sem rede, devolve a última cópia guardada no aparelho. */
     async carregar() {
@@ -1657,6 +1699,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       if (up.data && up.data.length) return up.data[0];
       const existe = await sb.from(tabela).select('id').eq('id', id).maybeSingle();
       if (existe.error) throw erro(existe.error);
+      if (existe.data && op.base) {   /* auditoria de 28/10/2026: reenvio de uma edição que já tinha gravado (a resposta se perdeu): o servidor já está igual ao que se mandou */
+        const sv = await sb.from(tabela).select(sel(tabela)).eq('id', id).maybeSingle();
+        const igual = (a, b) => (a == null || a === '' ? '' : typeof a === 'number' || typeof b === 'number' ? String(+a) : typeof a === 'object' ? JSON.stringify(a) : String(a)) === (b == null || b === '' ? '' : typeof a === 'number' || typeof b === 'number' ? String(+b) : typeof b === 'object' ? JSON.stringify(b) : String(b));
+        if (!sv.error && sv.data && Object.keys(campos).every(k => igual(campos[k], sv.data[k]))) return sv.data;
+      }
       if (existe.data) throw erro(op.base ? { code: 'P0001', message: R.MSG_CONFLITO } : { code: '42501', message: 'permission denied' });
       if (op.novo === false || op.base) throw erro({ code: 'P0001', message: R.MSG_EXCLUIDO });
       const ins = await sb.from(tabela).insert(r).select(sel(tabela)).single();   // sem informação de origem (item antigo da fila): comporta-se como antes
@@ -4803,7 +4850,7 @@ var qrcode = function() {
   function tabela(m) {
     const M0 = MOD[m], M = Object.assign({}, M0, { cols: M0.cols.filter(c => !((c[3] === 'equipe' && fora()) || (semDinheiro() && COLS_DINHEIRO.includes(m + ':' + c[0])))) }, semDinheiro() && m === 'itens' ? { desc: 'Cada item passa por orçamento, compra pela FUNCERN e entrega.' } : {}), pode = R.podeGravar(eu, m), todas = [...db[m]].sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1);
     const lim = mostrando[m] || PAGINA, rows = todas.slice(0, lim), resto = todas.length - rows.length;
-    const acoes = r => `<span class="ac">${pode && !M0.soLeitura ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
+    const acoes = r => `<span class="ac">${pode && !M0.soLeitura && !R.mexerRegistro(db, eu, m, r, {}) ? `<button class="ab" title="Editar" data-edit="${m}:${esc(r.id)}">${IC_LAPIS}<span class="so">Editar</span></button>` : ''}${!M.semExcluir && R.podeExcluir(eu, m, r) && !r._pendente ? `<button class="ab d" title="Excluir" data-del="${m}:${esc(r.id)}">${IC_LIXO}<span class="so">Excluir</span></button>` : ''}</span>`;
     return `<div class="head"><div><h2>${M.titulo}</h2><p>${M.desc}</p></div><div class="acts">${pode && m === 'despesas' ? `<label class="b p imp-b">${IC_SUBIR}Importar planilha da FUNCERN<input type="file" id="imp_arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="imp-f"></label>` : pode ? `<button class="b p" data-new="${m}">${M.novo}</button>` : ''}</div></div>
  ${AGR[m] && todas.length ? agrupada(m, M, pode, acoes) : `<div class="panel scroll" tabindex="0" role="region" aria-label="${esc(M.titulo)}">${rows.length ? `<table class="tc tb-${m}${fora() || !rows.some(r => (pode && !M0.soLeitura) || (!M.semExcluir && R.podeExcluir(eu, m, r))) ? ' sem-ac' : ''}"><thead><tr>${M.cols.map(c => `<th class="${c[2] || ''}">${c[0]}</th>`).join('')}${fora() ? '' : '<th><span class="so">Ações</span></th>'}</tr></thead><tbody>${rows.map(r => `<tr data-id="${esc(r.id)}">${M.cols.map(c => `<td class="${c[2] || ''}" data-r="${esc(c[0])}">${c[1](r)}</td>`).join('')}${fora() ? '' : `<td class="a">${acoes(r)}</td>`}</tr>`).join('')}</tbody></table>` : `<div class="empty">Nenhum registro ainda.${pode ? (m === 'despesas' ? ' Use “Importar planilha da FUNCERN”.' : ` Use “${M.novo}”.`) : ''}</div>`}</div>${resto > 0 ? `<div class="acts"><button class="b" data-mais="${m}">Mostrar mais ${Math.min(PAGINA, resto)} (faltam ${resto} de ${todas.length})</button></div>` : ''}`}`;
   }
@@ -4904,6 +4951,7 @@ var qrcode = function() {
     const I = R.indicadores(db);
     const temEx = Object.keys(MOD).some(m => db[m].some(r => r.ex));
     return `${faltaEnviar()}${fora() ? `<div class="banner fora"><span><b>Acesso de acompanhamento${eu.orgao ? ' · ' + esc(eu.orgao) : ''}.</b> Você vê o andamento do projeto como a equipe registrou, em tempo real, e não altera nada. Nomes e dados pessoais de agricultoras e agricultores não são exibidos: as unidades produtivas aparecem numeradas. A parte financeira fica com a gestão do projeto.</span>${demo() || real ? '' : '<button class="b s" data-senha>Trocar minha senha</button>'}</div>` : ''}${temEx ? `<div class="banner"><span>Modo demonstração: os registros marcados como <b>exemplo</b> são fictícios e entram nas contas abaixo.</span>${coord() ? '<button class="b s" data-limpar>Apagar exemplos</button>' : ''}</div>` : ''}
+ ${fora() ? destaqueMda() : ''}
  <section class="dx-topo panel" aria-label="Indicadores principais">
   <div class="dx-exec"><span class="dx-rot">Execução física do projeto</span>
    <div class="dx-exec-num"><b>${pct(X.real)}%</b></div><div><span class="chip ${ST[X.stEq][0]}">${ST[X.stEq][1]}</span></div>
@@ -4981,6 +5029,35 @@ var qrcode = function() {
        return `<li class="i5">${ic}<div class="i5-t">${r}<b class="i5-v">${num(v[0])} <small class="i5-u">${esc(v[2])} produzidos</small></b>${fora() ? '' : `<span class="i5-bar" aria-hidden="true"><i style="width:${Math.min(100, pc).toFixed(1)}%"></i></span>`}
         <small>${num(v[1])} ${esc(v[2])} ${fora() ? 'entregues às famílias' : `distribuídos (${num(pc)}%) · saldo ${num(v[0] - v[1])} ${esc(v[2])}`} · ${nl} lote(s)</small>${x}</div></li>`; }).join('')}</ul>` : '<p class="small">Nenhum lote registrado.</p>'}</section>`;
   }
+  /* 28/10/2026 (versão 165, pedido da coordenação: "algo que sobressalte aos olhos do parceiro, o MDA"): no alto da Visão geral do
+     SEAB/MDA, o resultado antes do controle. "O projeto em números" (famílias que já receberam bioinsumo, municípios e estados,
+     bioinsumo entregue, participações em capacitações e dias de campo com a % de mulheres; a variação do gasto com insumos, que
+     ainda será validada na Meta 5, fica fora daqui por decisão da coordenação: "nada que deixe dúvida") e "Últimas realizações" (frases tiradas dos registros, as mais recentes primeiro). Nada é inventado:
+     cada número sai do que a equipe registrou até hoje, pelas mesmas contas do resto da tela; sem dado, o cartão não aparece. */
+  function destaqueMda() {
+    const h = iso(hoje()), I = R.indicadores(db, h), ds = db.distribuicoes.filter(d => d.data && String(d.data) <= h);   /* revisão de 28/10/2026: registro sem data não conta nem sobe ao topo */
+    const fam = new Set(ds.map(d => d.agricultor)).size, ufs = new Set(), muns = new Set();
+    const LM = [...db.agricultores, ...db.unidades].filter(x => String(x.municipio || '').trim()).map(x => [semAcento(String(x.municipio).trim()).toLowerCase(), x.uf || '']);
+    LM.forEach(([m, uf]) => { if (uf) { muns.add(m + '/' + uf); ufs.add(uf); } else if (!LM.some(y => y[0] === m && y[1])) muns.add(m + '/'); });   /* sem UF conta só se o mesmo nome não aparece com UF */
+    const ent = {}; ds.forEach(d => { const m = (by('lotes', d.lote) || {}).med; if (m === 'kg' || m === 'L') ent[m] = (ent[m] || 0) + (+d.qtd || 0); });   /* lote sem medida (ou que não veio) não vira kg */
+    const qtd = ['kg', 'L'].filter(m => ent[m]).map(m => `${num(Math.round(ent[m]))} ${m}`);
+    const cart = (n, rot, sub) => `<li class="mda-n"><b>${n}</b><span class="mda-r">${rot}</span>${sub ? `<small>${sub}</small>` : ''}</li>`;
+    const C = [
+      fam ? cart(num(fam), fam === 1 ? 'unidade produtiva já recebeu bioinsumo' : 'unidades produtivas já receberam bioinsumo', `de ${num(db.agricultores.length)} cadastradas`) : '',
+      muns.size ? cart(num(muns.size), muns.size === 1 ? 'município com unidade produtiva ou biofábrica' : 'municípios com unidades produtivas ou biofábricas', esc([...ufs].sort().join(' e '))) : '',   /* bateria de 28/10/2026: a UF vem do cadastro (texto) e precisa de esc */
+      qtd.length ? cart(qtd.join(' + '), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
+      I.participantes ? cart(num(I.participantes), 'participações em capacitações e dias de campo realizados', I.partMulheres ? `${num(I.mulheres / I.partMulheres * 100)}% mulheres${I.partMulheres < I.participantes ? ' (nas atividades com essa informação)' : ''}` : '') : ''].filter(Boolean);
+    const RL = [];
+    db.eventos.filter(e => e.data && String(e.data) <= h && e.tipo !== 'Participação em evento' && (!['Capacitação', 'Dia de campo'].includes(e.tipo) || R.realizada(db, e))).forEach(e => { const np = R.participantes(db, e);
+      RL.push([e.data, e.tipo, `${esc(e.tema || e.tipo)}${e.municipio ? ` · ${esc(e.municipio)}` : ''}${np ? ` · ${num(np)} ${np === 1 ? 'participante' : 'participantes'}` : ''}`]); });
+    db.unidades.filter(u => u.funcionando && u.funcionando_em && u.funcionando_em <= h).forEach(u => RL.push([u.funcionando_em, 'Biofábrica', `${esc(u.nome)} entrou em funcionamento`]));
+    (db.entregas || []).filter(g => g.data && String(g.data) <= h && !g._pendente).forEach(g => RL.push([g.data, 'Entrega do plano', `${esc(g.titulo)}${g.etapa ? ` · etapa ${esc(g.etapa)}` : ''}`]));
+    const ult = RL.sort((a, b) => String(b[0]) > String(a[0]) ? 1 : -1).slice(0, 6);
+    if (!C.length && !ult.length) return '';
+    return `<section class="panel mda" aria-label="O projeto em números"><div class="mts-cab"><h2>O projeto em números</h2><p>Resultados registrados pela equipe até ${dt(h)}</p></div>
+      ${C.length ? `<ul class="mda-l">${C.join('')}</ul>` : ''}
+      ${ult.length ? `<div class="mda-u"><h3>Últimas realizações</h3><ol>${ult.map(([d, t, x]) => `<li><time datetime="${esc(d)}">${dt(d)}</time><span><b>${esc(t)}</b> · ${x}</span></li>`).join('')}</ol></div>` : ''}</section>`;
+  }
   /* ---------- unidades produtivas: indicadores, cartão por pessoa e ficha com o histórico ---------- */
   const iniciais = n => String(n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).map(x => Array.from(x)[0]).filter((x, i, a) => i === 0 || i === a.length - 1).join('').toUpperCase() || '?';
   function situacaoAgr(a) {
@@ -4990,16 +5067,51 @@ var qrcode = function() {
     if (r) return ['f', 'Recebeu, falta visita'];
     return ['', 'Aguardando bioinsumo'];
   }
+  const cartaoAgr = a => { const st = situacaoAgr(a), v = visitasDe(a.id);
+      return `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(a.nome))}</span>
+     <div class="pc-t"><div class="pc-n"><b>${esc(a.nome)}</b><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${termoChip(a)}${exChip(a)}</div>
+      <div class="pc-d"><span>${esc(a.comunidade || 'comunidade não informada')}</span><span>${esc(a.municipio || '')}${a.uf ? '/' + esc(a.uf) : ''}</span>${a.culturas ? `<span>${esc(a.culturas)}</span>` : ''}<span>${recebeu(a.id).length} entrega(s) · ${v.length} visita(s)</span></div></div>
+     <button class="b" data-ficha="${esc(a.id)}">Ver detalhes</button></li>`; };
+  /* 28/10/2026 (versão 165, pedido da coordenação): "Quem está cadastrado" agrupado pelo polo de referência (o "Recebeu bioinsumo de"),
+     com filtros de situação, município e termo e a busca, no padrão das listas agrupadas. Os grupos começam fechados (só o resumo);
+     filtro ou busca abrem os que têm resultado. A busca pode ter nome de agricultor: sai junto no sair(). */
+  const pcF = { st: '', mun: '', termo: '', q: '' };
+  const munAgr = a => String(a.municipio || '').trim() ? a.municipio.trim() + (a.uf ? '/' + a.uf : '') : '';
+  const pcFiltro = () => !!(pcF.st || pcF.mun || pcF.termo || String(pcF.q || '').trim());
+  function pcFiltradas() {
+    const q = semAcento(pcF.q || '').trim();
+    return db.agricultores.filter(a => (!pcF.st || situacaoAgr(a)[1] === pcF.st) && (!pcF.mun || munAgr(a) === pcF.mun)
+      && (!pcF.termo || (pcF.termo === 'sem' ? !a.termo_em : a.imagem === 'Não'))
+      && (!q || semAcento([a.nome, a.comunidade, a.municipio, a.culturas].filter(Boolean).join(' ')).includes(q)));
+  }
+  const pcResumo = () => pl(pcFiltradas().length, 'unidade produtiva', 'unidades produtivas');
+  function pcLista() {
+    const L = pcFiltradas(), ab = agAb.agricultores = agAb.agricultores || {}, filtro = pcFiltro();
+    if (!L.length) return '<div class="empty">Nenhuma unidade produtiva com esse filtro.</div>';
+    const us = [...db.unidades].sort((a, b) => (b.conta === 'Sim') - (a.conta === 'Sim') || String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+    const G = us.map(u => ({ k: u.id, t: u.nome, ls: L.filter(a => a.unidade === u.id) }));
+    G.push({ k: '_sem', t: 'Sem polo de referência', ls: L.filter(a => !a.unidade || !by('unidades', a.unidade)) });
+    return G.filter(g => g.ls.length).map(g => { const aberto = g.k in ab ? ab[g.k] : filtro, sts = g.ls.map(a => situacaoAgr(a)[1]),
+        ac = sts.filter(x => x === 'Acompanhada').length, fv = sts.filter(x => x === 'Recebeu, falta visita').length, sb = sts.filter(x => x === 'Sem linha de base').length;
+      const chips = [sb ? `<span class="chip bad">${sb} sem linha de base</span>` : '', fv ? `<span class="chip f">${fv === 1 ? '1 falta visita' : fv + ' faltam visita'}</span>` : '', !sb && !fv && ac === g.ls.length ? '<span class="chip ok">todas acompanhadas</span>' : ''].join('');
+      return `<details class="dsp-m ag-g pc-g" data-agm="agricultores" data-agk="${esc(g.k)}"${aberto ? ' open' : ''}><summary><span class="dsp-t">${esc(g.t)}</span><span class="dsp-n">${pl(g.ls.length, 'unidade produtiva', 'unidades produtivas')} · ${ac === 1 ? '1 acompanhada' : ac + ' acompanhadas'}</span>${chips}</summary>
+        <div class="ag-c"><ul class="pcs">${[...g.ls].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR')).map(cartaoAgr).join('')}</ul></div></details>`; }).join('');
+  }
+  function quadroAgr() {
+    const L = db.agricultores, mun = [...new Set(L.map(munAgr).filter(x => x && x !== '/'))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      sel = (k, rot, ops, todas) => `<label class="fld dsp-c"><span>${rot}</span><select data-pcfil="${k}"><option value="">${todas}</option>${ops.map(([v, t]) => `<option value="${esc(v)}"${pcF[k] === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+    return `<div class="panel dsp-p ag-p pc-p"><div class="dsp-f ag-f" role="search" aria-label="Filtrar unidades produtivas">
+      ${sel('st', 'Situação', ['Acompanhada', 'Recebeu, falta visita', 'Aguardando bioinsumo', 'Sem linha de base'].map(t => [t, t]), 'Todas')}
+      ${sel('mun', 'Município', mun.map(m => [m, m]), 'Todos')}
+      ${L.some(a => 'termo_em' in a) ? sel('termo', 'Termo', [['sem', 'Sem termo assinado'], ['nao', 'Não autoriza foto']], 'Todos') : ''}
+      <label class="fld dsp-c dsp-q"><span>Buscar</span><input type="search" data-pcq value="${esc(pcF.q || '')}" placeholder="Nome, comunidade, município, cultura…" autocomplete="off"></label>
+      <p class="dsp-r" id="pc_r" aria-live="polite">${pcResumo()}</p></div><div class="ag-l" id="pc_l">${pcLista()}</div></div>`;
+  }
   function telaAgricultores() {
     const L = db.agricultores, pode = R.podeGravar(eu, 'agricultores'), meta = 30;
     const base = L.filter(a => a.diag).length, kits = L.filter(a => a.kit && String(a.kitdata || '') <= iso(hoje())).length, acomp = L.filter(acompanhada).length;
     const falta = (n, de) => n >= de ? 'completo' : `faltam ${de - n}`;
-    const ordem = [...L].sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
-    const cartao = a => { const st = situacaoAgr(a), u = by('unidades', a.unidade), v = visitasDe(a.id);
-      return `<li class="pc"><span class="pc-av" aria-hidden="true">${esc(iniciais(a.nome))}</span>
-     <div class="pc-t"><div class="pc-n"><b>${esc(a.nome)}</b><span class="chip ${st[0]}">${st[1]}</span>${a.kit ? (String(a.kitdata || '') <= iso(hoje()) ? '<span class="chip ok">kit entregue</span>' : `<span class="chip">kit previsto para ${dt(a.kitdata)}</span>`) : ''}${termoChip(a)}${exChip(a)}</div>
-      <div class="pc-d"><span>${esc(a.comunidade || 'comunidade não informada')}</span><span>${esc(a.municipio || '')}${a.uf ? '/' + esc(a.uf) : ''}</span>${a.culturas ? `<span>${esc(a.culturas)}</span>` : ''}${u ? `<span>${esc(u.nome)}</span>` : ''}<span>${recebeu(a.id).length} entrega(s) · ${v.length} visita(s)</span></div></div>
-     <button class="b" data-ficha="${esc(a.id)}">Ver detalhes</button></li>`; };
+
     return `<div class="head"><div><h2>Agricultores e unidades produtivas</h2><p>Meta de ${meta} unidades produtivas acompanhadas e ${meta} kits. Registre a linha de base antes da primeira entrega de bioinsumo.</p></div><div class="acts">${pode ? '<button class="b p" data-new="agricultores">Nova unidade produtiva</button>' : ''}</div></div>
  <section class="dx-topo panel" aria-label="Indicadores das unidades produtivas">
   ${(() => { const real = acomp / meta * 100, e41 = D.ETAPAS.find(e => e.id === '4.1'), prev = R.previstoEtapa(e41, hoje(), 'equipe') * 100, prevTed = R.previstoEtapa(e41, hoje()) * 100, st = real >= 99.5 ? ['ok', 'Meta alcançada'] : real >= prev ? ['ok', 'No ritmo'] : real >= prev * 0.7 ? ['f', 'Pouco abaixo do previsto'] : ['bad', 'Abaixo do previsto'];
@@ -5012,8 +5124,8 @@ var qrcode = function() {
   ${kpi(2, L.length ? base / L.length * 100 : 0, base, 'de ' + L.length, 'com linha de base (diagnóstico inicial)', L.length ? falta(base, L.length) : 'nenhuma cadastrada')}
   ${kpi(3, kits / meta * 100, kits, 'de ' + meta, 'kits de apoio entregues', falta(kits, meta))}
   ${kpi(4, acomp / meta * 100, acomp, 'de ' + meta, 'acompanhadas (entrega e visita)', falta(acomp, meta))}</div></section>
- <div><div class="head"><div><h2>Quem está cadastrado</h2><p>Em ordem alfabética. A etiqueta mostra o que falta para a unidade contar como acompanhada.</p></div></div>
- ${ordem.length ? `<ul class="pcs">${ordem.map(cartao).join('')}</ul>` : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
+ <div><div class="head"><div><h2>Quem está cadastrado</h2><p>Por polo de referência (de onde recebe o bioinsumo), em ordem alfabética. A etiqueta mostra o que falta para a unidade contar como acompanhada.</p></div></div>
+ ${L.length ? quadroAgr() : `<div class="panel empty" style="margin-top:10px">Nenhuma unidade produtiva cadastrada ainda.${pode ? ' Use “Nova unidade produtiva”.' : ''}</div>`}</div>`;
   }
   /* ajuda: o que cada aba faz, só das abas que o perfil da pessoa enxerga */
   const AJUDA = { historico: 'Quem entrou no sistema e tudo o que foi incluído, alterado ou excluído, com quem fez e quando. Só a coordenação vê.', equipe: 'Coordenação do projeto, auxiliar administrativo, bolsistas discentes e formadores: vagas do plano, bolsa paga conforme a planilha da FUNCERN e habilitação na FUNCERN (Arlo e termo). A coordenação cadastra por link (a própria pessoa preenche) ou digitando; quem sai é desligado na ficha da pessoa, que em seguida oferece cadastrar a substituta. Em Acompanhamento externo, a coordenação dá acesso só de consulta ao SEAB/MDA.', painel: 'Resumo do projeto: quanto do plano já foi executado, o que pede atenção, metas, próximos marcos, mapa e cronograma. Em cada meta, “Registrar entrega desta etapa” guarda o relatório, o material didático ou o produto de comunicação, com o arquivo anexado (é a evidência da prestação de contas).', unidades: 'As biofábricas, os passos da implantação de cada uma e os itens a comprar pela FUNCERN. Na Meta 2 só conta a unidade com os 8 passos marcados, a partir da data em que começou a funcionar. Em cada unidade dá para pegar a localização pelo GPS (aparece no mapa) e anexar fotos da implantação (só a equipe vê).',
@@ -5029,17 +5141,118 @@ var qrcode = function() {
     Auxiliar: 'registra o trabalho de campo (biofábricas, lotes, distribuição, unidades produtivas, monitoramento e formação) e prepara os relatórios. Vê os valores na Visão geral, nos Relatórios e em Dados, mas não lança despesa. Financeiro, Equipe (com a habilitação na FUNCERN) e Histórico ficam com a coordenação.',
     Formador: 'registra as capacitações e os dias de campo, com a lista de presença e as fotos. Vê só a aba Formação.',
     Acompanhamento: 'consulta o andamento em tempo real, sem alterar nada e sem ver dados pessoais.' };
+  /* 28/10/2026 (versão 165, pedido da coordenação: "melhore a Ajuda desta página em todas as páginas"): a ajuda de cada aba diz
+     para que serve, como fazer cada tarefa (só as que o perfil da pessoa faz) e o que é bom saber. Cada item tem a condição de quem vê:
+     '' todos; 'g' quem grava o cadastro principal da aba; 'c' coordenação; 'anx' quem anexa documento no campo; 'dentro' quem não é
+     SEAB/MDA; 'fora' só SEAB/MDA; 'din' quem vê valores; 'gi' quem grava itens; 'ge' quem registra entregas do plano.
+     Os nomes dos botões são os da tela: mudou um botão, mude aqui também (o teste ajuda_paginas.js confere alguns). */
+  const AJ_MOD = { painel: 'entregas', equipe: 'membros', unidades: 'unidades', lotes: 'lotes', agricultores: 'agricultores', distribuicoes: 'distribuicoes', visitas: 'visitas', eventos: 'eventos', financeiro: 'despesas' };
+  const AJ = {
+    painel: { serve: 'O resumo do projeto: quanto do plano já foi feito, as metas, os próximos marcos, o mapa e o cronograma.',
+      faz: [['', 'Ler o andamento', 'No alto, o percentual executado do plano e o previsto até o mês passado. Toque em “Como é calculado” para ver a conta.'],
+        ['dentro', 'Ver o que pede atenção', 'A lista mostra o que precisa de ação: prazo do TED chegando (amarelo a 60 dias, vermelho a 30) e atividade passada sem participantes, entre outros.'],
+        ['ge', 'Registrar uma entrega do plano', 'Em cada meta, toque em “Registrar entrega desta etapa”, preencha e anexe o arquivo (relatório, material didático, arte de divulgação). O arquivo é a evidência na prestação de contas.'],
+        ['', 'Metas, marcos e cronograma', 'Cada meta mostra o realizado e o previsto. “Próximos marcos” lista o que vence nos próximos meses, e o cronograma mostra quando cada etapa acontece.']],
+      sab: [['', '', 'Registro com data no futuro é planejamento: só conta na meta quando a data chega.'],
+        ['dentro', '', 'Nas barras, o traço cheio é o cronograma da equipe e o traço vazado é o plano de trabalho do TED. O “No ritmo/Abaixo” segue o da equipe; prazos e prestação de contas seguem o TED.'],
+        ['fora', '', 'Esta consulta não mostra valores em dinheiro nem dados pessoais das famílias atendidas.']] },
+    equipe: { serve: 'Quem trabalha no projeto: vagas do plano, cadastro, habilitação na FUNCERN, desligamento com substituta e quem acompanha de fora.',
+      faz: [['c', 'Cadastrar alguém', 'Toque em “Cadastrar” e escolha: gerar o link (recomendado: a própria pessoa preenche no celular) ou digitar. CPF, celular e e-mail são obrigatórios.'],
+        ['c', 'Habilitar na FUNCERN', 'Na ficha da pessoa, informe o cadastro no Arlo e a data do termo assinado.'],
+        ['c', 'Desligar e substituir', 'Na ficha da pessoa: data, motivo e se tira o acesso. Em seguida o sistema oferece “Cadastrar substituta”, já ligada a quem saiu.'],
+        ['c', 'Dar acesso ao SEAB/MDA', 'Em “Acompanhamento externo”, toque em “Adicionar pessoa”. O acesso é só de consulta e não se pede CPF.']],
+      sab: [['', '', 'CPF, PIS, nascimento, endereço, escolaridade, raça/cor e renda só a coordenação vê.'],
+        ['', '', 'Celular, município e foto a própria pessoa muda em Meus dados (tocando no nome dela, no alto).']] },
+    unidades: { serve: 'As biofábricas: os 8 passos da implantação de cada uma e os itens comprados para elas.',
+      faz: [['g', 'Cadastrar uma biofábrica', 'Toque em “Nova biofábrica”. A nova começa como de apoio: só 2 contam na Meta 2 (São Paulo do Potengi e Mulungu).'],
+        ['g', 'Marcar os passos da implantação', 'No Editar (lápis), marque cada passo feito. “Em funcionamento” só entra depois dos outros 7, com a data em que começou a funcionar.'],
+        ['g', 'Localização e fotos', 'No Editar, “Pegar a localização” usa o GPS do aparelho (a biofábrica aparece no mapa) e “Fotos” guarda as fotos da implantação.'],
+        ['anx', 'Documentos', 'No Editar, anexe croqui, termo de cessão da área e outros (até 10 por biofábrica).'],
+        ['gi', 'Registrar um item comprado', 'Em “Itens e aquisições”, toque em “Novo item”: o que é, para qual biofábrica, rubrica, valor estimado e situação (orçamento enviado, em compras na FUNCERN, entregue).'],
+        ['', 'Ver os itens de um polo', 'Os itens ficam num grupo por biofábrica, com o resumo (quantos e quantos já entregues). Toque no polo para abrir.'],
+        ['din', 'Do valor aos itens', 'O grupo mostra o total dos itens contra o teto. Na tabela de cima, tocar no valor de uma biofábrica abre os itens dela.']],
+      sab: [['', '', 'Na Meta 2 só conta a biofábrica com os 8 passos, a partir da data em que começou a funcionar.'],
+        ['din', '', 'O teto do plano é R$ 82.500,00 por biofábrica do TED. A de apoio fica fora do teto.'],
+        ['g', '', 'Biofábrica com itens, lotes, unidades produtivas ligadas ou fotos não se exclui: o sistema diz o motivo.']] },
+    lotes: { serve: 'Cada batelada de bioinsumo produzida: código, maturação, situação e saldo para entregar.',
+      faz: [['g', 'Registrar um lote', 'Toque em “Novo lote”: biofábrica, tipo, início, dias até ficar pronto, quantidade e medida (kg ou L). O código sai sozinho ao enviar.'],
+        ['g', 'Marcar como pronto', 'No Editar, mude a situação para “Pronto”. Se for antes do dia previsto, o sistema pede confirmação. O dia em que ficou pronto fica guardado.'],
+        ['g', 'Etiqueta com QR', 'No Editar, “Etiqueta com QR” imprime 8 etiquetas por folha. Ler o QR com o celular abre o lote no sistema.'],
+        ['g', 'Entregar a partir do lote', 'Com o lote pronto, o Editar tem “Registrar entrega”, que já chega com o lote escolhido.'],
+        ['', 'Encontrar um lote', 'Os lotes ficam agrupados por situação (em produção, prontos, entregues por completo, descartados). Filtre por biofábrica ou tipo, ou busque pelo código.']],
+      sab: [['', '', 'Saldo = quantidade produzida menos o que já foi entregue. Entrega maior que o saldo é recusada.'],
+        ['g', '', 'Lote em produção que passou do dia previsto aparece avisando: confira e marque “Pronto”.']] },
+    agricultores: { serve: 'Quem o projeto atende: cadastro, linha de base, termo, kit, entregas e visitas de cada unidade produtiva.',
+      faz: [['g', 'Cadastrar uma unidade produtiva', 'Toque em “Nova unidade produtiva”: nome, comunidade, município e de qual polo recebe o bioinsumo. Faça a linha de base (diagnóstico inicial) antes da primeira entrega.'],
+        ['g', 'Termo de autorização', 'No cadastro, “Imprimir termo” ou “Compartilhar PDF”. A pessoa assina na visita (quem não assina põe a digital, com assinatura a rogo e testemunha). Depois informe a data, se autoriza foto e anexe a foto do termo assinado.'],
+        ['', 'Encontrar alguém', 'A lista fica agrupada pelo polo de referência. Filtre pela situação (por exemplo “Recebeu, falta visita”), pelo município ou pelo termo, ou busque pelo nome, comunidade ou cultura.'],
+        ['', 'Ver tudo de uma pessoa', '“Ver detalhes” mostra o cadastro, as entregas de bioinsumo, as visitas e o kit.']],
+      sab: [['', '', 'Conta como acompanhada (Meta 4) quem recebeu bioinsumo e teve visita no dia da primeira entrega ou depois.'],
+        ['', '', 'São dados pessoais: o SEAB/MDA e os bolsistas não veem nomes. A busca é apagada quando você sai do sistema.']] },
+    distribuicoes: { serve: 'Cada entrega de bioinsumo: de qual lote saiu, quanto e quem recebeu.',
+      faz: [['g', 'Registrar uma entrega', 'Toque em “Registrar entrega de bioinsumo”: escolha o lote (só aparecem os prontos com saldo), a unidade produtiva, a quantidade e a data.'],
+        ['g', 'Unidade sem termo', 'Se a unidade produtiva ainda não tem o termo assinado, aparece um aviso com “Imprimir termo”, para levar na entrega.'],
+        ['', 'Encontrar uma entrega', 'As entregas ficam agrupadas por mês, com o total entregue (kg de sólidos e L de líquidos). Filtre por biofábrica ou tipo, ou busque pela unidade produtiva, lote ou cultura.']],
+      sab: [['', '', 'A entrega baixa o saldo do lote na hora.'],
+        ['g', '', 'Sem lote pronto com saldo ou sem unidade produtiva cadastrada, o sistema mostra o passo que falta antes.']] },
+    visitas: { serve: 'As visitas de monitoramento: se aplicou o bioinsumo, como está a cultura e quanto gasta com insumos comprados.',
+      faz: [['g', 'Registrar uma visita', 'Toque em “Registrar visita”: unidade produtiva, data (não pode ser no futuro), se aplicou o bioinsumo, como está a cultura, dificuldades e o gasto com insumos comprados.'],
+        ['g', 'Localização e fotos', 'No formulário, “Pegar a localização” (opcional, só a equipe vê). “Salvar e anexar fotos” (ou “Fotos”, no Editar) guarda as fotos da visita. Se a pessoa não autorizou imagem, o sistema avisa.'],
+        ['g', 'Ficha em papel', 'Sem sinal ou preferindo o papel: imprima a ficha em branco na faixa “Vai preencher no papel?”. No Editar, “Imprimir esta ficha” sai já preenchida.'],
+        ['', 'Encontrar uma visita', 'As visitas ficam agrupadas por mês. Filtre por “Aplicou o bioinsumo?” ou “Com dificuldade”, ou busque pela unidade produtiva ou por quem visitou.']],
+      sab: [['', '', 'A visita só faz a unidade contar como acompanhada se for no dia da primeira entrega ou depois.']] },
+    eventos: { serve: 'Capacitações, dias de campo, reuniões, articulações e participação da equipe em eventos de outros.',
+      faz: [['g', 'Registrar uma atividade', 'Toque em “Registrar atividade”: tipo, tema, data e local. “Participação em evento” entra no relatório e não conta nas metas.'],
+        ['g', 'Lista de presença', 'Toque em “Lista”: digite ou cole os nomes, um por linha, confira, marque as mulheres e adicione. Comunidade e município se completam depois, no lápis de cada nome.'],
+        ['g', 'Lista para assinar', 'Na Lista, “Imprimir” sai com os nomes já cadastrados e linhas em branco para quem chegar.'],
+        ['anx', 'Documentos e resumo', 'No Editar, anexe ata, relatório ou a lista assinada (até 10) e escreva no Resumo o que foi discutido e decidido: entra no relatório descritivo.'],
+        ['g', 'Fotos do dia', 'Toque em “Fotos” na linha da atividade.']],
+      sab: [['', '', 'Capacitação e dia de campo só contam na meta com participantes ou com lista de presença.'],
+        ['dentro', '', 'Com nomes na lista, o total de participantes e de mulheres passa a ser contado da lista, e não do número digitado.']] },
+    financeiro: { serve: 'O dinheiro do projeto: recebido, pago, comprometido e disponível, por rubrica e por meta, com as despesas da FUNCERN.',
+      faz: [['c', 'Atualizar as despesas', 'Toque em “Importar planilha da FUNCERN” e escolha o arquivo .xlsx. Na importação, escolha a etapa de cada despesa nova. Para corrigir, importe a planilha de novo.'],
+        ['', 'Entender os números', 'Recebido (azul): as parcelas que o projeto já recebeu. Pago (verde): o que já saiu. Comprometido (amarelo): despesa lançada e ainda não paga. Disponível: o recebido menos o pago e o comprometido.'],
+        ['', 'Ver o detalhe', 'Toque numa rubrica ou numa meta para ver os itens e as despesas. As despesas ficam agrupadas por mês, com filtros de situação e rubrica e a busca.']],
+      sab: [['', '', 'Despesa não se lança à mão nem se edita aqui: vem só da planilha da FUNCERN.'],
+        ['', '', 'O registro oficial continua sendo o da FUNCERN: confira com ele antes da prestação de contas.']] },
+    relatorios: { serve: 'O relatório do período, pronto para imprimir, copiar ou compartilhar.',
+      faz: [['', 'Gerar', 'Em cima, escolha o tipo: Descritivo (texto corrido) ou Quadros numéricos (relatório de execução). No período, use um atalho ou as datas e toque em “Gerar”.'],
+        ['', 'Completar o descritivo', 'O texto é montado do que foi registrado. Edite direto na tela. O que está entre colchetes, como “[a coordenação descreve…]”, é para você escrever.'],
+        ['', 'Imprimir, copiar ou compartilhar', '“Imprimir” (papel ou “Salvar como PDF”), “Copiar o texto” e “Compartilhar o texto”. O sistema avisa quantas lacunas ainda ficaram.']],
+      sab: [['', '', 'O sistema não inventa: só sai frase do que foi registrado. Registro com data depois do fim do período não entra.'],
+        ['', '', 'O texto editado fica só neste aparelho e é apagado quando você sai. “Refazer o texto” volta ao texto montado.']] },
+    historico: { serve: 'Quem entrou no sistema, tudo o que foi incluído, alterado ou excluído, e os problemas relatados pela equipe.',
+      faz: [['c', 'Consultar', 'Cada seção tem o botão “Carregar…”: nada carrega sozinho. “Ocultar” fecha a seção.'],
+        ['c', 'Desfazer uma mudança', 'Na linha da alteração, “Restaurar como estava antes” ou “Desfazer a exclusão” (toque duas vezes para confirmar). Documento anexado não volta.'],
+        ['c', 'Responder um relato', 'Em “Problemas relatados pela equipe”, escreva a resposta e envie. Quem relatou vê a resposta ao entrar no sistema. Depois marque “Resolvido”.']],
+      sab: [['', '', 'O número vermelho na aba Histórico é a quantidade de relatos em aberto.']] },
+    dados: { serve: 'Planilhas para baixar e a cópia de segurança dos dados.',
+      faz: [['', 'Baixar uma planilha', 'Em “Planilhas (.csv)”, escolha o assunto. As que têm dado pessoal vêm avisadas. Todo download fica registrado no histórico.'],
+        ['', 'Cópia de segurança', 'Baixa todos os dados num arquivo só. Guarde em lugar seguro: tem dados pessoais.'],
+        ['c', 'Quem tem acesso', 'Veja e mude quem entra no sistema e com qual perfil.']],
+      sab: [['', '', 'A senha se troca em Meus dados, tocando no seu nome no alto.']] }
+  };
+  function condAj(k, aba) {
+    const m = AJ_MOD[aba];
+    return !k || (k === 'g' ? !!m && R.podeGravar(eu, m) : k === 'c' ? coord() : k === 'anx' ? podeAnexar(MOD.eventos) : k === 'dentro' ? !fora() : k === 'fora' ? fora()
+      : k === 'din' ? !semDinheiro() : k === 'gi' ? R.podeGravar(eu, 'itens') : k === 'ge' ? R.podeGravar(eu, 'entregas') : false);
+  }
   function abrirAjuda() {
-    ed = null; $('#frm').className = 'fm';
-    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda</span><h2>Como usar o sistema</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
-     <div class="fm-corpo"><div class="fm-oque"><span>O seu perfil</span><p>${esc(R.NOME_PERFIL[eu.perfil] || eu.perfil)}${eu.orgao ? ' · ' + esc(eu.orgao) : ''}: ${DESCR_PERFIL[eu.perfil] || ''}</p></div>
-      <h3 class="fm-sec">Você está em: ${esc((abas().find(t => t[0] === tab) || ['', ''])[1])}</h3><p class="aj-p aj-aqui">${ajudaDe(tab)}</p>
-      <h3 class="fm-sec">As outras abas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${ajudaDe(t[0])}</dd>`).join('')}</dl>
-      ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos, exclusões, fotos e documentos anexados precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
-      <h3 class="fm-sec">Sol forte</h3><p class="aj-p">Toque no botão do sol, no alto da tela, e ligue o <b>modo sol</b>: letra preta em fundo branco e maior. Ali também se escolhe tema claro ou escuro. Vale só neste aparelho.</p>
-      <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${{ 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento', 'Auxiliar': 'coordenacao', 'Formador': 'equipe' }[eu.perfil] || 'equipe'}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
-      <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar. Dúvida ou erro: fale com a coordenação do projeto.</p></div>
-     <div class="fm-pe"><div class="frow"><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
+    ed = null; $('#frm').className = 'fm'; const nome = (abas().find(t => t[0] === tab) || ['', ''])[1], C = AJ[tab] || {};
+    const so = L => (L || []).filter(x => condAj(x[0], tab)), faz = so(C.faz), sab = so(C.sab), serve = k => (fora() && AJUDA_FORA[k]) || (AJ[k] || {}).serve || ajudaDe(k);
+    const manual = { 'Coordenação': 'coordenacao', 'Equipe': 'equipe', 'Acompanhamento': 'acompanhamento', 'Auxiliar': 'coordenacao', 'Formador': 'equipe' }[eu.perfil] || 'equipe';
+    $('#frm').innerHTML = `<div class="fm-cab"><div><span class="fm-eye">Ajuda desta página</span><h2>${esc(nome)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
+     <div class="fm-corpo aj-corpo"><div class="fm-oque fm-oque-fixo aj-serve"><span>Para que serve</span><p class="aj-aqui">${serve(tab)}</p></div>
+      ${faz.length ? `<h3 class="fm-sec">Como fazer</h3><ol class="aj-passos">${faz.map(([, t, x]) => `<li><b>${t}</b><span>${x}</span></li>`).join('')}</ol>` : ''}
+      ${sab.length ? `<h3 class="fm-sec">Bom saber</h3><ul class="aj-dicas">${sab.map(([, , x]) => `<li>${x}</li>`).join('')}</ul>` : ''}
+      <p class="aj-perfil">Seu perfil: <b>${esc(R.NOME_PERFIL[eu.perfil] || eu.perfil)}</b>${eu.orgao ? ' · ' + esc(eu.orgao) : ''}. ${DESCR_PERFIL[eu.perfil] ? DESCR_PERFIL[eu.perfil][0].toUpperCase() + DESCR_PERFIL[eu.perfil].slice(1) : ''}</p>
+      <details class="aj-mais"><summary>Outras páginas e dicas gerais</summary>
+       ${abas().length > 1 ? `<h3 class="fm-sec">As outras páginas</h3><dl class="aj">${abas().filter(t => t[0] !== tab).map(t => `<dt>${t[1]}</dt><dd>${serve(t[0])}</dd>`).join('')}</dl>` : ''}
+       ${fora() ? '' : `<h3 class="fm-sec">Sem internet</h3><p class="aj-p">Pode lançar lotes, entregas, visitas e cadastros de campo. Eles ficam com a etiqueta “aguardando envio” e sobem sozinhos quando o sinal voltar. Despesas, acessos, exclusões, fotos e documentos anexados precisam de internet. Depois de 72 horas sem conexão o sistema pede internet para abrir.</p>`}
+       <h3 class="fm-sec">Sol forte</h3><p class="aj-p">Toque no botão do sol, no alto da tela, e ligue o <b>modo sol</b>: letra preta em fundo branco e maior. Ali também se escolhe tema claro ou escuro. Vale só neste aparelho.</p>
+       <h3 class="fm-sec">Manual</h3><p class="aj-p"><a href="manuais/manual-${manual}.pdf" target="_blank" rel="noopener">Manual do seu perfil (PDF)</a>, com as telas passo a passo. Abre numa aba nova e precisa de internet.</p>
+       <h3 class="fm-sec">Segurança</h3><p class="aj-p">O sistema sai sozinho depois de 15 minutos sem uso. Em aparelho de outra pessoa, toque em sair ao terminar.</p></details></div>
+     <div class="fm-pe"><div class="frow"><button type="button" class="b" data-relatar>Relatar problema</button><button type="button" class="b p" data-fechar>Entendi</button></div></div>`;
     if (!$('#dlg').open) $('#dlg').showModal();
   }
   /* relatar problema: monta um texto com o que a coordenação precisa para entender (onde estava, perfil, aparelho) e a pessoa
@@ -5246,7 +5459,15 @@ var qrcode = function() {
     if (!$('#dlg').open) $('#dlg').showModal();
   }
   async function confirmarImportacao(bt) {
-    const P = imp.plano; bt.disabled = true; let feitas = 0; const total = P.novas + P.atualizadas + P.removidas;
+    /* auditoria de 28/10/2026: o plano foi montado com os dados da tela, que podem estar velhos (cópia do aparelho, outra pessoa importou
+       antes): busca de novo e, se mudou, mostra o resumo outra vez em vez de gravar despesa em dobro */
+    bt.disabled = true;
+    try { await recarregarDb(); } catch (e) { bt.disabled = false; return desenharImportacao('Para gravar a importação é preciso internet. Confira a conexão e confirme de novo.'); }
+    if (api.offline) { bt.disabled = false; return desenharImportacao('Para gravar a importação é preciso internet. Confira a conexão e confirme de novo.'); }
+    { const novo = R.planoImportacao(db, imp.sols, imp.escolhas), k = x => [x.novas, x.atualizadas, x.removidas].join('/');
+      if (k(novo) !== k(imp.plano)) { imp.plano = novo; return desenharImportacao('As despesas mudaram desde a conferência (outra importação ou outro aparelho). Confira o resumo de novo e confirme.'); }
+      imp.plano = novo; }
+    const P = imp.plano; let feitas = 0; const total = P.novas + P.atualizadas + P.removidas;
     try {
       for (const l of P.linhas) {
         if (l.acao === 'nova') await api.salvar('despesas', Object.assign({}, l.reg, { id: SQC.novoId() }), { novo: true });
@@ -5995,6 +6216,7 @@ ${secs}</div>`;
       if (t === 'html') return `<div class="fld w fm-html">${o}</div>`;
       if (t === 'simnao') return `<div class="fld w"><div class="sn-q" role="group" aria-labelledby="l_${k}"><span class="sn-t" id="l_${k}">${L}</span><span class="sn-par">${['Sim', 'Não'].map(x => `<button type="button" class="sn-b" data-sn="${k}" data-v="${x}" aria-pressed="${v === x}">${x}</button>`).join('')}</span></div><input type="hidden" id="${idc}" value="${esc(v)}"></div>`;
       if (t === 'arquivo' && !podeAnexar(M)) return '';
+      if (t === 'arquivo' && M === MOD.entregas && r.id && R.mexerRegistro(db, eu, 'entregas', r, { arquivo: '(outro)' })) return r.arquivo ? `<div class="fld w"><span class="anx-r">Documento</span>${docMini ? docMini(r) : esc(r.arquivo_nome || '')}<span class="fm-dica">Só a coordenação ou quem registrou a entrega troca o documento.</span></div>` : '';   /* 48 */
       if (t === 'arquivo' && ANX_TAB.some(k => MOD[k] === M)) { const mt = ANX_TAB.find(k => MOD[k] === M);
         return `<div class="fld w anx"><span class="anx-r" id="f_anx_r">${mt === 'unidades' ? 'Documentos da unidade <span class="fm-opc">(croqui, termo de cessão…)</span>' : mt === 'agricultores' ? 'Termo assinado <span class="fm-opc">(foto ou digitalização do termo)</span>' : 'Documentos da atividade <span class="fm-opc">(ata, relatório, lista assinada…)</span>'}</span>
         <ul class="anx-l" id="f_anx_l" aria-labelledby="f_anx_r">${anxItens(mt, r.id)}</ul>
@@ -6051,7 +6273,7 @@ ${secs}</div>`;
      temporário (5 minutos) quando ele chega do servidor */
   async function abrirDocumento(id) {
     const g = DOC_TAB.map(t => by(t, id)).find(Boolean); if (!g || !g.arquivo) return;
-    const w = window.open('', '_blank');
+    const w = window.open('', '_blank'); if (w) try { w.opener = null; } catch (e) {}
     try { const u = await api.urlDocumento(g.arquivo); if (w) w.location.href = u; else location.assign(u); }
     catch (e) { if (w) w.close(); toast(e.message || String(e)); }
   }
@@ -6131,7 +6353,7 @@ ${secs}</div>`;
     $('#dlg').dataset.rede = 'fila';
     const e = by('eventos', evId); if (!e) return;
     if (prEv !== evId) prEdit = null;
-    ed = null; prEv = evId; const L = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1), pode = R.podeGravar(eu, 'presencas'), mul = L.filter(x => x.mulher).length;
+    ed = null; prEv = evId; const L = (db.presencas || []).filter(x => x.evento === evId).sort((a, b) => R.nrm(a.nome) < R.nrm(b.nome) ? -1 : 1), pode = R.podeGravar(eu, 'presencas') && !R.mexerRegistro(db, eu, 'presencas', null, { evento: evId }), mul = L.filter(x => x.mulher).length;
     const difere = false;   // 23/10/2026: com nomes na lista, a quantidade da atividade é a da lista (R.participantes); não há o que igualar
     $('#frm').className = 'fm';
     $('#frm').innerHTML = `<div class="fm-cab">${icCad('presencas')}<div class="fm-tt"><span class="fm-eye">Lista de presença</span><h2>${esc(e.tema)}</h2></div><button type="button" class="fm-x" data-fechar aria-label="Fechar">×</button></div>
@@ -6506,7 +6728,7 @@ ${secs}</div>`;
   }
   function imprimirFicha(m, id) {
     const M = MOD[m], r = by(m, id); if (!r) return; const nome = rotuloImp(m, r) || M.um;
-    imprimir(`<section class="pf pf-ficha pf-cheia">${paginasImp(M.um, 'Ficha do sistema · ' + nome, blocosFicha(m, r), M.um, '')}</section>`, `${M.um} - ${nome} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
+    imprimir(`<section class="pf pf-ficha pf-cheia">${paginasImp(M.um, 'Ficha do sistema · ' + esc(nome), blocosFicha(m, r), M.um, '')}</section>`, `${M.um} - ${nome} - ${dt(iso(hoje())).replace(/\//g, '-')}`);
   }
   function imprimirLista(evId) {
     const e = by('eventos', evId); if (!e) return;
@@ -6571,6 +6793,7 @@ ${secs}</div>`;
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
   function abrir(m, id, pre) {
+    if (!R.podeGravar(eu, m) && !(m === 'pessoas' && id === (eu || {}).id)) { toast('O seu perfil não tem permissão para isso.', 'f'); return; }   /* ataque de 28/10/2026: botão forjado não abre formulário */
     if (!id && MOD[m] && MOD[m].campos) { const alvos = faltaAntes(m); if (alvos.length) { abrirFaltaAntes(m, alvos); return; } }
     const M = MOD[m], r = id ? (by(m, id) || {}) : (m === 'pessoas' ? (pre ? { ativo: true, perfil: 'Acompanhamento', orgao: pre === '-' ? '' : pre } : { ativo: true }) : pre ? (m === 'entregas' ? { etapa: pre } : m === 'membros' ? Object.assign({ funcao: pre, inicio: iso(hoje()) }, preMembro ? preMembro.dados : {}) : m === 'presencas' ? { evento: pre } : String(pre).startsWith('lote:') ? { lote: pre.slice(5) } : { agricultor: pre }) : {}); ed = { m, id, pre, convite: m === 'membros' && !id && preMembro ? preMembro.convite : null }; preMembro = null;
     // equipe: quem sai e quem entra ficam ligados (script 27); sem escolha explícita, a vaga é da última pessoa que saiu da função e ainda não tem substituta
@@ -6659,6 +6882,9 @@ ${secs}</div>`;
       const el = $('#f_' + k); if (!el) continue;   // campo que só existe na edição (desligamento)
       r[k] = t === 'check' ? el.checked : t === 'number' ? numCampo(el.value) : el.value.trim();
       if (t === 'number' && el.value !== '' && !(r[k] >= 0)) { er(`“${l}” precisa ser um número positivo, como 120 ou 120,50.`); culpa(el); return; }
+      /* ataque à tela de 28/10/2026: "2.250" virava 2.250 kg calado (no Android o teclado numérico mostra ponto); só no que foi digitado agora */
+      if (t === 'number' && !INTEIROS.includes(k) && TIPO_TXT[k] !== 'moeda' && /^\d{1,3}\.\d{3}$/.test(el.value.trim()) && el.value.trim() !== String(el.defaultValue || '').trim()) {
+        const [a1, a2] = el.value.trim().split('.'); er(`“${l}”: “${el.value.trim()}” ficou em dúvida. Para ${a1}${a2} (mais de mil), digite ${a1}${a2}; para ${a1} vírgula ${a2}, digite ${a1},${a2.replace(/0+$/, '') || '0'}.`); culpa(el); return; }
       if (t === 'number' && INTEIROS.includes(k) && r[k] !== '' && !Number.isInteger(r[k])) { er(`“${l}” precisa ser um número inteiro, sem vírgula.`); culpa(el); return; }
       if (t === 'number' && r[k] !== '' && !INTEIROS.includes(k) && Math.abs(Math.round(r[k] * 100) - r[k] * 100) > 1e-6) { er(TIPO_TXT[k] === 'moeda' ? `“${l}” vai até os centavos: use no máximo 2 casas depois da vírgula.` : `“${l}”: use no máximo 2 casas depois da vírgula (o banco guarda assim; 0,004 viraria 0).`); culpa(el); return; }   // 21/10/2026: quantidade e área também (numeric com 2 casas)   // 20/10/2026: nada de arredondar calado
       // cadastro antigo da equipe, de antes de CPF, celular e e-mail serem obrigatórios: pode ser editado sem eles (R.obrigatoriosMembro decide)
@@ -7007,7 +7233,8 @@ ${secs}</div>`;
     abrirLoteDoEndereco();
     // a busca de fundo e o envio da fila um depois do outro (auditoria: correndo juntos, a versão mais velha podia ficar por cima)
     const buscaFundo = rapida ? atualizarAoEntrar() : Promise.resolve();
-    if (!demo()) { SQC.sessao.tocar(true); SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => { guardarRascunho(); sair(EXP); }, temConexao: () => api.temConexao() }); buscaFundo.then(() => { if (eu) sincronizar(); }); oferecerRascunho(); }
+    if (!demo()) { if (!SQC.sessao.venceu(SQC.sessao.ultimo())) SQC.sessao.tocar(true);   /* ataque de 28/10/2026: abrir sem internet não zera o tempo sem uso */
+       SQC.sessao.iniciar({ ativo: () => !!eu, aoVencer: () => { guardarRascunho(); sair(EXP); }, temConexao: () => api.temConexao() }); buscaFundo.then(() => { if (eu) sincronizar(); }); oferecerRascunho(); }
   }
   /* 21/10/2026 (auditoria de campo): formulário aberto e tela apagada por 15 minutos — o sistema sai por segurança, mas o que foi
      digitado fica guardado neste aparelho (só para a mesma pessoa, por até 24 horas) e é oferecido de volta ao entrar */
@@ -7035,6 +7262,7 @@ ${secs}</div>`;
       const e = $('#ferr'); if (e) e.textContent = 'Formulário recuperado. Confira e salve.'; });
   }
   async function sair(msg) {
+    document.querySelectorAll('.toast-ac,.toast').forEach(x => x.remove());   /* ataque de 28/10/2026: o "Desfazer" de quem saiu não fica na tela */
     document.querySelectorAll('.rasc-aviso').forEach(x => x.remove());   // o aviso de rascunho não passa para quem entrar depois
     guardarLugar();   // antes de esquecer a aba: a mesma pessoa volta para cá quando entrar de novo
     Object.keys(urlsFoto).forEach(k => { URL.revokeObjectURL(urlsFoto[k]); delete urlsFoto[k]; });
@@ -7044,7 +7272,7 @@ ${secs}</div>`;
     try { Object.keys(localStorage).filter(k => k.startsWith('sqc-rd:')).forEach(k => localStorage.removeItem(k)); } catch (e) {}   // texto do relatório descritivo não fica para a próxima pessoa do aparelho
     // 24/10/2026 (auditoria): os nomes colados na Lista e a folha impressa (o termo leva o nome do agricultor) não ficam para a próxima pessoa
     document.title = 'Saberes que Cultivam';   /* a tela de entrada não fica com o nome da última seção */
-    prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; Object.keys(agF).forEach(k => delete agF[k]); Object.keys(agAb).forEach(k => delete agAb[k]); agCtx = {}; Object.assign(despFiltro, { st: '', rub: '', q: '' }); Object.keys(despAberto).forEach(k => delete despAberto[k]);   // 24/10/2026: a busca pode ter nome de agricultor: não passa para quem entrar depois
+    prLote = { ev: null, texto: '', nomes: [], fora: 0 }; prEv = null; prEdit = null; Object.keys(agF).forEach(k => delete agF[k]); Object.keys(agAb).forEach(k => delete agAb[k]); agCtx = {}; Object.assign(pcF, { st: '', mun: '', termo: '', q: '' }); Object.assign(despFiltro, { st: '', rub: '', q: '' }); Object.keys(despAberto).forEach(k => delete despAberto[k]);   // 24/10/2026: a busca pode ter nome de agricultor: não passa para quem entrar depois
     { const im = document.getElementById('impresso'); if (im) im.innerHTML = ''; const sm = document.getElementById('pf-page-margem'); if (sm) sm.remove(); } document.body.classList.remove('imprimindo');
     eu = null; db = null; real = null; hist = null; espera = null; relatos = undefined; relResAberto = false; relResN = 20; convites = undefined; filas = undefined; acessos = undefined; prUlt = {}; imp = null; tab = 'painel'; $('#view').innerHTML = ''; authModo = 'entrar'; telaAcesso(msg || '');   // a aba de quem saiu fica guardada à parte (guardarLugar)   // nada de quem saiu fica para a próxima pessoa
   }
@@ -7162,7 +7390,7 @@ ${secs}</div>`;
     else if (d.relatar !== undefined) abrirRelato();
     else if (d.anxabrir) { let a = (db.anexos || []).find(x => x.id === d.anxabrir);
       if (!a && String(d.anxabrir).startsWith('legado:')) { const rid = d.anxabrir.slice(7), m = ANX_TAB.find(k => by(k, rid)); a = m && anexosDe(m, rid).find(x => x.legado); }
-      if (!a) return; const w = window.open('', '_blank');
+      if (!a) return; const w = window.open('', '_blank'); if (w) try { w.opener = null; } catch (e) {}
       try { const u = await api.urlDocumento(a.caminho); if (w) w.location.href = u; else location.assign(u); } catch (e) { if (w) w.close(); toast(e.message || String(e)); } }
     else if (d.anxtira !== undefined) { if (ed && ed.anexosFila) { ed.anexosFila.splice(+d.anxtira, 1); anxRedesenha(); } }
     else if (d.anxdel) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar remoção'; t.classList.add('conf'); return; }
@@ -7265,13 +7493,14 @@ ${secs}</div>`;
       if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar exclusão'; anunciar('Toque de novo para confirmar a exclusão.'); return; }
       t.disabled = true;
       const antigo = Object.assign({}, by(m, id));
-      try { await api.excluir(m, id); db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render();
+      try { await api.excluir(m, id); try { const k = SQC.fila.chave(m, id); if (pend.some(p => p.id === k)) { await SQC.fila.remover(k); pend = await SQC.fila.listar(eu.id); } } catch (x) {}   /* auditoria de 28/10/2026: a edição que esperava na fila não ressuscita o excluído */
+        db[m] = db[m].filter(x => x.id !== id); if (api.guardarCopia) api.guardarCopia(db); if (d.fechaapos !== undefined && $('#dlg').open) $('#dlg').close(); render();
         oferecerDesfazer(m, antigo); }
       catch (e) { t.textContent = e.semRede ? 'Sem internet: tente depois' : e.message; }
     }
     else if (d.limpar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar exemplos'; return; } await api.apagarExemplos(); await recarregarDb(); render(); }
     else if (d.zerar !== undefined) { if (!d.ok) { d.ok = 1; t.textContent = 'Confirmar: apagar tudo'; return; } await api.recomecar(); await recarregarDb(); render(); }
-    else if (d.exp) { if (fora()) return; let qtd = 0;
+    else if (d.exp) { if (fora() || !abas().some(t => t[0] === 'dados')) return; let qtd = 0;
       if (d.exp === 'json') { const c = {}; D.TABELAS.forEach(k => { c[k] = db[k].filter(r => !r._pendente); qtd += c[k].length; }); baixar('saberes-que-cultivam-' + iso(hoje()) + '.json', JSON.stringify(c, null, 1), 'application/json'); }
       else { qtd = db[d.exp].filter(r => !r._pendente).length; baixar(d.exp + '-' + iso(hoje()) + '.csv', csv(d.exp), 'text/csv;charset=utf-8'); }
       if (api.registrarDownload && !demo()) api.registrarDownload(d.exp, qtd);   // fica no histórico (script 21): quem baixou, quando e quantas linhas
@@ -7402,6 +7631,10 @@ ${secs}</div>`;
     document.addEventListener('change', ev => { const d = ev.target.dataset && ev.target.dataset.agfil; if (!d) return; const [m, k] = d.split(':'); (agF[m] = agF[m] || {})[k] = ev.target.value; agAb[m] = {}; agRedesenha(m); });
     document.addEventListener('toggle', ev => { const g = ev.target; if (!g.matches || !g.matches('details.ag-g')) return; const m = g.dataset.agm, k = g.dataset.agk;   // o toggle também dispara ao desenhar: o que a pessoa abriu ou fechou vem do clique (abaixo)
       const c = g.querySelector('.ag-c'); if (g.open && c && !c.firstChild && agCtx[m]) { const grp = comSaldos(() => AGR[m].grupos(agFiltradas(m)).find(x => x.k === k)); if (grp) c.innerHTML = comSaldos(() => agLinhas(m, agCtx[m].M, grp.ls.sort((a, b) => (b.data || b.inicio || '') > (a.data || a.inicio || '') ? 1 : -1), agCtx[m].acoes, grp.t)); } }, true);
+    /* 28/10/2026: filtros e busca de "Quem está cadastrado" redesenham só a lista (a busca não perde o foco) */
+    const pcRedesenha = () => { const l = $('#pc_l'), r = $('#pc_r'); if (l) l.innerHTML = pcLista(); if (r) r.textContent = pcResumo(); };
+    let pcT = 0; document.addEventListener('input', ev => { if (!(ev.target.dataset && 'pcq' in ev.target.dataset)) return; pcF.q = ev.target.value; agAb.agricultores = {}; clearTimeout(pcT); pcT = setTimeout(pcRedesenha, 180); });
+    document.addEventListener('change', ev => { const k = ev.target.dataset && ev.target.dataset.pcfil; if (!k) return; pcF[k] = ev.target.value; agAb.agricultores = {}; pcRedesenha(); });
     const despRedesenha = () => { const l = $('#dsp_l'), r = $('#dsp_r'); if (l) l.innerHTML = listaDespesas(); if (r) r.textContent = resumoDesp(); };
     ['input', 'change'].forEach(tp => document.addEventListener(tp, ev => { const t = ev.target; if (t && t.dataset && 'culpa' in t.dataset) tiraCulpa(t); }));   /* corrigiu o campo: a marca de erro sai */
     let despT = 0; document.addEventListener('input', ev => { if (ev.target.id !== 'dsp_q') return; despFiltro.q = ev.target.value; clearTimeout(despT); despT = setTimeout(despRedesenha, 180); });
@@ -7461,7 +7694,7 @@ ${secs}</div>`;
       if (api.recuperando) return pedirSenhaNova();
       if (api.linkVencido && !eu) { try { history.replaceState(null, '', location.pathname); } catch (x) {} return telaAcesso('O link que você abriu já foi usado ou venceu. Peça outro em “Primeiro acesso” ou “Esqueci a senha”.'); }
       // ficou mais de 15 minutos sem usar e fechou a página: pede a senha de novo
-      if (eu && !demo() && !api.offline && navigator.onLine !== false && SQC.sessao.venceu(SQC.sessao.ultimo()) && await api.temConexao()) return sair(EXP);   // 21/10/2026: com sinal fraco não sai (sairia e a pessoa não conseguiria entrar de novo no campo)
+      if (eu && !demo() && !api.offline && navigator.onLine !== false && (SQC.sessao.venceu(SQC.sessao.ultimo()) || (!SQC.sessao.ultimo() && !api.veioDeLink)) && await api.temConexao()) return sair(EXP);   /* auditoria de 28/10/2026: sessão guardada sem marca de uso (quem saiu sem internet) também pede entrar de novo */   // 21/10/2026: com sinal fraco não sai (sairia e a pessoa não conseguiria entrar de novo no campo)
       if (eu) await aposEntrar(); else telaAcesso('');
     } catch (e) { telaAcesso(e.message); }
     // funcionamento sem internet (só em endereço https ou no computador de quem desenvolve)
@@ -7474,7 +7707,8 @@ ${secs}</div>`;
     } catch (e) { /* sem service worker: o sistema funciona, só não abre sem internet */ }
   }
 
-  SQC.app = { iniciar, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, abas, _estado: () => ({ eu, db, pend, tab }), _revelar: revelar };
+  const sairExterno = () => { if (eu) sair('A sua sessão foi encerrada (em outra aba ou aparelho). Entre de novo.'); };
+  SQC.app = { iniciar, sairExterno, pedirSenhaNova, MOD, TABS, csv, toast, AJUDA, AJUDA_FORA, AJ, abas, _estado: () => ({ eu, db, pend, tab }), _revelar: revelar };
   /* depois de recarregar por causa da troca de aparência (Safari): a janela de aparência volta aberta, como a pessoa deixou */
   async function partir() {
     await iniciar();
