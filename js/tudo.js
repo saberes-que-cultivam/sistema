@@ -5112,8 +5112,9 @@ var qrcode = function() {
       const ox = (W - (b[2] - b[0]) * kx * e) / 2, oy = (H - (b[3] - b[1]) * e) / 2, X = lon => ox + (lon - b[0]) * kx * e, Y = lat => oy + (b[3] - lat) * e;
       const anel = r => 'M' + r.map(q => X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1)).join(' L') + ' Z';
       const vistos = new Set(), pts = []; db.agricultores.forEach(a => { const p = pontoDe(a.municipio, a.uf); if (!p) return; const k = p.join(','); if (!vistos.has(k)) { vistos.add(k); pts.push(p); } });
-      const bios = db.unidades.map(u => u.lat != null && u.lat !== '' ? [+u.lng, +u.lat] : pontoDe(u.municipio, u.uf)).filter(Boolean);
-      return `<svg class="mda-mapa" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do Ceará e do Rio Grande do Norte com os municípios do projeto"><title>Municípios do projeto no CE e no RN</title>
+      const bios = db.unidades.map(u => u.lat != null && u.lat !== '' && isFinite(+u.lat) && isFinite(+u.lng) ? [+u.lng, +u.lat] : pontoDe(u.municipio, u.uf)).filter(Boolean);
+      const desc = `Mapa do Ceará e do Rio Grande do Norte: ${pts.length} ${pts.length === 1 ? 'município' : 'municípios'} com unidades produtivas (pontos verdes) e ${bios.length} ${bios.length === 1 ? 'biofábrica' : 'biofábricas'} (losangos)`;
+      return `<svg class="mda-mapa" viewBox="0 0 ${W} ${H}" role="img" aria-label="${desc}"><title>${desc}</title>
         ${ufs.map(u => G.uf[u].r.map(r => `<path class="mm-uf" d="${anel(r)}"/>`).join('')).join('')}
         ${pts.map(p => `<circle class="mm-p" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.8"/>`).join('')}
         ${bios.map(p => { const x = X(p[0]), y = Y(p[1]); return `<path class="mm-b" d="M${x.toFixed(1)} ${(y - 7).toFixed(1)} L${(x + 7).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + 7).toFixed(1)} L${(x - 7).toFixed(1)} ${y.toFixed(1)} Z"/>`; }).join('')}
@@ -5709,21 +5710,36 @@ var qrcode = function() {
      A página fica sem margem (@page margin 0, que é o que faz o navegador não imprimir nada lá) e as margens de cada folha vêm de uma
      tabela em volta do relatório, montada só durante a impressão: o cabeçalho e o rodapé dela se repetem em toda folha (espaço em cima
      e, embaixo, o nome do projeto e o período). Depois de imprimir, o relatório volta para o lugar. */
-  function imprimirRel() {
-    const art = $('#view .rel'); if (!art) return window.print();
+  /* 29/10/2026 (auditoria): o embrulho entra no "beforeprint" (vale também para Ctrl+P e o Imprimir do menu do navegador) e sai no
+     "afterprint", no próximo toque ou tecla, ao esconder a página e no começo de cada desenho da tela. No Safari (Mac, iPhone, iPad) a
+     página continua com margem: ele não repete o cabeçalho da tabela em cada folha, e sem margem as folhas depois da primeira sairiam
+     com o texto na borda. */
+  const SAFARI = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent || '');
+  let impRel = null;
+  function embrulharRel() {
+    if (impRel || tab !== 'relatorios' || !rel) return;
+    const art = $('#view .rel'); if (!art) return;
     const tb = document.createElement('table'); tb.className = 'pg-rel';
     tb.innerHTML = `<thead><tr><td><div class="pg-esp"></div></td></tr></thead><tbody><tr><td class="pg-c"></td></tr></tbody><tfoot><tr><td><div class="pg-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span>${relModo === 'desc' ? 'Relatório descritivo' : 'Relatório de execução'} · ${dt(rel.de)} a ${dt(rel.ate)}</span></div></td></tr></tfoot>`;
     art.parentNode.insertBefore(tb, art); tb.querySelector('.pg-c').appendChild(art);
-    const st = document.createElement('style'); st.id = 'pg-rel-st'; st.textContent = '@page{size:A4;margin:0}'; document.head.appendChild(st);
-    document.documentElement.classList.add('imp-rel');
-    let feito = false; const volta = () => { if (feito) return; feito = true; window.removeEventListener('afterprint', volta);
-      if (tb.isConnected && art.parentNode) { tb.parentNode.insertBefore(art, tb); tb.remove(); } st.remove(); document.documentElement.classList.remove('imp-rel'); };
-    window.addEventListener('afterprint', volta); window.print();
-    setTimeout(() => document.addEventListener('pointerdown', volta, { once: true, capture: true }), 1500);   /* aparelho que não avisa o fim da impressão: volta no próximo toque */
+    let st = null; if (!SAFARI) { st = document.createElement('style'); st.id = 'pg-rel-st'; st.textContent = '@page{size:A4;margin:0}'; document.head.appendChild(st); }
+    document.documentElement.classList.add('imp-rel'); if (SAFARI) document.documentElement.classList.add('imp-safari');
+    impRel = { tb, art, st, desde: Date.now() };
   }
+  function desembrulharRel() {
+    if (!impRel) return; const { tb, art, st } = impRel; impRel = null;
+    if (tb.isConnected && art.parentNode === tb.querySelector('.pg-c')) { tb.parentNode.insertBefore(art, tb); } if (tb.isConnected) tb.remove();
+    if (st) st.remove(); document.documentElement.classList.remove('imp-rel', 'imp-safari');
+  }
+  window.addEventListener('beforeprint', embrulharRel);
+  window.addEventListener('afterprint', desembrulharRel);
+  ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (impRel && impRel.desde && Date.now() - impRel.desde > 1500) desembrulharRel(); }, true));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && impRel && impRel.desde && Date.now() - impRel.desde > 1500) desembrulharRel(); });
+  function imprimirRel() { embrulharRel(); if (impRel) impRel.desde = Date.now(); window.print(); }   /* sem relatório na tela, o print comum */
   /* 29/10/2026 (pedido da coordenação): campo de assinatura de quem coordenava no fim do período, no fim do relatório */
   function assinaturaRel() {
-    const co = (db.membros || []).filter(m => m.funcao === 'coordenacao' && (!m.fim || m.fim >= rel.ate));
+    /* auditoria de 29/10/2026: quem coordenava no fim do período (começou até a data final e não tinha saído); havendo mais de um, quem começou por último */
+    const co = (db.membros || []).filter(m => m.funcao === 'coordenacao' && (!m.fim || m.fim >= rel.ate) && (!m.inicio || m.inicio <= rel.ate)).sort((a, b) => String(b.inicio || '') < String(a.inicio || '') ? -1 : 1).slice(0, 1);
     const um = co.length ? co : [null];
     return `<div class="panel rel-doc rd-ass" role="group" aria-label="Assinatura"><p class="rd-ass-d">Apodi/RN, ${hoje().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
       <div class="rd-ass-g">${um.map(m => `<div class="rd-ass-b"><span class="rd-ass-l" aria-hidden="true"></span><b>${m ? esc(m.nome_social || m.nome) : '&nbsp;'}</b><span>Coordenador do projeto${m && m.siape ? ` · SIAPE ${esc(m.siape)}` : ''}</span></div>`).join('')}</div></div>`;
@@ -6221,6 +6237,7 @@ ${secs}${assinaturaRel()}</div>`;
   function margemDoMenu() { const nv = $('nav'); if (nv && nv.offsetHeight) document.documentElement.style.scrollPaddingTop = (nv.offsetHeight + 12) + 'px'; }
   let gatilho = null;   // botão que abriu a janela: o foco volta para ele quando a janela fecha
   function render() {
+    desembrulharRel();   /* relatório embrulhado para imprimir volta antes de redesenhar */
     const chave = chaveFoco(document.activeElement);
     R.novoDesenho(); TARDE = new Map();
     if (!eu || !db) return;

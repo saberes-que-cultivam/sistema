@@ -2454,6 +2454,8 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 .mda-q .ag-ic{width:.8em;height:.8em;flex:none;color:var(--accent)}
 .mda-n b:has(.mda-q){display:grid;gap:2px}
 .mda-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.mda-n{min-width:0} .mda-r{overflow-wrap:anywhere}
+@media (max-width:360px){.mda-l{grid-template-columns:1fr !important}}   /* dobrável fechado (280 px): um cartão por linha */
 .mda-top .mda-mapa{flex:none;width:76px;max-width:none;margin:-4px -4px 0 0}
 @media (max-width:640px){.mda-top .mda-mapa{width:56px;margin:-2px -2px 0 0}}
 .mda-com-mapa .mm-leg{display:none}
@@ -2504,6 +2506,7 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 @media print{
   html.imp-rel body,html.imp-rel main,html.imp-rel #view,html.imp-rel .wrap{margin:0 !important;padding:0 !important;max-width:none !important;background:#fff !important}
   html.imp-rel #sim-faixa{display:none !important}
+  html.imp-safari table.pg-rel>thead>tr>td,html.imp-safari table.pg-rel>tfoot>tr>td,html.imp-safari table.pg-rel>tbody>tr>td{padding:0} html.imp-safari .pg-esp{height:0}
   table.pg-rel{width:100%;border-collapse:collapse;border:0;margin:0}
   table.pg-rel>thead>tr>td,table.pg-rel>tfoot>tr>td,table.pg-rel>tbody>tr>td{padding:0 17mm;border:0;background:none}
   table.pg-rel>thead{display:table-header-group} table.pg-rel>tfoot{display:table-footer-group}

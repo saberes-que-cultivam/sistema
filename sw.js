@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v170';
+const VERSAO = 'sqc-v171';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -14,9 +14,11 @@ self.addEventListener('install', e => e.waitUntil(caches.open(VERSAO)
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 const guardar = (req, r) => { if (r && (r.ok || r.type === 'opaque')) { const c = r.clone(); caches.open(VERSAO).then(x => x.put(req, c)); } return r; };
 // internet com prazo: se não responder em ms milissegundos, usa a cópia do aparelho (se houver)
+/* 29/10/2026 (auditoria): a página que chega pela navegação NÃO é guardada na cópia: a página guardada é só a da instalação, que bate
+   com os arquivos da mesma versão (antes, a página nova da versão seguinte ia para a cópia velha e, sem internet, abria sem o código dela) */
 const comPrazo = (req, ms) => new Promise((ok, falha) => {
   let feito = false; const t = setTimeout(() => caches.match(req).then(r => { if (r && !feito) { feito = true; ok(r); } }), ms);
-  fetch(req).then(r => { clearTimeout(t); guardar(req, r); if (!feito) { feito = true; ok(r); } })
+  fetch(req).then(r => { clearTimeout(t); if (!feito) { feito = true; ok(r); } })
     .catch(() => { clearTimeout(t); caches.match(req).then(r => { if (!feito) { feito = true; r ? ok(r) : falha(); } }); });
 });
 self.addEventListener('fetch', e => {
@@ -31,6 +33,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   // arquivos do sistema, biblioteca e fontes: abre do aparelho na hora; o que não estiver guardado vem da internet
+  /* sem internet e sem o arquivo desta versão (?v= novo): usa o mesmo arquivo de outra versão guardada, em vez de deixar a página sem código */
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(x => guardar(e.request, x)))
-    .catch(() => proprio ? caches.match(e.request) : Response.error()));
+    .catch(() => caches.match(e.request).then(r => r || caches.match(e.request, { ignoreSearch: true })).then(r => r || Response.error())));
 });
