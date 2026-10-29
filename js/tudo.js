@@ -5205,7 +5205,7 @@ var qrcode = function() {
    <details class="dx-como"><summary>Como é calculado</summary><p>Conta como acompanhada a unidade produtiva que recebeu bioinsumo e teve pelo menos uma visita de monitoramento no dia da primeira entrega ou depois (visita anterior à entrega não acompanha o uso). O percentual é sobre a meta de ${meta} da etapa 4.1. Traço cheio: previsto até o fim do mês passado pelo cronograma da equipe (acompanhamento de ${mesAno(e41.eq.ini)} a ${mesAno(e41.eq.fim)}); traço vazado: pelo plano de trabalho (${mesAno(e41.ini)} a ${mesAno(e41.fim)}).</p></details></div>`; })()}
   <div class="dx-kpis fin">
   ${kpi(1, L.length / meta * 100, L.length, 'de ' + meta, 'unidades produtivas cadastradas', falta(L.length, meta))}
-  ${kpi(2, L.length ? base / L.length * 100 : 0, base, 'de ' + L.length, 'com linha de base (diagnóstico inicial)', L.length ? falta(base, L.length) : 'nenhuma cadastrada')}
+  ${kpi(2, L.length ? base / L.length * 100 : 0, base, 'de ' + L.length, 'cadastradas com linha de base', !L.length ? 'nenhuma cadastrada' : base >= L.length ? 'todas as cadastradas têm' : `falta${L.length - base === 1 ? '' : 'm'} ${L.length - base} das cadastradas`, undefined, 'das cadastradas')}
   ${kpi(3, kits / meta * 100, kits, 'de ' + meta, 'kits de apoio entregues', falta(kits, meta))}
   ${kpi(4, acomp / meta * 100, acomp, 'de ' + meta, 'acompanhadas (entrega e visita)', falta(acomp, meta))}</div></section>
  <div><div class="head"><div><h2>Quem está cadastrado</h2><p>Por polo de referência (de onde recebe o bioinsumo), em ordem alfabética. A etiqueta mostra o que falta para a unidade contar como acompanhada.</p></div></div>
