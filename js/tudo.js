@@ -5101,23 +5101,41 @@ var qrcode = function() {
     const LM = [...db.agricultores, ...db.unidades].filter(x => String(x.municipio || '').trim()).map(x => [semAcento(String(x.municipio).trim()).toLowerCase(), x.uf || '']);
     LM.forEach(([m, uf]) => { if (uf) { muns.add(m + '/' + uf); ufs.add(uf); } else if (!LM.some(y => y[0] === m && y[1])) muns.add(m + '/'); });   /* sem UF conta só se o mesmo nome não aparece com UF */
     const ent = {}; ds.forEach(d => { const m = (by('lotes', d.lote) || {}).med; if (m === 'kg' || m === 'L') ent[m] = (ent[m] || 0) + (+d.qtd || 0); });   /* lote sem medida (ou que não veio) não vira kg */
-    const qtd = ['kg', 'L'].filter(m => ent[m]).map(m => `${num(Math.round(ent[m]))} ${m}`);
-    const cart = (n, rot, sub) => `<li class="mda-n"><b>${n}</b><span class="mda-r">${rot}</span>${sub ? `<small>${sub}</small>` : ''}</li>`;
+    const qtd = ['kg', 'L'].filter(m => ent[m]).map((m, i) => `<span class="mda-q">${i ? '+&nbsp;' : ''}${num(Math.round(ent[m]))}&nbsp;${m}</span>`);   /* 29/10/2026: a unidade não fica sozinha na linha de baixo; se não couber, quebra antes do + */
+    const cart = (n, rot, sub, extra) => `<li class="mda-n${extra ? ' mda-com-mapa' : ''}"><b>${n}</b><span class="mda-r">${rot}</span>${sub ? `<small>${sub}</small>` : ''}${extra || ''}</li>`;
+    /* 29/10/2026 (pedido da coordenação): mapa pequeno no cartão dos municípios — contorno do CE e do RN, um ponto por município com
+       unidade produtiva e um losango por biofábrica (os mesmos dados do mapa "Onde o projeto está", sem nome nem número de pessoa) */
+    const miniMapa = () => { const G = SQC.GEO; if (!G || !G.uf) return '';
+      const ufs = ['CE', 'RN'].filter(u => G.uf[u]), W = 240, H = 120, M = 6; if (!ufs.length) return '';
+      const b = ufs.map(u => G.uf[u].b).reduce((a, x) => [Math.min(a[0], x[0]), Math.min(a[1], x[1]), Math.max(a[2], x[2]), Math.max(a[3], x[3])]);
+      const kx = Math.cos((b[1] + b[3]) / 2 * Math.PI / 180), e = Math.min((W - 2 * M) / ((b[2] - b[0]) * kx), (H - 2 * M) / (b[3] - b[1]));
+      const ox = (W - (b[2] - b[0]) * kx * e) / 2, oy = (H - (b[3] - b[1]) * e) / 2, X = lon => ox + (lon - b[0]) * kx * e, Y = lat => oy + (b[3] - lat) * e;
+      const anel = r => 'M' + r.map(q => X(q[0]).toFixed(1) + ' ' + Y(q[1]).toFixed(1)).join(' L') + ' Z';
+      const vistos = new Set(), pts = []; db.agricultores.forEach(a => { const p = pontoDe(a.municipio, a.uf); if (!p) return; const k = p.join(','); if (!vistos.has(k)) { vistos.add(k); pts.push(p); } });
+      const bios = db.unidades.map(u => u.lat != null && u.lat !== '' ? [+u.lng, +u.lat] : pontoDe(u.municipio, u.uf)).filter(Boolean);
+      return `<svg class="mda-mapa" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mapa do Ceará e do Rio Grande do Norte com os municípios do projeto"><title>Municípios do projeto no CE e no RN</title>
+        ${ufs.map(u => G.uf[u].r.map(r => `<path class="mm-uf" d="${anel(r)}"/>`).join('')).join('')}
+        ${pts.map(p => `<circle class="mm-p" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.8"/>`).join('')}
+        ${bios.map(p => { const x = X(p[0]), y = Y(p[1]); return `<path class="mm-b" d="M${x.toFixed(1)} ${(y - 7).toFixed(1)} L${(x + 7).toFixed(1)} ${y.toFixed(1)} L${x.toFixed(1)} ${(y + 7).toFixed(1)} L${(x - 7).toFixed(1)} ${y.toFixed(1)} Z"/>`; }).join('')}
+        </svg>
+        <span class="mm-leg"><span><i class="mm-lp" aria-hidden="true"></i>unidades produtivas</span><span><i class="mm-lb" aria-hidden="true"></i>biofábricas</span></span>`; };
     const C = [
       fam ? cart(num(fam), fam === 1 ? 'unidade produtiva já recebeu bioinsumo' : 'unidades produtivas já receberam bioinsumo', `de ${num(db.agricultores.length)} cadastradas`) : '',
-      muns.size ? cart(num(muns.size), muns.size === 1 ? 'município com unidade produtiva ou biofábrica' : 'municípios com unidades produtivas ou biofábricas', esc([...ufs].sort().join(' e '))) : '',   /* bateria de 28/10/2026: a UF vem do cadastro (texto) e precisa de esc */
-      qtd.length ? cart(qtd.join(' + '), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
+      muns.size ? cart(num(muns.size), muns.size === 1 ? 'município com unidade produtiva ou biofábrica' : 'municípios com unidades produtivas ou biofábricas', esc([...ufs].sort().join(' e ')), miniMapa()) : '',   /* bateria de 28/10/2026: a UF vem do cadastro (texto) e precisa de esc */
+      qtd.length ? cart(qtd.join(' '), 'de bioinsumo entregues às unidades produtivas', `em ${num(ds.length)} ${ds.length === 1 ? 'entrega' : 'entregas'}`) : '',
       I.participantes ? cart(num(I.participantes), 'participações em capacitações e dias de campo realizados', I.partMulheres ? `${num(I.mulheres / I.partMulheres * 100)}% mulheres${I.partMulheres < I.participantes ? ' (nas atividades com essa informação)' : ''}` : '') : ''].filter(Boolean);
+    /* 29/10/2026 (pedido da coordenação): cada realização num cartão — data e tipo em cima, o que foi feito em destaque, onde e quantos embaixo */
     const RL = [];
     db.eventos.filter(e => e.data && String(e.data) <= h && e.tipo !== 'Participação em evento' && (!['Capacitação', 'Dia de campo'].includes(e.tipo) || R.realizada(db, e))).forEach(e => { const np = R.participantes(db, e);
-      RL.push([e.data, e.tipo, `${esc(e.tema || e.tipo)}${e.municipio ? ` · ${esc(e.municipio)}` : ''}${np ? ` · ${num(np)} ${np === 1 ? 'participante' : 'participantes'}` : ''}`]); });
-    db.unidades.filter(u => u.funcionando && u.funcionando_em && u.funcionando_em <= h).forEach(u => RL.push([u.funcionando_em, 'Biofábrica', `${esc(u.nome)} entrou em funcionamento`]));
-    (db.entregas || []).filter(g => g.data && String(g.data) <= h && !g._pendente).forEach(g => RL.push([g.data, 'Entrega do plano', `${esc(g.titulo)}${g.etapa ? ` · etapa ${esc(g.etapa)}` : ''}`]));
+      RL.push([e.data, e.tipo, esc(e.tema || e.tipo), [e.municipio ? esc(e.municipio) : '', np ? `${num(np)} ${np === 1 ? 'participante' : 'participantes'}` : ''], ['Capacitação', 'Dia de campo'].includes(e.tipo) ? 'ok' : 'neu']); });
+    db.unidades.filter(u => u.funcionando && u.funcionando_em && u.funcionando_em <= h).forEach(u => RL.push([u.funcionando_em, 'Biofábrica', `${esc(u.nome)} entrou em funcionamento`, [[u.municipio, u.uf].filter(Boolean).map(esc).join('/')], 'ok']));
+    (db.entregas || []).filter(g => g.data && String(g.data) <= h && !g._pendente).forEach(g => RL.push([g.data, 'Entrega do plano', esc(g.titulo), [g.etapa ? `etapa ${esc(g.etapa)}` : ''], 'info']));
     const ult = RL.sort((a, b) => String(b[0]) > String(a[0]) ? 1 : -1).slice(0, 6);
     if (!C.length && !ult.length) return '';
     return `<section class="panel mda" aria-label="O projeto em números"><div class="mts-cab"><h2>O projeto em números</h2><p>Resultados registrados pela equipe até ${dt(h)}</p></div>
       ${C.length ? `<ul class="mda-l">${C.join('')}</ul>` : ''}
-      ${ult.length ? `<div class="mda-u"><h3>Últimas realizações</h3><ol>${ult.map(([d, t, x]) => `<li><time datetime="${esc(d)}">${dt(d)}</time><span><b>${esc(t)}</b> · ${x}</span></li>`).join('')}</ol></div>` : ''}</section>`;
+      ${ult.length ? `<div class="mda-u"><h3>Últimas realizações</h3><ol>${ult.map(([d, t, tit, meta, cor]) => { const m = meta.filter(Boolean);
+        return `<li><div class="mda-u-c"><time datetime="${esc(d)}">${dt(d)}</time><span class="chip ${cor}">${esc(t)}</span></div><b class="mda-u-t">${tit}</b>${m.length ? `<small>${m.join(' · ')}</small>` : ''}</li>`; }).join('')}</ol></div>` : ''}</section>`;
   }
   /* ---------- unidades produtivas: indicadores, cartão por pessoa e ficha com o histórico ---------- */
   const iniciais = n => String(n || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).filter(Boolean).map(x => Array.from(x)[0]).filter((x, i, a) => i === 0 || i === a.length - 1).join('').toUpperCase() || '?';
@@ -5687,6 +5705,29 @@ var qrcode = function() {
   const rdBloco = (k, paragrafos, ph, rot) => { const g = rdLer(k); const html = g != null ? rdTexto(g) : paragrafos.filter(Boolean).map(x => typeof x === 'object' ? `<p><b>${esc(x.b)}</b>${x.t ? ' ' + esc(x.t) : ''}</p>` : `<p>${esc(x)}</p>`).join('');   // { b, t }: começo em negrito (data e tema da atividade)
     return `<div class="rd-ed" contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-multiline="true" aria-label="${esc(rot || 'Texto do relatório')} (editável)" data-rdk="${k}"${ph ? ` data-ph="${esc(ph)}"` : ''}>${html}</div>`; };
   /* capa dos relatórios (19/10/2026): a mesma no descritivo e nos quadros numéricos (só muda o rótulo) */
+  /* 29/10/2026 (pedido da coordenação): o relatório impresso sem o cabeçalho e o rodapé do navegador (título, endereço, data, "2 of 11").
+     A página fica sem margem (@page margin 0, que é o que faz o navegador não imprimir nada lá) e as margens de cada folha vêm de uma
+     tabela em volta do relatório, montada só durante a impressão: o cabeçalho e o rodapé dela se repetem em toda folha (espaço em cima
+     e, embaixo, o nome do projeto e o período). Depois de imprimir, o relatório volta para o lugar. */
+  function imprimirRel() {
+    const art = $('#view .rel'); if (!art) return window.print();
+    const tb = document.createElement('table'); tb.className = 'pg-rel';
+    tb.innerHTML = `<thead><tr><td><div class="pg-esp"></div></td></tr></thead><tbody><tr><td class="pg-c"></td></tr></tbody><tfoot><tr><td><div class="pg-pe"><span>Saberes que Cultivam · TED MDA/IFRN</span><span>${relModo === 'desc' ? 'Relatório descritivo' : 'Relatório de execução'} · ${dt(rel.de)} a ${dt(rel.ate)}</span></div></td></tr></tfoot>`;
+    art.parentNode.insertBefore(tb, art); tb.querySelector('.pg-c').appendChild(art);
+    const st = document.createElement('style'); st.id = 'pg-rel-st'; st.textContent = '@page{size:A4;margin:0}'; document.head.appendChild(st);
+    document.documentElement.classList.add('imp-rel');
+    let feito = false; const volta = () => { if (feito) return; feito = true; window.removeEventListener('afterprint', volta);
+      if (tb.isConnected && art.parentNode) { tb.parentNode.insertBefore(art, tb); tb.remove(); } st.remove(); document.documentElement.classList.remove('imp-rel'); };
+    window.addEventListener('afterprint', volta); window.print();
+    setTimeout(() => document.addEventListener('pointerdown', volta, { once: true, capture: true }), 1500);   /* aparelho que não avisa o fim da impressão: volta no próximo toque */
+  }
+  /* 29/10/2026 (pedido da coordenação): campo de assinatura de quem coordenava no fim do período, no fim do relatório */
+  function assinaturaRel() {
+    const co = (db.membros || []).filter(m => m.funcao === 'coordenacao' && (!m.fim || m.fim >= rel.ate));
+    const um = co.length ? co : [null];
+    return `<div class="panel rel-doc rd-ass" role="group" aria-label="Assinatura"><p class="rd-ass-d">Apodi/RN, ${hoje().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
+      <div class="rd-ass-g">${um.map(m => `<div class="rd-ass-b"><span class="rd-ass-l" aria-hidden="true"></span><b>${m ? esc(m.nome_social || m.nome) : '&nbsp;'}</b><span>Coordenador do projeto${m && m.siape ? ` · SIAPE ${esc(m.siape)}` : ''}</span></div>`).join('')}</div></div>`;
+  }
   function capaRel(rotulo) { const [nm, sb] = D.NOME_COMPLETO.split(': ');   /* capa do relatório (19/10/2026): projeto, período, instrumento, execução e coordenação */
         const co = (db.membros || []).filter(m => m.funcao === 'coordenacao' && (!m.fim || m.fim >= rel.ate));   // quem coordenava no fim do período do relatório (não a de hoje)
         const coTxt = co.map(m => [m.nome_social || m.nome, m.siape ? 'SIAPE ' + m.siape : '', m.email].filter(Boolean).join(' · ')).join('; ');
@@ -5872,6 +5913,7 @@ var qrcode = function() {
        ${sub('Perspectivas e próximos passos', rdBloco('perspectivas', [], 'Escreva o que a equipe pretende fazer no próximo período e o que se espera alcançar (não sai na impressão se ficar em branco).', 'Perspectivas e próximos passos'))}
        ${sub('Dificuldades e encaminhamentos', rdBloco('dificuldades', [...atrasos, atencao.length ? `Pontos de atenção apontados pelo sistema em ${dt(fimRel)}: ${atencao.join(' ')}` : ''].filter(Boolean), 'Escreva as dificuldades do período e como estão sendo encaminhadas (não sai na impressão se ficar em branco).', 'Dificuldades e encaminhamentos'))}
       </div>
+      ${assinaturaRel()}
       ${relAnexo ? `<div class="panel rel-doc rd-anexo"><h2>Anexo · Quadros numéricos</h2></div>${secs}` : ''}
      </article>`;
   }
@@ -5915,7 +5957,7 @@ var qrcode = function() {
    ${kpi(4, gasto / D.TOTAL * 100, gasto >= 1e4 ? num(Math.round(gasto / 1000)) : num(Math.round(gasto)), gasto >= 1e4 ? 'mil reais' : 'reais', 'em despesas no período', `${de.length} despesa(s), ${pagas} paga(s)`, undefined, 'do TED')}</div></div>
 `;
     const docExec = `<div class="rel"> ${capaRel('Relatório de execução')}
-${secs}</div>`;
+${secs}${assinaturaRel()}</div>`;
     return `<div class="head noprint"><div><h2>Relatórios</h2><p>${relModo === 'desc' ? 'Texto corrido para a prestação de contas: introdução com os dados do projeto, o que foi feito no período, andamento das metas, marcos e perspectivas. Edite o texto aqui antes de imprimir ou copiar.' : 'Escolha o período. As metas físicas e o financeiro saem acumulados até a data final; as atividades, só as do período. Na tela, as tabelas longas mostram as 10 primeiras linhas; impresso ou em PDF, o relatório sai completo.'}</p></div></div>
  <div class="rel-topo noprint"><div class="seg peq rel-modo" role="group" aria-label="Tipo de relatório"><button type="button" data-relmodo="desc" aria-pressed="${relModo === 'desc'}">Descritivo (texto corrido)</button><button type="button" data-relmodo="exec" aria-pressed="${relModo !== 'desc'}">Quadros numéricos</button></div>
   <button class="b rel-imp" data-print>${IC_IMPRIMIR}<span>Imprimir ou salvar em PDF</span></button></div>
@@ -7540,7 +7582,7 @@ ${secs}</div>`;
     else if (d.relmais) { const sc = t.closest('section'), abre = !sc.classList.contains('tudo'); sc.classList.toggle('tudo', abre); t.setAttribute('aria-expanded', abre); t.textContent = abre ? 'Mostrar só as 10 primeiras' : `Ver todas as ${d.relmais} linhas`; }
     else if (d.rel !== undefined) { const a = $('#rde').value, b = $('#rate').value; if (a && b && a <= b) { rel = { de: a, ate: b }; render(); } else toast('Confira as datas: a inicial não pode ser depois da final.'); }
     else if (d.print !== undefined) { if (tab === 'relatorios' && rel && relModo === 'desc') { const n = lacunasRel(); if (n) toast(`Atenção: ${pl(n, 'trecho entre colchetes ainda está', 'trechos entre colchetes ainda estão')} para a coordenação escrever e ${n === 1 ? 'sairá' : 'sairão'} na impressão.`); }
-      if (tab === 'relatorios' && rel) comTitulo(`${relModo === 'desc' ? 'Relatório descritivo' : 'Relatório de execução'} - ${dt(rel.de).replace(/\//g, '-')} a ${dt(rel.ate).replace(/\//g, '-')}`); window.print(); }
+      if (tab === 'relatorios' && rel) { comTitulo(`${relModo === 'desc' ? 'Relatório descritivo' : 'Relatório de execução'} - ${dt(rel.de).replace(/\//g, '-')} a ${dt(rel.ate).replace(/\//g, '-')}`); imprimirRel(); } else window.print(); }
     else if (d.ficha) abrirFicha(d.ficha);
     else if (d.new) abrir(d.new, null, d.pre);
     else if (d.fotoeqtrocar) escolherFotoEq(d.fotoeqtrocar, t);

@@ -2450,16 +2450,29 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
 .mda{padding:28px 32px;border-radius:20px;margin-bottom:20px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface) 70%);border-color:color-mix(in srgb,var(--accent) 28%,var(--line))}
 .mda-l{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
 .mda-n{display:flex;flex-direction:column;gap:4px;padding:16px 18px;background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:14px}
+.mda-q{white-space:nowrap}
+.mda-mapa{display:block;width:100%;max-width:280px;height:auto;margin-top:10px}
+.mda-mapa .mm-uf{fill:color-mix(in srgb,var(--accent) 10%,var(--surface));stroke:color-mix(in srgb,var(--accent) 45%,var(--line));stroke-width:1;stroke-linejoin:round}
+.mda-mapa .mm-p{fill:var(--accent);stroke:var(--surface);stroke-width:1.2}
+.mda-mapa .mm-b{fill:none;stroke:var(--c-bio,#9a5b2c);stroke-width:2.2;stroke-linejoin:round}
+.mm-leg{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;font-size:var(--t-xs);color:var(--txt-2);margin-top:4px}
+.mm-leg>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.mm-leg i{display:inline-block;width:9px;height:9px}
+.mm-lp{border-radius:50%;background:var(--accent)}
+.mm-lb{border:2px solid var(--c-bio,#9a5b2c);transform:rotate(45deg) scale(.85);box-sizing:border-box}
+.mda-u{margin-top:24px}
+.mda-u h3{margin:0 0 12px;font-size:var(--t-lg);font-weight:700}
+.mda-u ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:1000px){.mda-u ol{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.mda-u li{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);line-height:1.4}
+.mda-u-c{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mda-u time{font-size:var(--t-sm);font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.mda-u-t{font-size:var(--t-base);font-weight:650;color:var(--ink);overflow-wrap:anywhere}
+.mda-u small{font-size:var(--t-sm);color:var(--txt-2)}
 .mda-n b{font-size:var(--t-3xl);line-height:1.1;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .mda-r{font-size:var(--t-md);font-weight:600;color:var(--ink);line-height:1.35}
 .mda-n small{font-size:var(--t-sm);color:var(--txt-2);line-height:1.4}
-.mda-u{margin-top:22px}
-.mda-u h3{margin:0 0 10px;font-size:var(--t-lg);font-weight:700}
-.mda-u ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:8px 24px}
-.mda-u li{display:flex;gap:12px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);font-size:var(--t-base);line-height:1.45;color:var(--txt-2)}
-.mda-u time{flex:none;min-width:5.6em;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
-.mda-u b{color:var(--ink);font-weight:600}
-@media (max-width:640px){.mda{padding:20px 16px}.mda-l{grid-template-columns:1fr 1fr;gap:10px}.mda-n{padding:12px 12px}.mda-n b{font-size:var(--t-2xl)}.mda-u ol{grid-template-columns:1fr}}
+@media (max-width:640px){.mda{padding:20px 16px}.mda-l{grid-template-columns:1fr 1fr;gap:10px}.mda-n{padding:12px 12px}.mda-n b{font-size:var(--t-2xl)}.mda-u ol{grid-template-columns:1fr;gap:8px}.mda-u li{padding:12px 14px}}
 /* 28/10/2026 (telas diversas): faixa da simulação rola junto em tela estreita ou baixa (no dobrável fechado ela tinha 4 linhas presas) */
 @media (max-width:640px),(max-height:600px){#sim-faixa{position:static}}
 /* 28/10/2026 (telas diversas): TV 4K e monitor 4K sem escala (3840 × 2160 com 1 px por ponto): a coluna de 1.180 px ficava com letra de 15 px
@@ -2472,4 +2485,39 @@ table.tc td.tl{overflow-wrap:anywhere;min-width:10em}
   .fm-cab,.fm-corpo,.fm-pe{padding-inline:10px} #frm .fm-corpo{--fpx:10px} .fm-cab h2{overflow-wrap:anywhere}
   .fm-pe .frow,.fm-corpo .frow{flex-wrap:wrap} .fm-pe .frow>.b,.fm-corpo .frow>.b{flex:1 1 100%;min-width:0;white-space:normal}
   #frm *{min-width:0} #frm .b{white-space:normal;height:auto;min-height:40px}
+}
+/* campo de assinatura no fim do relatório (29/10/2026) */
+.rd-ass{display:grid;gap:22px;padding:28px 32px}
+.rd-ass-d{margin:0;font:500 var(--t-base)/1.5 var(--body);color:var(--ink)}
+.rd-ass-g{display:flex;flex-wrap:wrap;justify-content:center;gap:28px 48px}
+.rd-ass-b{display:grid;justify-items:center;gap:2px;min-width:min(320px,100%);text-align:center}
+.rd-ass-l{display:block;width:100%;height:46px;border-bottom:1.5px solid var(--ink)}
+.rd-ass-b b{margin-top:6px;font:700 var(--t-base)/1.35 var(--body);color:var(--ink)} .rd-ass-b span:last-child{font:500 var(--t-sm)/1.4 var(--body);color:var(--txt-2)}
+/* relatório impresso (29/10/2026, pedido da coordenação): sem cabeçalho e rodapé do navegador; margens pela tabela .pg-rel
+   (montada só na hora de imprimir); capa em faixa verde, títulos das partes em verde, tabelas com cabeçalho verde-claro e listras */
+@media print{
+  html.imp-rel body,html.imp-rel main,html.imp-rel #view,html.imp-rel .wrap{margin:0 !important;padding:0 !important;max-width:none !important;background:#fff !important}
+  html.imp-rel #sim-faixa{display:none !important}
+  table.pg-rel{width:100%;border-collapse:collapse;border:0;margin:0}
+  table.pg-rel>thead>tr>td,table.pg-rel>tfoot>tr>td,table.pg-rel>tbody>tr>td{padding:0 17mm;border:0;background:none}
+  table.pg-rel>thead{display:table-header-group} table.pg-rel>tfoot{display:table-footer-group}
+  .pg-esp{height:15mm}
+  .pg-pe{height:15mm;display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;padding-top:3mm;border-top:.6pt solid color-mix(in srgb,var(--accent) 45%,#fff);font:500 var(--t-xs)/1.3 var(--body);color:#5b6b60} .pg-pe span{white-space:nowrap}
+  html.imp-rel .rel{print-color-adjust:exact;-webkit-print-color-adjust:exact;color:#1d2a22}
+  html.imp-rel .rel-doc.rd-cab{background:var(--accent) !important;color:#fff;border:0 !important;border-radius:3mm;padding:9mm 9mm 7mm !important;break-inside:avoid}
+  html.imp-rel .rd-cab .rel-sup,html.imp-rel .rd-cab h2{color:#fff !important}
+  html.imp-rel .rd-cab .rdc-tag img{background:#fff;border-radius:2.5mm;padding:1mm}
+  html.imp-rel .rd-cab .rdc-sub,html.imp-rel .rd-cab .rdc-ger,html.imp-rel .rd-cab .rdc-meta dt,html.imp-rel .rd-cab .rdc-meta dd span{color:rgba(255,255,255,.82) !important}
+  html.imp-rel .rd-cab .rdc-meta dd,html.imp-rel .rd-cab .rdc-meta dd b{color:#fff !important}
+  html.imp-rel .rd-cab .rdc-meta{border-top-color:rgba(255,255,255,.35) !important}
+  html.imp-rel .rd-cab .rdc-meta{display:grid !important;grid-template-columns:1.35fr 1fr 1.25fr !important;gap:4mm 7mm} html.imp-rel .rd-cab .rdc-co{grid-column:auto !important}
+  html.imp-rel .rd-cab .rdc-per{background:#fff !important;color:var(--accent) !important}
+  html.imp-rel .rd-s h3{color:var(--accent);font-size:var(--t-lg);padding-bottom:1.6mm;border-bottom:1.4pt solid var(--accent);margin-bottom:3mm}
+  html.imp-rel .rd-s h4{color:var(--accent)}
+  html.imp-rel .rel table:not(.pg-rel) th{background:color-mix(in srgb,var(--accent) 14%,#fff) !important;color:#1d2a22 !important;border-bottom:1pt solid var(--accent) !important}
+  html.imp-rel .rel table:not(.pg-rel) tbody tr:nth-child(even) td{background:#f4f8f5}
+  html.imp-rel .rel table:not(.pg-rel) td{border-bottom:.5pt solid #dde5df}
+  html.imp-rel .rd-anexo h2{color:var(--accent);border-bottom:1.4pt solid var(--accent);padding-bottom:1.6mm}
+  .rd-ass{break-inside:avoid;padding:0 !important;border:0 !important;background:none !important;margin-top:14mm !important}
+  .rd-ass-g{display:block} .rd-ass-b{margin:0 auto;width:95mm} .rd-ass-b+.rd-ass-b{margin-top:12mm}
 }
