@@ -10,5 +10,5 @@ SQC.CONFIG = {
   // WhatsApp de quem atende os relatos e a ajuda para entrar (autorizado pela coordenação em 18/10/2026; fica público no site)
   contato: { tel: '(84) 9 9992-7943', wa: '5584999927943' },
   // avisos no celular (v179): a chave PÚBLICA VAPID (a privada fica só nos segredos da função enviar-push, no Supabase). Vazia: avisos desligados
-  vapidPublico: ''
+  vapidPublico: 'BJmF0YUjXAjrqsNbuYN1GCbF8TKA-nUGRsarvx7ueBOL9K8pKuyfdOqhtUnnqprLViBefqT1m6yYvt0JF-NfGkw'
 };
