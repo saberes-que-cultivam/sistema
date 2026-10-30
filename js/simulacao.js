@@ -66,6 +66,8 @@
     db.membros.forEach(m => { if (m.fim && !ja(m.fim)) { delete m.fim; delete m.motivo; } });
     // CPF fictício (começa com 0000000, confere no dígito e não é de ninguém) e e-mail sem acento: o cadastro exige os dois
     const cpfFicticio = k => { const d = ('0000000' + String(k).padStart(2, '0')).split('').map(Number); [10, 11].forEach(p => { const r = d.reduce((t, x, i) => t + x * (p - i), 0) * 10 % 11; d.push(r === 10 ? 0 : r); }); return d.join(''); };
+    /* 30/10/2026 (homologação F5-08): o primeiro auxiliar, bolsista e formador(a) usam o e-mail do acesso de demonstração, para Meus dados (foto) ficar ligado ao cadastro */
+    ['auxiliar', 'discente', 'formador'].forEach((f, k) => { const m = db.membros.find(x => x.funcao === f && !x.fim); if (m) m.email = ['auxiliar', 'equipe', 'formador'][k] + '@exemplo.br'; });
     db.membros.forEach((m, i) => { m.cpf = m.cpf || cpfFicticio(i + 1); m.email = String(m.email || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); });
 
     /* unidades de produção: implantação passo a passo, com as datas de cada passo */
