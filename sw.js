@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v178';
+const VERSAO = 'sqc-v179';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -26,6 +26,7 @@ self.addEventListener('fetch', e => {
   const proprio = u.origin === location.origin;
   if (!proprio) return;   // API do Supabase e qualquer outro endereço passam direto
   if (proprio && u.pathname.includes('/manuais/')) return;   // manuais em PDF: sempre da internet, não ocupam o aparelho
+  if (proprio && u.pathname.includes('/js/vendor/ocr-')) return;   // 30/10/2026: leitor da lista por foto (~5 MB), só quem usa baixa; o próprio leitor guarda o modelo de português
   // a página: internet com prazo de 1,5 s (para pegar versão nova); sem sinal, abre a guardada
   if (e.request.mode === 'navigate') {
     e.respondWith(comPrazo(e.request, 1500).catch(() => caches.match('index.html')));
@@ -44,4 +45,18 @@ self.addEventListener('fetch', e => {
       .finally(acabou);
   }); }).catch(() => { acabou(); return Response.error(); }));
   e.waitUntil(busca);
+});
+/* 30/10/2026 (v179): avisos no celular. O aviso chega da função "enviar-push" do Supabase com título, texto e a aba; não leva dado pessoal.
+   Tocar no aviso abre o sistema (ou traz para a frente o que já está aberto) na aba do aviso. */
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = { corpo: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(String(d.titulo || 'Saberes que Cultivam').slice(0, 80), { body: String(d.corpo || '').slice(0, 240), icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', lang: 'pt-BR', tag: d.id ? String(d.id) : undefined, data: { aba: /^[a-z]{2,20}$/.test(d.aba || '') ? d.aba : '' } }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close(); const aba = (e.notification.data || {}).aba || '';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(L => {
+    const c = L.find(x => x.url.startsWith(self.registration.scope));
+    if (c) { if (aba) c.postMessage({ irAba: aba }); return c.focus(); }
+    return self.clients.openWindow(new URL('./' + (aba ? '#' + aba : ''), self.registration.scope).href);
+  }));
 });
