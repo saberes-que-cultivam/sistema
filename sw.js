@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v195';
+const VERSAO = 'sqc-v196';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
