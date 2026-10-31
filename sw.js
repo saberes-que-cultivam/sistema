@@ -1,12 +1,12 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v183';
+const VERSAO = 'sqc-v184';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
 const ARQUIVOS = ['./', 'index.html', 'css/app.css?v=' + V, 'js/config.js?v=' + V, 'js/simulacao.js?v=' + V, 'js/tudo.js?v=' + V,
   'assets/icon-192.png', 'manifest.webmanifest',
-  'assets/fontes/manrope-latin-wght-normal.woff2', 'assets/fontes/lora-latin-700-normal.woff2'];   // 29/10/2026: Manrope variável (1 arquivo); a Lora 600 não era usada
+  'assets/fontes/manrope-latin-wght-normal.woff2', 'assets/fontes/cormorant-garamond-latin-700-normal.woff2'];   // 29/10/2026: Manrope variável (1 arquivo); 30/10/2026: marca em Cormorant Garamond (era Lora)
 // cada versão nova baixa tudo de novo, sem passar pelo cache do navegador (senão podia guardar arquivo velho)
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSAO)
   .then(c => c.addAll(ARQUIVOS.map(u => new Request(u, { cache: 'no-cache' })   /* no-cache: o servidor responde “não mudou” para o que o navegador já tem (reload baixava tudo de novo) */))).then(() => self.skipWaiting())));
