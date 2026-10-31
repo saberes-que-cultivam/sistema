@@ -12,12 +12,18 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=188">
+<link rel="stylesheet" href="css/app.css?v=189">
 <!-- Fontes guardadas no próprio sistema (assets/fontes, licença OFL): não dependem do Google e ficam no aparelho para usar sem internet. -->
 <link rel="preload" href="assets/fontes/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
 <section id="auth" hidden>
+ <section class="atalhos" aria-label="Atalhos de acessibilidade"><ul>
+ <li><button type="button" data-atalho="conteudo" accesskey="1">Ir para o conteúdo <kbd>1</kbd></button></li>
+ <li><button type="button" data-atalho="rodape" accesskey="4">Ir para o rodapé <kbd>4</kbd></button></li>
+ <li><button type="button" data-acessibilidade>Acessibilidade</button></li>
+ <li><button type="button" data-contraste aria-pressed="false">Alto contraste</button></li>
+</ul></section>
  <!-- fundo: curvas de plantio em nível e uma folha, quase invisíveis (decoração; não é lida por leitor de tela) -->
  <svg class="ent-fundo" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
   <g fill="none" stroke="currentColor" stroke-width="1.5">
@@ -26,7 +32,7 @@
   </g>
   <path class="folha" d="M1180 60c170 30 270 170 250 360-190 20-330-80-360-250 20-60 60-100 110-110z"/><path d="M1090 150c110 80 220 170 330 270" fill="none" stroke="currentColor" stroke-width="1.5"/>
  </svg>
- <main class="ent">
+ <main class="ent" id="conteudo-ent" tabindex="-1">
   <div class="ent-topo">
    <div class="ent-marca"><img src="assets/icon-192.png" alt="" width="64" height="64"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
    <span class="eyebrow">Sistema de acompanhamento</span>
@@ -43,15 +49,22 @@
    <button type="button" id="ap_entrada" class="ent-ap" data-aparencia aria-label="Aparência da tela: modo sol, claro ou escuro"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg><span>Modo sol</span></button>
   </div>
  </main>
- <footer class="pe pe-ent" role="contentinfo"><div class="wrap">
+ <footer class="pe pe-ent" id="rodape-ent" tabindex="-1" role="contentinfo"><div class="wrap">
   <div class="pe-m"><img src="assets/icon-192.png" alt="" width="44" height="44"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
   <div class="pe-i"><span>IFRN Campus Apodi · SEAB/MDA · FUNCERN</span></div>
-  <div class="pe-a"><p>Dados protegidos pela LGPD (Lei nº 13.709/2018), usados só para o projeto.</p></div>
+  <div class="pe-a"><p>Dados protegidos pela LGPD (Lei nº 13.709/2018), usados só para o projeto. <button type="button" class="pe-ac" data-acessibilidade>Acessibilidade</button></p></div>
  </div></footer>
 </section>
 <section id="pub" hidden></section>
 <div id="app" hidden>
-<button type="button" class="pular" data-pular>Pular para o conteúdo</button>
+<!-- 31/10/2026 (eMAG): atalhos de acessibilidade padrão do governo (Alt+1 conteúdo, Alt+2 menu, Alt+4 rodapé); aparecem ao receber o foco pelo teclado -->
+<section class="atalhos" aria-label="Atalhos de acessibilidade"><ul>
+ <li><button type="button" data-atalho="conteudo" accesskey="1">Ir para o conteúdo <kbd>1</kbd></button></li>
+ <li><button type="button" data-atalho="menu" accesskey="2">Ir para o menu <kbd>2</kbd></button></li>
+ <li><button type="button" data-atalho="rodape" accesskey="4">Ir para o rodapé <kbd>4</kbd></button></li>
+ <li><button type="button" data-acessibilidade>Acessibilidade</button></li>
+ <li><button type="button" data-contraste aria-pressed="false">Alto contraste</button></li>
+</ul></section>
 <header class="top"><div class="wrap">
   <div><p class="marca-nome">Saberes que Cultivam</p>
   <div class="sub">Bioinsumos, agroecologia e agricultura familiar · TED MDA/IFRN · Plano de Ação 30879420260055-006262</div></div>
@@ -64,11 +77,11 @@
 </div></header>
 <nav aria-label="Seções do sistema"><div class="wrap nav-m"><details class="abas-m" id="abas-m"></details></div><div class="wrap" id="tabs"></div><div id="net" class="rede" role="status" hidden></div></nav>
 <main><div class="wrap" id="view"></div></main>
-<footer class="pe pe-in"><div class="wrap">
+<footer class="pe pe-in" id="rodape" tabindex="-1"><div class="wrap">
  <div class="pe-m"><img src="assets/icon-192.png" alt="" width="44" height="44"><div><b>Saberes que Cultivam</b><span>Bioinsumos, agroecologia e agricultura familiar</span></div></div>
  <div class="pe-bs"><button type="button" class="pe-b" data-ajuda><i>?</i>Ajuda desta página</button><button type="button" class="pe-b" data-relatar><i>!</i>Relatar problema</button></div>
  <div class="pe-i"><span>IFRN Campus Apodi · SEAB/MDA · FUNCERN</span><span>TED 7AADZC · Processo IFRN 23136.001104.2026-49</span></div>
- <p class="pe-l">Dados protegidos pela LGPD (Lei nº 13.709/2018), usados só para o projeto. <span class="pe-v">Versão 188</span></p>
+ <p class="pe-l">Dados protegidos pela LGPD (Lei nº 13.709/2018), usados só para o projeto. <button type="button" class="pe-ac" data-acessibilidade>Acessibilidade</button> <span class="pe-v">Versão 189</span></p>
 </div></footer>
 </div>
 <div class="carregando" id="carregando" role="status">
@@ -85,9 +98,9 @@
 </div>
 <dialog id="dlg"><form id="frm" novalidate autocomplete="off"></form></dialog>
 <noscript><p class="carregando">Este sistema precisa de JavaScript ligado no navegador.</p></noscript>
-<script src="js/config.js?v=188"></script>
-<script src="js/simulacao.js?v=188"></script>
+<script src="js/config.js?v=189"></script>
+<script src="js/simulacao.js?v=189"></script>
 <!-- todo o sistema num arquivo só (montado por ferramentas/montar.js) -->
-<script src="js/tudo.js?v=188"></script>
+<script src="js/tudo.js?v=189"></script>
 </body>
 </html>
