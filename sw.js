@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v209';
+const VERSAO = 'sqc-v211';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -50,6 +50,8 @@ self.addEventListener('fetch', e => {
    Tocar no aviso abre o sistema (ou traz para a frente o que já está aberto) na aba do aviso. */
 self.addEventListener('push', e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = { corpo: e.data ? e.data.text() : '' }; }
+  /* v210 (01/11/2026): a página aberta busca na hora o que mudou (relato novo, resposta), sem esperar trocar de aba nem recarregar */
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(L => L.forEach(c => c.postMessage({ chegouAviso: true }))).catch(() => {}));
   e.waitUntil(self.registration.showNotification(String(d.titulo || 'Saberes que Cultivam').slice(0, 80), { body: String(d.corpo || '').slice(0, 240), icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', lang: 'pt-BR', tag: d.id ? String(d.id) : undefined, data: { aba: /^[a-z]{2,20}$/.test(d.aba || '') ? d.aba : '' } }));
 });
 self.addEventListener('notificationclick', e => {
