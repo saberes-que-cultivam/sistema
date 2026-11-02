@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v215';
+const VERSAO = 'sqc-v216';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -8,16 +8,23 @@ const ARQUIVOS = ['./', 'index.html', 'css/app.css?v=' + V, 'js/config.js?v=' + 
   'assets/icon-192.png', 'manifest.webmanifest',
   'assets/fontes/plus-jakarta-sans-latin-wght-normal.woff2', 'assets/fontes/cormorant-garamond-latin-700-normal.woff2'];   // 31/10/2026: Plus Jakarta Sans variável (1 arquivo; era Manrope); 30/10/2026: marca em Cormorant Garamond (era Lora)
 // cada versão nova baixa tudo de novo, sem passar pelo cache do navegador (senão podia guardar arquivo velho)
+/* 02/11/2026 (auditoria "tirar do ar"): a CDN podia entregar o sw.js novo com o index.html velho, e a cópia nova guardava a página da versão
+   anterior; agora a instalação confere que a página pede os arquivos desta versão e, se não, falha (o navegador tenta de novo depois) */
 self.addEventListener('install', e => e.waitUntil(caches.open(VERSAO)
-  .then(c => c.addAll(ARQUIVOS.map(u => new Request(u, { cache: 'no-cache' })   /* no-cache: o servidor responde “não mudou” para o que o navegador já tem (reload baixava tudo de novo) */))).then(() => self.skipWaiting())));
+  .then(c => c.addAll(ARQUIVOS.map(u => new Request(u, { cache: 'no-cache' })   /* no-cache: o servidor responde “não mudou” para o que o navegador já tem (reload baixava tudo de novo) */))
+    .then(() => c.match('index.html')).then(r => r.text()).then(t => { if (!t.includes('?v=' + V)) { return caches.delete(VERSAO).then(() => { throw new Error('página de outra versão'); }); } }))
+  .then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k)))).then(() => self.clients.claim())));
-const guardar = (req, r) => { if (r && (r.ok || r.type === 'opaque')) { const c = r.clone(); caches.open(VERSAO).then(x => x.put(req, c)); } return r; };
+/* só guarda arquivo com ?v= desta versão (a página velha pedia o ?v= anterior e ele entrava na cópia nova) */
+const desta = req => { const q = new URL(req.url).searchParams.get('v'); return q === null || q === V; };
+const guardar = (req, r) => { if (r && (r.ok || r.type === 'opaque') && desta(req)) { const c = r.clone(); caches.open(VERSAO).then(x => x.put(req, c)); } return r; };
 // internet com prazo: se não responder em ms milissegundos, usa a cópia do aparelho (se houver)
 /* 29/10/2026 (auditoria): a página que chega pela navegação NÃO é guardada na cópia: a página guardada é só a da instalação, que bate
    com os arquivos da mesma versão (antes, a página nova da versão seguinte ia para a cópia velha e, sem internet, abria sem o código dela) */
 const comPrazo = (req, ms) => new Promise((ok, falha) => {
   let feito = false; const t = setTimeout(() => caches.match(req).then(r => { if (r && !feito) { feito = true; ok(r); } }), ms);
-  fetch(req).then(r => { clearTimeout(t); if (!feito) { feito = true; ok(r); } })
+  /* 02/11/2026: resposta de erro do servidor (GitHub Pages fora: 404, 503) também usa a página guardada */
+  fetch(req).then(r => { clearTimeout(t); if (feito) return; if (r.ok) { feito = true; ok(r); return; } caches.match(req).then(g => g || caches.match('index.html')).then(g => { if (!feito) { feito = true; ok(g || r); } }); })
     .catch(() => { clearTimeout(t); caches.match(req).then(r => { if (!feito) { feito = true; r ? ok(r) : falha(); } }); });
 });
 self.addEventListener('fetch', e => {
@@ -40,7 +47,9 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.match(req).then(r => { if (r) { acabou(); return r; } return new Promise(ok => {
     let feito = false; const fim = x => { if (!feito && x) { feito = true; ok(x); } };
     const t = u.search ? setTimeout(() => caches.match(req, { ignoreSearch: true }).then(fim), 6000) : 0;
-    fetch(req).then(x => { clearTimeout(t); guardar(req, x); fim(x); })
+    /* 02/11/2026: arquivo novo que volta com erro (503, 404) usa o de outra versão guardada, em vez de abrir sem código ou sem estilo */
+    fetch(req).then(x => { clearTimeout(t); if (x.ok || x.type === 'opaque') { guardar(req, x); fim(x); return; }
+      return caches.match(req, { ignoreSearch: true }).then(g => { if (!feito) { feito = true; ok(g || x); } }); })
       .catch(() => { clearTimeout(t); return caches.match(req, { ignoreSearch: true }).then(x => { if (!feito) { feito = true; ok(x || Response.error()); } }); })
       .finally(acabou);
   }); }).catch(() => { acabou(); return Response.error(); }));
