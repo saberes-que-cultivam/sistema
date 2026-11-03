@@ -113,6 +113,8 @@
     const RN = ['São Paulo do Potengi', 'Barcelona', 'Ruy Barbosa', 'São Pedro', 'Lagoa de Velhos', 'Riachuelo', 'Santa Maria', 'Senador Elói de Souza'];
     const CE = ['Mulungu', 'Baturité', 'Guaramiranga', 'Pacoti', 'Aratuba', 'Capistrano', 'Redenção', 'Palmácia'];
     const lugares = ['Assentamento Esperança', 'Sítio Lagoa Seca', 'Comunidade Serrote', 'Sítio Riacho Fundo', 'Vila Boa Vista', 'Sítio Pau-Ferro', 'Comunidade Quilombola Serra Verde', 'Sítio Olho d’Água'];
+    /* 03/11/2026: a cultura da entrega é da lista D.CULTURAS (a da unidade produtiva continua texto) */
+    const CULT_ENT = { 'Hortaliças': 'Hortaliças', 'Milho e feijão': 'Milho e feijão', 'Banana e macaxeira': 'Várias culturas', 'Café sombreado': 'Café', 'Frutíferas': 'Frutíferas', 'Hortaliças e ervas': 'Várias culturas', 'Feijão-verde e jerimum': 'Várias culturas', 'Mandioca': 'Mandioca ou macaxeira' };
     const culturas = ['Hortaliças', 'Milho e feijão', 'Banana e macaxeira', 'Café sombreado', 'Frutíferas', 'Hortaliças e ervas', 'Feijão-verde e jerimum', 'Mandioca'];
     db.agricultores = []; const usados = new Set();
     for (let i = 0; i < 32; i++) {
@@ -136,7 +138,7 @@
       const qtd = entre(3, 8) * 5, pronto = l => mais(l.inicio, l.dias) <= d && l.status === 'Pronto' && saldo.get(l.id) >= qtd;
       const l = db.lotes.find(x => x.unidade === a.unidade && pronto(x)) || db.lotes.find(x => x.unidade === 'u3' && pronto(x)); if (!l) return;
       saldo.set(l.id, saldo.get(l.id) - qtd);
-      db.distribuicoes.push({ id: id('d'), data: d, lote: l.id, agricultor: a.id, qtd, cultura: a.culturas, area: Math.min(a.area, entre(1, 5) / 10), forma: um(['No solo', 'No solo', 'Foliar', 'Na cova ou sulco']) });
+      db.distribuicoes.push({ id: id('d'), data: d, lote: l.id, agricultor: a.id, qtd, cultura: CULT_ENT[a.culturas] || 'Outra', area: Math.min(a.area, entre(1, 5) / 10), forma: um(['No solo', 'No solo', 'Foliar', 'Na cova ou sulco']) });
       const v = mais(d, entre(10, 24)); if (!ja(v)) return;
       const k = (ultimaVisita.get(a.id) || 0) + 1; ultimaVisita.set(a.id, k);
       const gasto = Math.round(a.gasto0 * Math.max(0.35, 1 - 0.12 * k - sorte() * 0.1));
