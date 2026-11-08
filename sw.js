@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v256';
+const VERSAO = 'sqc-v257';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -12,9 +12,7 @@ const ARQUIVOS = [
   'js/simulacao.js?v=' + V,
   'js/tudo.js?v=' + V,
   'assets/icon-192.png',
-  'manifest.webmanifest',
-  'assets/fontes/plus-jakarta-sans-latin-wght-normal.woff2',
-  'assets/fontes/cormorant-garamond-latin-700-normal.woff2'
+  'manifest.webmanifest'
 ]; // 31/10/2026: Plus Jakarta Sans variável (1 arquivo; era Manrope); 30/10/2026: marca em Cormorant Garamond (era Lora)
 // cada versão nova baixa tudo de novo, sem passar pelo cache do navegador (senão podia guardar arquivo velho)
 /* 02/11/2026 (auditoria "tirar do ar"): a CDN podia entregar o sw.js novo com o index.html velho, e a cópia nova guardava a página da versão

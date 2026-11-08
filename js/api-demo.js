@@ -674,6 +674,7 @@
         aba: r.aba,
         versao: r.versao,
         tecnico: r.tecnico,
+        foto: r.foto || null,
         situacao: 'Aberto'
       };
       L.unshift(x);
@@ -736,6 +737,17 @@
     },
     async relatos() {
       return eu && eu.perfil === 'Coordenação' ? this._rel() : [];
+    },
+    /* 69: na demonstração a foto do relato fica só enquanto a página está aberta */
+    async enviarFotoRelato(meuId, blob) {
+      const caminho = `${meuId}/${SQC.novoId()}.jpg`;
+      this._docs[caminho] = blob;
+      return caminho;
+    },
+    async urlFotoRelato(caminho) {
+      const a = this._docs[caminho];
+      if (!a) throw falha('Na demonstração a foto fica só enquanto a página está aberta.');
+      return URL.createObjectURL(a);
     },
     async avisosRelatos() {
       if (!eu) return null;
