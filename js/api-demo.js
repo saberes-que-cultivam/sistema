@@ -1483,6 +1483,43 @@
       if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.');
       this._cv(l => l.map(c => (c.id === id ? Object.assign({}, c, { status, dados: null }) : c)));
     },
+    /* 70: na demonstração, os acessos da SEAB/MDA ficam só neste navegador (com dois de exemplo) */
+    _acl(f) {
+      let l;
+      try {
+        l = JSON.parse(localStorage.getItem('sqc-demo-acessos-seab') || 'null');
+      } catch (e) {}
+      if (!Array.isArray(l)) {
+        const h = dias => new Date(Date.now() - dias * 864e5).toISOString();
+        l = [
+          { em: h(3), nome: 'Técnica da SEAB (exemplo)', orgao: 'SEAB/MDA' },
+          { em: h(17), nome: 'Técnica da SEAB (exemplo)', orgao: 'SEAB/MDA' }
+        ];
+      }
+      if (f) {
+        l = f(l);
+        try {
+          localStorage.setItem('sqc-demo-acessos-seab', JSON.stringify(l));
+        } catch (e) {}
+      }
+      return l;
+    },
+    async registrarAcesso() {
+      if (!eu || eu.perfil !== 'Acompanhamento') return;
+      const ag = Date.now();
+      this._acl(l =>
+        l.some(a => a.nome === eu.nome && ag - new Date(a.em) < 30 * 6e4)
+          ? l
+          : [{ em: new Date(ag).toISOString(), nome: eu.nome, orgao: eu.orgao || 'SEAB/MDA' }, ...l]
+      );
+    },
+    async acessosAcompanhamento() {
+      return eu && eu.perfil === 'Coordenação'
+        ? this._acl()
+            .slice()
+            .sort((a, b) => (a.em < b.em ? 1 : -1))
+        : [];
+    },
     async acessos() {
       if (!db) carregarLocal();
       return eu && eu.perfil === 'Coordenação'
