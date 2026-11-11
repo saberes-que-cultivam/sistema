@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v284';
+const VERSAO = 'sqc-v285';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -13,7 +13,25 @@ const ARQUIVOS = [
   'js/tudo.js?v=' + V,
   'assets/icon-192.png',
   'manifest.webmanifest'
-]; // 31/10/2026: Plus Jakarta Sans variável (1 arquivo; era Manrope); 30/10/2026: marca em Cormorant Garamond (era Lora)
+];
+/* v285 (10/11/2026, ponto cego achado com o service worker de verdade e sem internet): o gerador de PDF e o do QR da etiqueta eram
+   baixados só no uso e guardados na cópia DA VERSÃO; a cada versão nova (até duas por dia) a cópia nova começava sem eles, e no campo,
+   sem internet, "Compartilhar PDF" da lista e a etiqueta do lote davam "Não deu para carregar o gerador". Agora ficam numa cópia à parte,
+   que passa de uma versão para a outra (o nome do arquivo já leva a versão da biblioteca) e é preenchida por trás quando há internet. */
+const LIBS = 'sqc-bibliotecas-1';
+const LIB_ARQ = ['js/vendor/jspdf-4.2.1.umd.min.js', 'js/vendor/qrcode-generator-2.0.4.js'];
+const baixarLibs = () =>
+  caches
+    .open(LIBS)
+    .then(c =>
+      Promise.all(
+        LIB_ARQ.map(a => {
+          const u = new URL(a, self.registration.scope).href;
+          return c.match(u).then(r => r || fetch(u, { cache: 'no-cache' }).then(x => (x.ok ? c.put(u, x) : null)));
+        })
+      ).then(() => c.keys().then(ks => Promise.all(ks.filter(k => !LIB_ARQ.some(a => k.url.endsWith('/' + a))).map(k => c.delete(k)))))
+    )
+    .catch(() => {}); // 31/10/2026: Plus Jakarta Sans variável (1 arquivo; era Manrope); 30/10/2026: marca em Cormorant Garamond (era Lora)
 // cada versão nova baixa tudo de novo, sem passar pelo cache do navegador (senão podia guardar arquivo velho)
 /* 02/11/2026 (auditoria "tirar do ar"): a CDN podia entregar o sw.js novo com o index.html velho, e a cópia nova guardava a página da versão
    anterior; agora a instalação confere que a página pede os arquivos desta versão e, se não, falha (o navegador tenta de novo depois) */
@@ -48,8 +66,9 @@ self.addEventListener('activate', e =>
   e.waitUntil(
     caches
       .keys()
-      .then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k))))
+      .then(ks => Promise.all(ks.filter(k => k !== VERSAO && k !== LIBS).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(baixarLibs)
   )
 );
 /* só guarda arquivo com ?v= desta versão (a página velha pedia o ?v= anterior e ele entrava na cópia nova) */
@@ -117,6 +136,23 @@ self.addEventListener('fetch', e => {
   if (!proprio) return; // API do Supabase e qualquer outro endereço passam direto
   if (proprio && u.pathname.includes('/manuais/')) return; // manuais em PDF: sempre da internet, não ocupam o aparelho
   if (proprio && u.pathname.includes('/js/vendor/ocr-')) return; // 30/10/2026: leitor da lista por foto (~5 MB), só quem usa baixa; o próprio leitor guarda o modelo de português
+  /* v285: gerador de PDF e do QR: da cópia à parte (vale entre versões), senão da internet, e guarda */
+  if (LIB_ARQ.some(a => u.pathname.endsWith('/' + a))) {
+    const chave = u.origin + u.pathname;
+    e.respondWith(
+      caches.open(LIBS).then(c =>
+        c.match(chave).then(
+          r =>
+            r ||
+            fetch(e.request).then(x => {
+              if (x.ok) c.put(chave, x.clone());
+              return x;
+            })
+        )
+      )
+    );
+    return;
+  }
   // a página: internet com prazo de 1,5 s (para pegar versão nova); sem sinal, abre a guardada
   if (e.request.mode === 'navigate') {
     e.respondWith(comPrazo(e.request, 1500).catch(() => caches.match('index.html')));
