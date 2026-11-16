@@ -1,0 +1,4 @@
+Leitura de texto no próprio aparelho (lista de presença por foto, versão 179 do sistema).
+tesseract.js 7.0.0 e tesseract.js-core 7.0.0 (Apache-2.0, licenças nesta pasta) e o modelo de português
+por.traineddata (tessdata_best_int 4.0.0, Apache-2.0, pacote @tesseract.js-data/por 1.0.0).
+Baixado só quando alguém toca em "Ler nomes de uma foto". A foto não sai do aparelho.
