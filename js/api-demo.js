@@ -1320,7 +1320,8 @@
       if (SIM) {
         const H = (this._rest || []).concat(historicoSim());
         this._hist = H;
-        return H.filter(x => !antes || x.em < antes).slice(0, limite || 200);
+        const lim = antes && (antes.em || antes);
+        return H.filter(x => !lim || x.em < lim).slice(0, limite || 200);
       }
       if (antes) return [];
       const quem = (db.pessoas.find(p => p.perfil === 'Coordenação') || {}).id,

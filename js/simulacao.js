@@ -6,6 +6,19 @@
 (function () {
   const G = window,
     SQC = (G.SQC = G.SQC || {});
+  /* auditoria de 16/11/2026: se o programa principal (tudo.js) não rodar (navegador muito antigo, arquivo que não baixou), a tela ficava em
+     "Abrindo o sistema…" para sempre. Depois de 25 s sem o sistema ter aberto, o texto passa a explicar o que fazer. Fica aqui porque a
+     política de segurança do site não deixa código dentro do HTML. */
+  G.setTimeout(function () {
+    try {
+      const c = G.document.getElementById('carregando'),
+        t = G.document.getElementById('carregando-txt');
+      if (!c || c.hidden || !t) return;
+      t.textContent = SQC.fila
+        ? 'Está demorando mais que o normal. Se a internet estiver fraca, aguarde um pouco; se não abrir, feche e abra de novo.'
+        : 'Este navegador não conseguiu abrir o sistema. Atualize o navegador ou abra em outro, e se não resolver chame a coordenação pelo WhatsApp.';
+    } catch (e) {}
+  }, 25000);
   const q = new URLSearchParams(location.search);
   if (!q.has('simulacao')) return;
   const pedido = q.get('simulacao') || '';

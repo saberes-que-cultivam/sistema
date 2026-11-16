@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v302';
+const VERSAO = 'sqc-v303';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -27,7 +27,15 @@ const baixarLibs = () =>
       Promise.all(
         LIB_ARQ.map(a => {
           const u = new URL(a, self.registration.scope).href;
-          return c.match(u).then(r => r || fetch(u, { cache: 'no-cache' }).then(x => (x.ok ? c.put(u, x) : null)));
+          return c
+            .match(u)
+            .then(
+              r =>
+                r ||
+                fetch(u, { cache: 'no-cache', signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined }).then(x =>
+                  x.ok ? c.put(u, x) : null
+                )
+            );
         })
       ).then(() => c.keys().then(ks => Promise.all(ks.filter(k => !LIB_ARQ.some(a => k.url.endsWith('/' + a))).map(k => c.delete(k)))))
     )
@@ -68,9 +76,18 @@ self.addEventListener('activate', e =>
       .keys()
       .then(ks => Promise.all(ks.filter(k => k !== VERSAO && k !== LIBS).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
-      .then(baixarLibs)
   )
 );
+/* auditoria de 16/11/2026: o download das bibliotecas (jsPDF e QR, ~144 KB) ficava dentro da ativação e, sem prazo, segurava o worker em
+   "ativando" (os pedidos da página esperam até ele ficar ativo). Agora corre depois, na primeira requisição, fora da ativação. */
+let libsPedidas = false;
+self.addEventListener('fetch', e => {
+  if (libsPedidas || e.request.method !== 'GET') return;
+  libsPedidas = true;
+  e.waitUntil(
+    baixarLibs()
+  ); /* sem espera: quem abre e fica sem internet logo em seguida já tem o gerador de PDF (v303, prova: sem_internet_folhas) */
+});
 /* só guarda arquivo com ?v= desta versão (a página velha pedia o ?v= anterior e ele entrava na cópia nova) */
 const desta = req => {
   const q = new URL(req.url).searchParams.get('v');
