@@ -1,6 +1,6 @@
 /* Guarda o sistema no aparelho para abrir e lançar registros sem internet.
    Os dados vão para o servidor pela fila do próprio app quando a conexão volta. */
-const VERSAO = 'sqc-v307';
+const VERSAO = 'sqc-v309';
 /* 29/10/2026: a página pede css e js com "?v=<versão>"; a página nova (que chega antes do sw novo) busca os arquivos novos na hora,
    em vez de abrir com os da versão anterior guardados no aparelho (o rodapé dizia 168 e o visual era o da 167) */
 const V = VERSAO.replace('sqc-v', '');
@@ -12,6 +12,7 @@ const ARQUIVOS = [
   'js/simulacao.js?v=' + V,
   'js/tudo.js?v=' + V,
   'assets/icon-192.png',
+  'assets/icone.svg' /* 21/11/2026: a capa do relatório saía sem o ícone quando não havia internet */,
   'manifest.webmanifest'
 ];
 /* v285 (10/11/2026, ponto cego achado com o service worker de verdade e sem internet): o gerador de PDF e o do QR da etiqueta eram
