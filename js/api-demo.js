@@ -1581,6 +1581,289 @@
       if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação encerra convite.');
       this._cv(l => l.map(c => (c.id === id ? Object.assign({}, c, { status, dados: null }) : c)));
     },
+    /* ===== Diagnóstico territorial (82, D-76): na demonstração fica só neste navegador, com as mesmas regras do banco ===== */
+    _dg(g) {
+      const K = 'sqc-demo-diagnostico';
+      let o = null;
+      try {
+        o = JSON.parse(ler(K));
+      } catch (e) {
+        o = null;
+      }
+      if (!o || !Array.isArray(o.links) || !Array.isArray(o.respostas)) o = { links: [], respostas: [] };
+      if (g) {
+        g(o);
+        gravar(K, JSON.stringify(o));
+      }
+      return o;
+    },
+    _dgGestao() {
+      return R.diagGestao(eu);
+    },
+    _dgAberto(l) {
+      return l.status === 'aberto' && new Date(l.expira_em) > new Date() && l.respostas < l.teto;
+    },
+    _dgGravar(o, id, limpo, origem, link) {
+      if (o.respostas.some(x => x.id === id)) return false;
+      const R0 = Object.assign({}, limpo),
+        agora = new Date().toISOString(),
+        mun = limpo.municipio === 'Outro' ? limpo.municipio_outro : limpo.municipio;
+      ['nome', 'telefone', 'comunidade', 'aceite', 'aviso_versao', 'municipio', 'municipio_outro'].forEach(k => delete R0[k]);
+      o.respostas.push({
+        id,
+        link: link || null,
+        origem,
+        territorio: R.diagTerritorio(limpo.municipio),
+        municipio: mun,
+        nome: limpo.nome,
+        telefone: String(limpo.telefone).replace(/\D/g, ''),
+        comunidade: limpo.comunidade || null,
+        respostas: R0,
+        aceite_em: agora,
+        situacao: 'Recebido',
+        indicado_por_nome: null,
+        indicado_em: null,
+        motivo_indicacao: null,
+        decidido_por_nome: null,
+        decidido_em: null,
+        motivo: null,
+        agricultor: null,
+        anonimizado_em: null,
+        criado_em: agora,
+        atualizado_em: agora
+      });
+    },
+    _dgConferir(dados) {
+      const msg = R.validarDiagnostico(dados);
+      if (msg) throw falha(msg);
+      return R.diagLimpar(dados);
+    },
+    async diagnosticoVer(token) {
+      const l = this._dg().links.find(x => x.token === token);
+      return l && this._dgAberto(l) ? l.territorio : null;
+    },
+    async diagnosticoEnviar(token, dados) {
+      const limpo = this._dgConferir(dados);
+      let ok = false;
+      this._dg(o => {
+        const l = o.links.find(x => x.token === token);
+        if (!l || !this._dgAberto(l)) return;
+        ok = true;
+        if (this._dgGravar(o, dados.id || SQC.novoId(), limpo, 'link', l.id) !== false) l.respostas++;
+      });
+      if (!ok) throw falha('Este link foi fechado ou venceu. Peça outro à equipe do projeto.');
+    },
+    async diagnosticoRegistrar(id, dados) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar registram o diagnóstico.');
+      const limpo = this._dgConferir(dados);
+      this._dg(o => this._dgGravar(o, id, limpo, 'equipe', null));
+    },
+    async diagnosticoLinks() {
+      if (!this._dgGestao()) return [];
+      return this._dg()
+        .links.map(l => ({
+          id: l.id,
+          territorio: l.territorio,
+          status: this._dgAberto(l) ? 'aberto' : 'fechado',
+          expira_em: l.expira_em,
+          teto: l.teto,
+          respostas: l.respostas,
+          criado_em: l.criado_em,
+          criado_por_nome: l.criado_por_nome
+        }))
+        .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    },
+    async diagnosticoLinkCriar(territorio, dias) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar liberam o diagnóstico.');
+      if (!D.TERRITORIOS.slice(0, 3).includes(territorio)) throw falha('Escolha o território.');
+      if (!(Number.isInteger(dias) && dias >= 1 && dias <= 60)) throw falha('O prazo do link vai de 1 a 60 dias.');
+      const token = (SQC.novoId() + SQC.novoId()).replace(/-/g, '');
+      this._dg(o => {
+        if (o.links.filter(l => this._dgAberto(l)).length >= 6)
+          throw falha('Já existem 6 links abertos. Feche os que não servem mais antes de liberar outro.');
+        o.links.push({
+          id: SQC.novoId(),
+          territorio,
+          token,
+          status: 'aberto',
+          expira_em: new Date(Date.now() + dias * 864e5).toISOString(),
+          teto: 300,
+          respostas: 0,
+          criado_em: new Date().toISOString(),
+          criado_por_nome: eu.nome
+        });
+      });
+      return token;
+    },
+    async diagnosticoLinkFechar(id) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar fecham o link.');
+      this._dg(o => {
+        const l = o.links.find(x => x.id === id);
+        if (l) l.status = 'fechado';
+      });
+    },
+    async diagnosticosListar() {
+      return this._dgGestao() ? this._dg().respostas.map(x => Object.assign({}, x)) : [];
+    },
+    async diagnosticoResumo() {
+      if (!this._dgGestao()) return null;
+      const L = this._dg().respostas,
+        n = s => L.filter(x => x.situacao === s).length;
+      return {
+        recebidos: n('Recebido'),
+        indicados: n('Indicado'),
+        selecionados: n('Selecionado'),
+        nao_selecionados: n('Não selecionado'),
+        a_apagar: L.filter(x => x.situacao === 'Não selecionado' && !x.anonimizado_em).length,
+        ultima:
+          L.map(x => x.criado_em)
+            .sort()
+            .pop() || null
+      };
+    },
+    async diagnosticoNumeros() {
+      if (!eu) return null;
+      const L = this._dg().respostas,
+        pouco = n => (n >= 1 && n <= 2 ? -1 : n),
+        T = {};
+      L.forEach(x => {
+        T[x.territorio] = (T[x.territorio] || 0) + 1;
+      });
+      /* como no banco: o total e o "pediram o acompanhamento" somam só os territórios com 3 ou mais respostas */
+      const conta = L.filter(x => T[x.territorio] >= 3);
+      Object.keys(T).forEach(k => {
+        T[k] = pouco(T[k]);
+      });
+      return {
+        total: conta.length,
+        acompanhamento: pouco(conta.filter(x => /^Sim/.test(String((x.respostas || {}).acomp || ''))).length),
+        territorios: T
+      };
+    },
+    _dgUm(o, id) {
+      const d = o.respostas.find(x => x.id === id);
+      if (!d) throw falha('Esta resposta não existe mais.');
+      return d;
+    },
+    async diagnosticoIndicar(id, motivo) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar indicam.');
+      this._dg(o => {
+        const d = this._dgUm(o, id),
+          agora = new Date().toISOString();
+        if (!R.diagPodeIndicar(eu, d)) throw falha('A coordenação já decidiu sobre esta resposta.');
+        if (!String(motivo || '').trim())
+          return Object.assign(d, {
+            situacao: 'Recebido',
+            indicado_por_nome: null,
+            indicado_em: null,
+            motivo_indicacao: null,
+            atualizado_em: agora
+          });
+        if (!R.diagMotivoOk(motivo)) throw falha('Escreva o motivo da indicação (de 10 a 500 letras).');
+        Object.assign(d, {
+          situacao: 'Indicado',
+          indicado_por_nome: eu.nome,
+          indicado_em: agora,
+          motivo_indicacao: motivo.trim(),
+          atualizado_em: agora
+        });
+      });
+    },
+    async diagnosticoDecidir(id, situacao, motivo) {
+      if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação confirma a seleção.');
+      this._dg(o => {
+        const d = this._dgUm(o, id),
+          agora = new Date().toISOString();
+        if (situacao === 'Recebido') {
+          if (d.agricultor) throw falha('Esta família já tem unidade produtiva cadastrada: a seleção não pode ser desfeita.');
+          if (d.anonimizado_em) throw falha('O nome e o telefone desta resposta já foram apagados: a decisão não pode ser desfeita.');
+          return Object.assign(d, {
+            situacao: d.indicado_em ? 'Indicado' : 'Recebido',
+            decidido_por_nome: null,
+            decidido_em: null,
+            motivo: null,
+            atualizado_em: agora
+          });
+        }
+        if (situacao !== 'Selecionado' && situacao !== 'Não selecionado') throw falha('Decisão desconhecida.');
+        if (d.anonimizado_em) throw falha('O nome e o telefone desta resposta já foram apagados.');
+        if (!R.diagMotivoOk(motivo)) throw falha('Escreva o motivo da decisão (de 10 a 500 letras).');
+        if (situacao === 'Não selecionado' && d.agricultor) throw falha('Esta família já tem unidade produtiva cadastrada.');
+        if (
+          situacao === 'Selecionado' &&
+          d.situacao !== 'Selecionado' &&
+          o.respostas.filter(x => x.situacao === 'Selecionado').length >= D.DIAGNOSTICO.VAGAS
+        )
+          throw falha('Já há 30 famílias selecionadas, o número de unidades produtivas do plano. Para trocar, desfaça uma seleção antes.');
+        Object.assign(d, { situacao, decidido_por_nome: eu.nome, decidido_em: agora, motivo: motivo.trim(), atualizado_em: agora });
+      });
+    },
+    async diagnosticoVincular(id, agricultor) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar cadastram a unidade produtiva.');
+      if (!agricultor) {
+        if (eu.perfil !== 'Coordenação') throw falha('Só a coordenação desfaz a ligação com a unidade produtiva.');
+        return this._dg(o => {
+          this._dgUm(o, id).agricultor = null;
+        });
+      }
+      if (!db.agricultores.some(a => a.id === agricultor)) throw falha('Unidade produtiva não encontrada.');
+      this._dg(o => {
+        if (o.respostas.some(x => x.agricultor === agricultor && x.id !== id))
+          throw falha('Esta unidade produtiva já está ligada a outra resposta.');
+        const d = this._dgUm(o, id);
+        if (d.situacao !== 'Selecionado') throw falha('Só a família selecionada vira unidade produtiva.');
+        if (d.agricultor && d.agricultor !== agricultor)
+          throw falha('Esta resposta já está ligada a uma unidade produtiva. Só a coordenação desfaz a ligação.');
+        d.agricultor = agricultor;
+      });
+    },
+    async diagnosticoAnonimizar() {
+      if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação apaga os dados de quem não foi selecionado.');
+      let n = 0;
+      this._dg(o => {
+        o.respostas.forEach(d => {
+          if (d.situacao === 'Selecionado' || d.anonimizado_em) return;
+          n++;
+          ['recado', 'org_nome', 'org_outro', 'posse_outro', 'culturas_outro', 'desafios_outro', 'produtos_outro', 'temas_outro'].forEach(
+            k => delete d.respostas[k]
+          );
+          Object.assign(d, {
+            nome: null,
+            telefone: null,
+            comunidade: null,
+            municipio: d.territorio === 'Outro' ? 'Outro' : d.municipio,
+            motivo: null,
+            motivo_indicacao: null,
+            anonimizado_em: new Date().toISOString()
+          });
+        });
+      });
+      return n;
+    },
+    async diagnosticoApagarDoLink(link) {
+      if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação apaga respostas do diagnóstico.');
+      let n = 0;
+      this._dg(o => {
+        const l = o.links.find(x => x.id === link);
+        if (l && l.status === 'aberto' && String(l.expira_em) > new Date().toISOString())
+          throw falha('Feche o link antes de apagar as respostas dele.');
+        const fica = o.respostas.filter(x => !(x.link === link && x.origem === 'link' && x.situacao === 'Recebido' && !x.agricultor));
+        n = o.respostas.length - fica.length;
+        o.respostas = fica;
+      });
+      return n;
+    },
+    async diagnosticoApagar(id) {
+      if (!eu || eu.perfil !== 'Coordenação') throw falha('Só a coordenação apaga uma resposta do diagnóstico.');
+      this._dg(o => {
+        const d = this._dgUm(o, id);
+        if (d.agricultor)
+          throw falha(
+            'Esta família já tem unidade produtiva cadastrada. Para apagar os dados dela, use “Apagar dados pessoais” na unidade produtiva.'
+          );
+        o.respostas = o.respostas.filter(x => x.id !== id);
+      });
+    },
     /* 70: na demonstração, os acessos da SEAB/MDA ficam só neste navegador (com dois de exemplo) */
     _acl(f) {
       let l;
