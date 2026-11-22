@@ -993,6 +993,8 @@
           delete x.link;
           delete x.obs;
           delete x.resumo;
+          delete x.na_up;
+          delete x.acordo;
           delete x.arquivo;
           delete x.arquivo_nome;
           return x;
@@ -1076,8 +1078,15 @@
           delete x.resumo;
           delete x.arquivo;
           delete x.arquivo_nome;
+          delete x.na_up;
+          delete x.acordo;
           return x;
         }); // como no banco (script 15)
+        /* como no banco (81): do que está por vir, o SEAB/MDA recebe só a atividade que a coordenação marcou com convite */
+        {
+          const hj = R.iso(new Date());
+          c.eventos = c.eventos.filter(e => e.convidar || String(e.data || '') <= hj);
+        }
       }
       if (pf === 'Acompanhamento' || pf === 'Equipe') {
         c.eventos.forEach(e => {
@@ -1154,6 +1163,9 @@
       r.atualizado_em = new Date().toISOString();
       if (ant) db[tabela][i] = r;
       else db[tabela].push(r);
+      /* como o 78: a pessoa retirou a autorização de imagem: a foto do cadastro sai */
+      if (tabela === 'agricultores' && ant && ant.imagem === 'Sim' && r.imagem !== 'Sim')
+        db.fotos = (db.fotos || []).filter(f => !(f.tabela === 'agricultores' && f.registro === r.id));
       persistir();
       if (eu && r.id === eu.id) eu = r;
       return JSON.parse(JSON.stringify(r));
@@ -1203,6 +1215,9 @@
           v.precisao = null;
         });
       db.anexos = (db.anexos || []).filter(x => x.registro !== id);
+      db.fotos = (db.fotos || []).filter(
+        f => !(f.tabela === 'agricultores' && f.registro === id)
+      ); /* como o 78: a foto da pessoa sai junto */
       /* como o 53: lista de presença e fotos das visitas também */
       const vs = new Set(db.visitas.filter(v => v.agricultor === id).map(v => v.id)),
         rot = 'Titular anonimizado (nº ' + (a.numero || String(id).slice(0, 8)) + ')';
@@ -1447,7 +1462,7 @@
     async enviarFoto(tabela, registro, blob, tiradaEm, legenda) {
       if (!R.podeGravar(eu, 'fotos')) throw falha('O seu perfil não tem permissão para fazer isso.');
       if (!(db[tabela] || []).some(x => x.id === registro))
-        throw falha('O registro desta foto (atividade, visita ou biofábrica) não existe mais.');
+        throw falha('O registro desta foto (atividade, visita, biofábrica ou unidade produtiva) não existe mais.');
       const id = SQC.novoId();
       this._img[id] = blob;
       return this.salvar('fotos', {
