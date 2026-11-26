@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saberes que Cultivam: o projeto</title>
+<meta name="description" content="Saberes que Cultivam: bioinsumos, agroecologia e fortalecimento da agricultura familiar na região Nordeste. Projeto do IFRN Campus Apodi com recursos do Governo Federal.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#4b5e26">
+<link rel="icon" href="assets/icon-192.png">
+<!-- Página pública do projeto, aberta pelo código QR das placas (26/11/2026). Sem programa, sem entrada de dados e sem nada do
+     banco: só o que é público. Texto tirado da apresentação oficial do projeto (js/dados.js). -->
+<style>
+:root{--verde:#4b5e26;--verde-esc:#34421a;--sol:#e3b23c;--tinta:#1c2620;--tinta2:#55615a;--papel:#f7f5ef;--cartao:#fff;--linha:#e3ded2;--elo:#34421a}
+@media (prefers-color-scheme:dark){:root{--verde:#2f3d17;--verde-esc:#c9dc9c;--tinta:#eef0ea;--tinta2:#b9c0b6;--papel:#111713;--cartao:#1a211c;--linha:#2e3830;--elo:#c9dc9c}}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--tinta);background:var(--papel);line-height:1.6;font-size:1.0625rem}
+.w{max-width:62rem;margin:0 auto;padding:0 1.25rem}
+.pular{position:absolute;left:-999rem}.pular:focus{left:.5rem;top:.5rem;background:#fff;color:#1c2620;padding:.5rem .75rem;border-radius:.5rem;z-index:2}
+header{background:var(--verde);color:#fff}
+.topo{display:flex;align-items:center;gap:.75rem;padding:1rem 0;font-weight:700}
+.selo{width:2.25rem;height:2.25rem;border-radius:.6rem;background:var(--sol);display:grid;place-items:center;flex:none}
+.heroi{padding:1.5rem 0 2.75rem}
+.chamada{letter-spacing:.12em;text-transform:uppercase;font-size:.8rem;margin:0}
+h1{font-size:clamp(1.8rem,5vw,2.9rem);line-height:1.12;margin:.35em 0 .45em;max-width:18em}
+.heroi p.lide{font-size:1.12rem;max-width:40em;margin:0}
+.faixa{background:var(--sol);color:#1c2620;font-weight:600;font-size:.98rem}
+.faixa .w{padding:.7rem 1.25rem}
+main section{padding:2.1rem 0;border-bottom:1px solid var(--linha)}
+h2{font-size:1.4rem;margin:0 0 .85rem;color:var(--verde-esc)}
+p{margin:0 0 .9rem;max-width:44em}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;list-style:none;margin:0;padding:0}
+.nums li{background:var(--cartao);border:1px solid var(--linha);border-radius:.9rem;padding:1rem}
+.nums b{display:block;font-size:2rem;line-height:1.1;color:var(--verde-esc)}
+.nums span{font-size:.95rem;color:var(--tinta2)}
+.duas{display:grid;grid-template-columns:1.15fr 1fr;gap:1.75rem}
+ul.lista{margin:0;padding-left:1.15em}ul.lista li{margin-bottom:.5em}
+dl.ficha{margin:0;background:var(--cartao);border:1px solid var(--linha);border-radius:.9rem;overflow:hidden}
+dl.ficha div{display:grid;grid-template-columns:40% 1fr;gap:.75rem;padding:.7rem .9rem;border-bottom:1px solid var(--linha)}
+dl.ficha div:last-child{border-bottom:0}
+dt{color:var(--tinta2);font-weight:600}dd{margin:0}
+.marcas{display:flex;flex-wrap:wrap;align-items:center;gap:1.4rem 2.5rem;background:#fff;color:#1a1a1a;border:1px solid var(--linha);border-radius:.9rem;padding:1.3rem;list-style:none;margin:0}
+.marcas img{height:2.9rem;width:auto;display:block}
+.min{font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;text-align:right;line-height:1.5}.min b{font-weight:900}
+a{color:var(--elo);font-weight:600}
+a:focus-visible{outline:3px solid var(--sol);outline-offset:2px;border-radius:.2rem}
+footer{padding:1.4rem 0 2.2rem;font-size:.92rem;color:var(--tinta2)}
+@media (max-width:47.5rem){.nums{grid-template-columns:1fr}.duas{grid-template-columns:1fr}dl.ficha div{grid-template-columns:1fr;gap:.1rem}.marcas img{height:2.4rem}}
+@media print{header{background:none;color:#000}.faixa{background:none}}
+</style>
+</head>
+<body>
+<a class="pular" href="#conteudo">Ir para o conteúdo</a>
+<header>
+  <div class="w">
+    <div class="topo"><span class="selo" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#1c2620" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-8"/><path d="M12 13c0-4 2-7 0-10-2 3 0 6 0 10z"/><path d="M12 15c-3-1-6-1-8-4 3-1 6 0 8 4z"/><path d="M12 15c3-1 6-1 8-4-3-1-6 0-8 4z"/></svg></span>Saberes que Cultivam</div>
+    <div class="heroi">
+      <p class="chamada">Projeto de extensão tecnológica · IFRN Campus Apodi</p>
+      <h1>Bioinsumos, agroecologia e fortalecimento da agricultura familiar na região Nordeste</h1>
+      <p class="lide">O projeto implanta unidades de produção de bioinsumos e adubos orgânicos, capacita agricultoras e agricultores familiares e acompanha as unidades produtivas que passam a usar essas tecnologias.</p>
+    </div>
+  </div>
+</header>
+<div class="faixa"><div class="w">Você chegou aqui pela placa de uma unidade do projeto. Esta página mostra o que é o projeto, quem financia e quem executa.</div></div>
+<main id="conteudo">
+  <div class="w">
+    <section aria-labelledby="t-numeros">
+      <h2 id="t-numeros">O projeto em números</h2>
+      <ul class="nums">
+        <li><b>30</b><span>unidades produtivas da agricultura familiar acompanhadas (meta)</span></li>
+        <li><b>2</b><span>unidades de produção de bioinsumos implantadas (meta)</span></li>
+        <li><b>2</b><span>territórios: Potengi (RN) e Maciço de Baturité (CE)</span></li>
+      </ul>
+    </section>
+    <section>
+      <div class="duas">
+        <div>
+          <h2>O que o projeto faz</h2>
+          <ul class="lista">
+            <li>Faz o diagnóstico dos territórios, para saber o que cada um precisa em produção e uso de bioinsumos.</li>
+            <li>Implanta e estrutura unidades de produção de bioinsumos e adubos orgânicos.</li>
+            <li>Capacita agricultoras e agricultores familiares em produção, manejo, armazenamento e aplicação de bioinsumos.</li>
+            <li>Produz, distribui e acompanha o uso dos bioinsumos nas unidades produtivas atendidas.</li>
+            <li>Avalia os resultados técnicos, econômicos, sociais e ambientais.</li>
+            <li>Sistematiza e divulga as tecnologias sociais desenvolvidas.</li>
+          </ul>
+        </div>
+        <div>
+          <h2>Transparência</h2>
+          <dl class="ficha">
+            <div><dt>Origem do recurso</dt><dd>Governo Federal, por meio do Ministério do Desenvolvimento Agrário e Agricultura Familiar</dd></div>
+            <div><dt>Execução</dt><dd>Instituto Federal do Rio Grande do Norte, Campus Apodi</dd></div>
+            <div><dt>Apoio à gestão</dt><dd>FUNCERN</dd></div>
+            <div><dt>Onde atua</dt><dd>Territórios do Potengi (RN) e do Maciço de Baturité (CE)</dd></div>
+            <div><dt>Acompanhamento das unidades</dt><dd>Até junho de 2027</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+    <section aria-labelledby="t-porque">
+      <h2 id="t-porque">Por que bioinsumos</h2>
+      <p>A produção de bioinsumos e adubos orgânicos na própria comunidade reduz a dependência de insumos trazidos de fora e os custos de produção, amplia o acesso a tecnologias sustentáveis e fortalece sistemas produtivos ambientalmente responsáveis.</p>
+      <p>O projeto integra ensino, pesquisa e extensão: docentes, técnicos administrativos e estudantes do IFRN atuam em formação, assistência técnica, pesquisa aplicada e inovação social, articulando o conhecimento científico aos saberes tradicionais das comunidades rurais.</p>
+    </section>
+    <section aria-labelledby="t-quem">
+      <h2 id="t-quem">Quem realiza</h2>
+      <ul class="marcas">
+        <li><img src="marcas/funcern.svg" alt="FUNCERN" width="133" height="48"></li>
+        <li><img src="marcas/ifrn-campus-apodi.svg" alt="Instituto Federal do Rio Grande do Norte, Campus Apodi" width="170" height="48"></li>
+        <li class="min">Ministério do<br><b>Desenvolvimento Agrário</b><br><b>e Agricultura Familiar</b></li>
+        <li><img src="marcas/governo-do-brasil.png" alt="Governo do Brasil" width="101" height="48"></li>
+      </ul>
+    </section>
+    <section aria-labelledby="t-fale">
+      <h2 id="t-fale">Fale com o projeto</h2>
+      <p>O projeto é executado pelo IFRN Campus Apodi. Denúncias, reclamações e elogios sobre a aplicação do recurso: <a href="https://ouvidoria.gov.br" rel="noopener">ouvidoria.gov.br</a>.</p>
+      <p>Faz parte da equipe? <a href="./">Entrar no sistema do projeto</a></p>
+    </section>
+  </div>
+</main>
+<footer><div class="w">Saberes que Cultivam · IFRN Campus Apodi</div></footer>
+</body>
+</html>
