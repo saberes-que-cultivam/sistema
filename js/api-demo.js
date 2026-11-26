@@ -1615,12 +1615,12 @@
       const R0 = Object.assign({}, limpo),
         agora = new Date().toISOString(),
         mun = limpo.municipio === 'Outro' ? limpo.municipio_outro : limpo.municipio;
-      ['nome', 'telefone', 'comunidade', 'aceite', 'aviso_versao', 'municipio', 'municipio_outro'].forEach(k => delete R0[k]);
+      ['nome', 'telefone', 'comunidade', 'aceite', 'aviso_versao', 'territorio', 'municipio', 'municipio_outro'].forEach(k => delete R0[k]);
       o.respostas.push({
         id,
         link: link || null,
         origem,
-        territorio: R.diagTerritorio(limpo.municipio),
+        territorio: limpo.territorio,
         municipio: mun,
         nome: limpo.nome,
         telefone: String(limpo.telefone).replace(/\D/g, ''),
@@ -1736,14 +1736,14 @@
       L.forEach(x => {
         T[x.territorio] = (T[x.territorio] || 0) + 1;
       });
-      /* como no banco: o total e o "pediram o acompanhamento" somam só os territórios com 3 ou mais respostas */
+      /* como no banco: o total e o "muito interesse" somam só os territórios com 3 ou mais respostas */
       const conta = L.filter(x => T[x.territorio] >= 3);
       Object.keys(T).forEach(k => {
         T[k] = pouco(T[k]);
       });
       return {
         total: conta.length,
-        acompanhamento: pouco(conta.filter(x => /^Sim/.test(String((x.respostas || {}).acomp || ''))).length),
+        interesse: pouco(conta.filter(x => ['4', '5'].includes((x.respostas || {}).interesse)).length),
         territorios: T
       };
     },
@@ -1831,14 +1831,13 @@
         o.respostas.forEach(d => {
           if (d.situacao === 'Selecionado' || d.anonimizado_em) return;
           n++;
-          ['recado', 'org_nome', 'org_outro', 'posse_outro', 'culturas_outro', 'desafios_outro', 'produtos_outro', 'temas_outro'].forEach(
-            k => delete d.respostas[k]
-          );
+          /* como no banco: sai tudo o que foi escrito à mão; município escrito vira "Outro", o da lista fica */
+          R.diagTextos().forEach(x => delete d.respostas[x[0]]);
           Object.assign(d, {
             nome: null,
             telefone: null,
             comunidade: null,
-            municipio: d.territorio === 'Outro' ? 'Outro' : d.municipio,
+            municipio: (D.DIAGNOSTICO.MUNICIPIOS_DE[d.territorio] || []).includes(d.municipio) ? d.municipio : 'Outro',
             motivo: null,
             motivo_indicacao: null,
             anonimizado_em: new Date().toISOString()
