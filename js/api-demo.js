@@ -985,6 +985,13 @@
           atualizado_em: g.atualizado_em,
           ex: g.ex
         })); /* 50: como entregas_acompanhamento() */
+      /* como o 84: a data da placa da biofábrica não vai a quem acompanha */
+      if (pf === 'Acompanhamento')
+        c.unidades = c.unidades.map(u => {
+          const x = Object.assign({}, u);
+          delete x.placa_em;
+          return x;
+        });
       if (['Acompanhamento', 'Formador', 'Equipe'].includes(pf)) c.anexos = []; // como no banco (42): a lista de documentos é de quem registra o campo
       if (pf === 'Equipe') {
         // como no banco (40 e 41): o bolsista recebe o campo numerado, sem presença, fotos, valor dos itens, acessos dos outros
