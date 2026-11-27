@@ -1590,14 +1590,16 @@
     },
     /* ===== Diagnóstico territorial (82, D-76): na demonstração fica só neste navegador, com as mesmas regras do banco ===== */
     _dg(g) {
-      const K = 'sqc-demo-diagnostico';
+      /* 330: na simulação o diagnóstico já vem com respostas fictícias (js/simulacao_dados.js), guardadas à parte, uma por data */
+      const K = SIM ? 'sqc-sim-diag-v1-' + SIM.dia : 'sqc-demo-diagnostico';
       let o = null;
       try {
         o = JSON.parse(ler(K));
       } catch (e) {
         o = null;
       }
-      if (!o || !Array.isArray(o.links) || !Array.isArray(o.respostas)) o = { links: [], respostas: [] };
+      if (!o || !Array.isArray(o.links) || !Array.isArray(o.respostas))
+        o = SIM && SIM.diagnostico ? JSON.parse(JSON.stringify(SIM.diagnostico)) : { links: [], respostas: [] };
       if (g) {
         g(o);
         gravar(K, JSON.stringify(o));
@@ -1646,8 +1648,15 @@
       return R.diagLimpar(dados);
     },
     async diagnosticoVer(token) {
-      const l = this._dg().links.find(x => x.token === token);
-      return l && this._dgAberto(l) ? l.territorio : null;
+      /* 331 (script 88): cada abertura do link é contada (vezes, não pessoas) */
+      let territorio = null;
+      this._dg(o => {
+        const l = o.links.find(x => x.token === token);
+        if (!l || !this._dgAberto(l)) return;
+        l.aberturas = Math.min((l.aberturas || 0) + 1, 1000000);
+        territorio = l.territorio;
+      });
+      return territorio;
     },
     async diagnosticoEnviar(token, dados) {
       const limpo = this._dgConferir(dados);
@@ -1676,7 +1685,9 @@
           teto: l.teto,
           respostas: l.respostas,
           criado_em: l.criado_em,
-          criado_por_nome: l.criado_por_nome
+          criado_por_nome: l.criado_por_nome,
+          aberturas: l.aberturas || 0,
+          copiavel: !!l.token && this._dgAberto(l)
         }))
         .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
     },
@@ -1706,8 +1717,15 @@
       if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar fecham o link.');
       this._dg(o => {
         const l = o.links.find(x => x.id === id);
-        if (l) l.status = 'fechado';
+        if (l && l.status === 'aberto') Object.assign(l, { status: 'fechado', token: null });
       });
+    },
+    async diagnosticoLinkCopiar(id) {
+      if (!this._dgGestao()) throw falha('Só a coordenação e o auxiliar copiam o link.');
+      const l = this._dg().links.find(x => x.id === id);
+      if (!l || !this._dgAberto(l)) throw falha('Este link foi fechado ou venceu. Libere outro.');
+      if (!l.token) throw falha('Este link é anterior a 27/11/2026 e o endereço dele não ficou guardado. Feche-o e libere outro.');
+      return l.token;
     },
     async diagnosticosListar() {
       return this._dgGestao() ? this._dg().respostas.map(x => Object.assign({}, x)) : [];
@@ -1954,6 +1972,7 @@
       try {
         G.localStorage.removeItem(CHAVE);
         G.localStorage.removeItem(CHAVE + '-eu');
+        if (SIM) G.localStorage.removeItem('sqc-sim-diag-v1-' + SIM.dia);
       } catch (e) {}
     }
   };

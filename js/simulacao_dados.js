@@ -263,6 +263,8 @@
       'Senador Elói de Souza'
     ];
     const CE = ['Mulungu', 'Baturité', 'Guaramiranga', 'Pacoti', 'Aratuba', 'Capistrano', 'Redenção', 'Palmácia'];
+    /* 330 (decisão da coordenação): o Sertão do Apodi também tem unidades produtivas acompanhadas, atendidas pelo polo de apoio do campus */
+    const AP = ['Apodi', 'Caraúbas', 'Felipe Guerra', 'Umarizal', 'Itaú', 'Severiano Melo', 'Upanema', 'Governador Dix-Sept Rosado'];
     const lugares = [
       'Assentamento Esperança',
       'Sítio Lagoa Seca',
@@ -295,15 +297,19 @@
       'Mandioca'
     ];
     db.agricultores = [];
-    const usados = new Set();
+    const usados = new Set(),
+      previstas = [];
     for (let i = 0; i < 32; i++) {
-      const ce = i % 2 === 1,
+      const ap = i < 30 && i % 5 === 4 /* seis das 30 da meta ficam no Sertão do Apodi */,
+        ce = !ap && i % 2 === 1,
         mulher = i % 3 !== 2;
       let nome;
       do {
         nome = `${um(mulher ? mulheres : homens)} ${um(sobren)} ${um(sobren)}`;
       } while (usados.has(nome));
       usados.add(nome);
+      if (i < 30)
+        previstas.push({ i, nome, mulher, ce, ap }); /* 330: as 30 da meta respondem ao diagnóstico antes de virar unidade produtiva */
       const diag = i < 30 ? mais('2026-09-15', Math.floor(i * 6.2) + entre(0, 4)) : mais('2027-06-01', i);
       if (!ja(diag)) continue;
       const kitdata = i < 30 ? mais('2026-12-05', Math.floor(i * 5.4) + entre(0, 3)) : '';
@@ -313,10 +319,10 @@
         id: id('a'),
         nome: `${nome} (${mulher ? 'fictícia' : 'fictício'})`,
         comunidade: um(lugares),
-        municipio: um(ce ? CE : RN),
+        municipio: um(ap ? AP : ce ? CE : RN),
         uf: ce ? 'CE' : 'RN',
-        territorio: ce ? 'Maciço de Baturité/CE' : 'Potengi/RN',
-        unidade: ce ? 'u2' : 'u1',
+        territorio: ap ? 'Sertão do Apodi/RN' : ce ? 'Maciço de Baturité/CE' : 'Potengi/RN',
+        unidade: ap ? 'u3' : ce ? 'u2' : 'u1',
         culturas: um(culturas),
         area: entre(3, 30) / 10,
         diag,
@@ -703,7 +709,7 @@
     });
     db.visitas.forEach(v => {
       const a = db.agricultores.find(x => x.id === v.agricultor) || {},
-        b = BASE[a.uf] || BASE.RN;
+        b = (a.unidade === 'u3' && BASE.u3) || BASE[a.uf] || BASE.RN;
       Object.assign(v, perto(b[0], b[1]));
       v.problemas = v.problemas || 'Nenhum problema relatado.';
     });
@@ -834,6 +840,149 @@
         }[p.perfil] ||
         '';
     });
+
+    /* ---------- 330: diagnóstico territorial (respostas FICTÍCIAS) ----------
+         A coordenação notou que a simulação não mostrava o diagnóstico: as 30 unidades produtivas apareciam prontas, sem a história de onde
+         vieram. Agora: um link por território liberado em 20/08/2026; 55 famílias respondem até 12/09 (as 30 da meta, 12 no Potengi, 12 em
+         Baturité e 6 no Sertão do Apodi, e outras 25, estas com sorteio à parte, para não mexer no resto da simulação); em 14/09 a
+         coordenação seleciona as 30 e diz "não" às demais, menos às duas últimas de cada território, que ainda esperam leitura. A resposta
+         selecionada fica ligada à unidade produtiva assim que ela é cadastrada. Fica fora do db: a api-demo lê de SQC.SIMULACAO.diagnostico. */
+    {
+      let sd = 20261127;
+      const sorteD = () => {
+          sd |= 0;
+          sd = (sd + 0x6d2b79f5) | 0;
+          let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        },
+        umD = l => l[Math.floor(sorteD() * l.length)],
+        entreD = (a, b) => a + Math.floor(sorteD() * (b - a + 1)),
+        DG = D.DIAGNOSTICO,
+        TER = ['Potengi/RN', 'Maciço de Baturité/CE', 'Sertão do Apodi/RN'],
+        hora = (d, h) => `${d}T${String(h).padStart(2, '0')}:${String(entreD(0, 59)).padStart(2, '0')}:00.000Z`,
+        /* uma resposta completa e válida: cada pergunta visível ganha uma opção da própria lista */
+        responde = (nome, mulher, territorio, municipio) => {
+          const r = { territorio, municipio };
+          DG.CAMPOS.forEach(c => {
+            if (c.id === 'territorio' || c.id === 'municipio' || !R.diagVisivel(c, r)) return;
+            const ops = (c.ops || []).filter(o => o !== c.outro && o !== c.so);
+            if (c.tipo === 'aceite') r[c.id] = true;
+            else if (c.tipo === 'marca') r[c.id] = sorteD() < 0.75;
+            else if (c.tipo === 'tel') r[c.id] = (territorio.endsWith('CE') ? '85' : '84') + '9' + String(90000000 + entreD(0, 9999999));
+            else if (c.id === 'nome') r.nome = nome;
+            else if (c.id === 'comunidade') r.comunidade = umD(lugares);
+            else if (c.id === 'genero') r.genero = mulher ? 'Feminino' : 'Masculino';
+            else if (c.id === 'modo') r.modo = c.ops[0];
+            else if (c.id === 'interesse') r.interesse = umD(['3', '4', '4', '5', '5', '5']);
+            else if (c.id === 'naroca') r.naroca = entreD(1, 5);
+            else if (c.id === 'gasto') r.gasto = entreD(0, 60) * 10;
+            else if (c.id === 'km') r.km = entreD(2, 55);
+            else if (c.tipo === 'area') {
+              r.area = entreD(3, 60) / 10;
+              r.area_un = DG.UNIDADES_DE_AREA[0];
+            } else if (c.tipo === 'um') r[c.id] = umD(ops);
+            else if (c.tipo === 'varios') {
+              const q = Math.min(ops.length, c.max || 3, entreD(1, 3)),
+                v = [];
+              while (v.length < q) {
+                const o = umD(ops);
+                if (!v.includes(o)) v.push(o);
+              }
+              r[c.id] = ops.filter(o => v.includes(o));
+            } else if (c.tipo === 'number') r[c.id] = c.min || 0;
+          });
+          return R.diagLimpar(r);
+        },
+        links = TER.filter(() => ja('2026-08-20')).map((t, i) => ({
+          id: `dl-sim-${i + 1}`,
+          territorio: t,
+          token: ('simulacao' + i).padEnd(64, '0'),
+          status: ja('2026-09-13') ? 'fechado' : 'aberto',
+          expira_em: '2026-10-04T12:00:00.000Z',
+          teto: 300,
+          respostas: 0,
+          criado_em: '2026-08-20T12:00:00.000Z',
+          criado_por_nome: 'Coordenação (demonstração)'
+        })),
+        respostas = [],
+        entra = (k, nome, mulher, territorio, municipio, selecionada, agricultor, espera) => {
+          const dia0 = mais('2026-08-21', entreD(0, 22));
+          if (!ja(dia0)) return;
+          const limpo = responde(nome, mulher, territorio, municipio),
+            quando = hora(dia0, entreD(11, 22)),
+            /* as últimas respostas de cada território ainda esperam leitura */
+            decidiu = ja('2026-09-14') && (selecionada || !espera),
+            R0 = Object.assign({}, limpo),
+            lk = links.find(l => l.territorio === territorio);
+          ['nome', 'telefone', 'comunidade', 'aceite', 'aviso_versao', 'territorio', 'municipio', 'municipio_outro'].forEach(
+            x => delete R0[x]
+          );
+          lk.respostas++;
+          respostas.push({
+            id: `dg-sim-${k}`,
+            link: lk.id,
+            origem: 'link',
+            territorio,
+            municipio,
+            nome: limpo.nome,
+            telefone: limpo.telefone,
+            comunidade: limpo.comunidade || null,
+            respostas: R0,
+            aceite_em: quando,
+            situacao: decidiu ? (selecionada ? 'Selecionado' : 'Não selecionado') : 'Recebido',
+            indicado_por_nome: null,
+            indicado_em: null,
+            motivo_indicacao: null,
+            decidido_por_nome: decidiu ? 'Coordenação (demonstração)' : null,
+            decidido_em: decidiu ? '2026-09-14T15:00:00.000Z' : null,
+            motivo: decidiu
+              ? selecionada
+                ? 'Atende aos critérios do plano de trabalho e tem interesse em produzir bioinsumos.'
+                : 'As 30 vagas do plano de trabalho foram preenchidas neste ciclo.'
+              : null,
+            agricultor: agricultor || null,
+            anonimizado_em: null,
+            criado_em: quando,
+            atualizado_em: decidiu ? '2026-09-14T15:00:00.000Z' : quando
+          });
+        };
+      if (links.length) {
+        let k = 0;
+        previstas.forEach(pv => {
+          const a = db.agricultores.find(x => x.nome.startsWith(pv.nome + ' (')),
+            t = pv.ap ? 'Sertão do Apodi/RN' : pv.ce ? 'Maciço de Baturité/CE' : 'Potengi/RN';
+          entra(
+            ++k,
+            `${pv.nome} (${pv.mulher ? 'fictícia' : 'fictício'})`,
+            pv.mulher,
+            t,
+            a ? `${a.municipio}/${a.uf}` : umD(DG.MUNICIPIOS_DE[t]),
+            true,
+            a && a.id
+          );
+        });
+        const outros = new Set(previstas.map(pv => pv.nome));
+        [
+          ['Potengi/RN', 9],
+          ['Maciço de Baturité/CE', 8],
+          ['Sertão do Apodi/RN', 8]
+        ].forEach(([t, q]) => {
+          for (let j = 0; j < q; j++) {
+            const mulher = sorteD() < 0.6;
+            let nome;
+            do {
+              nome = `${umD(mulher ? mulheres : homens)} ${umD(sobren)} ${umD(sobren)}`;
+            } while (outros.has(nome) || usados.has(nome));
+            outros.add(nome);
+            entra(++k, `${nome} (${mulher ? 'fictícia' : 'fictício'})`, mulher, t, umD(DG.MUNICIPIOS_DE[t]), false, null, j >= q - 2);
+          }
+        });
+      }
+      /* 331: mais aberturas do que respostas, como acontece de verdade com formulário longo */
+      links.forEach(l => (l.aberturas = Math.round(l.respostas * (1.5 + sorteD() * 0.6))));
+      SQC.SIMULACAO.diagnostico = { links, respostas };
+    }
 
     /* carimbos: cada registro "criado" na própria data (o histórico e as listas ficam na ordem certa) */
     D.TABELAS.forEach(t =>
