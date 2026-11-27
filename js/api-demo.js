@@ -1157,6 +1157,12 @@
       if (mx) throw falha(mx); /* 48 */
       const msg = R.validar(db, tabela, r, ant);
       if (msg) throw falha(msg);
+      /* 332 (script 89): como o gatilho do banco, sem "Não conforme" não há decisão nem motivo guardados */
+      if (tabela === 'lotes' && r.analise_resultado !== 'Não conforme') {
+        r.analise_decisao = '';
+        r.analise_motivo = '';
+      }
+      if (tabela === 'lotes' && !r.analise_resultado && !r.analise_em) r.analise_valor = ''; /* sem análise não há o que foi medido */
       if (!ant) {
         r.id = r.id || SQC.novoId();
         r.criado_por = eu.id;
