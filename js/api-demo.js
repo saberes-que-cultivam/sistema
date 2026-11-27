@@ -616,7 +616,7 @@
         throw falha(
           tabela === 'entregas'
             ? 'Só a equipe do projeto anexa documento às entregas.'
-            : 'Só a coordenação e o auxiliar anexam documento à atividade e à biofábrica.'
+            : 'Só a coordenação e o auxiliar anexam documento à atividade, à biofábrica, à unidade produtiva e ao lote.'
         ); // como no banco (27, 34 e 40)
       const msg = R.validarDocumento(arquivo);
       if (msg) throw falha(msg);
@@ -890,7 +890,7 @@
     async enviarAnexo(tabela, registro, arquivo) {
       // como no banco (42): coordenação e auxiliar, até 10 por registro
       if (!eu || !['Coordenação', 'Auxiliar'].includes(eu.perfil))
-        throw falha('Só a coordenação e o auxiliar anexam documento à atividade e à biofábrica.');
+        throw falha('Só a coordenação e o auxiliar anexam documento à atividade, à biofábrica, à unidade produtiva e ao lote.');
       const msg = R.validarDocumento(arquivo);
       if (msg) throw falha(msg);
       if (!(db[tabela] || []).some(x => x.id === registro)) throw falha(R.MSG_EXCLUIDO);
@@ -1205,7 +1205,7 @@
         ); /* 30/10/2026 (homologação F1-04): como o banco (41), código de lote excluído não volta a outro lote */
       this._lixo[tabela + ':' + id] = { r: JSON.parse(JSON.stringify(r)), quem: eu && eu.id, em: Date.now(), pres };
       db[tabela] = db[tabela].filter(x => x.id !== id);
-      if (['eventos', 'unidades', 'agricultores'].includes(tabela)) db.anexos = (db.anexos || []).filter(a => a.registro !== id);
+      if (['eventos', 'unidades', 'agricultores', 'lotes'].includes(tabela)) db.anexos = (db.anexos || []).filter(a => a.registro !== id);
       persistir();
     },
     _lixo: {},
