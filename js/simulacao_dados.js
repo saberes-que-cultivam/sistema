@@ -665,6 +665,13 @@
         criado_em: `${quando}T15:00:00.000Z`,
         atualizado_em: `${quando}T15:00:00.000Z`
       });
+    db.agricultores.forEach((a, i) => {
+      if (i % 3 === 2) return; /* uma em cada três fica sem ponto, como acontece em campo */
+      const b = BASE[a.unidade] || BASE[a.uf] || BASE.RN;
+      a.lat = +(b[0] + ((((i * 37) % 100) - 50) / 100) * 0.12).toFixed(6);
+      a.lng = +(b[1] + ((((i * 53) % 100) - 50) / 100) * 0.12).toFixed(6);
+      a.precisao = 5 + (i % 12);
+    });
     db.unidades.forEach(u => {
       const b = BASE[u.id] || BASE[u.uf] || BASE.RN;
       Object.assign(u, perto(b[0], b[1]), { lat: +b[0].toFixed(6), lng: +b[1].toFixed(6), precisao: 6 });
