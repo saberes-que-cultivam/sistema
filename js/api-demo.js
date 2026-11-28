@@ -1218,6 +1218,7 @@
       const nomeAntes = a.nome;
       a.nome = 'Titular anonimizado';
       a.comunidade = null;
+      a.lat = a.lng = a.precisao = null; /* como o 94: a localização da casa sai junto */
       db.visitas
         .filter(v => v.agricultor === id)
         .forEach(v => {
